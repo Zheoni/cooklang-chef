@@ -1,0 +1,30 @@
+[package]
+name = "cooklang"
+version = "0.1.0"
+edition = "2021"
+authors = ["Zheoni <zheoni@outlook.es>"]
+
+
+[dependencies]
+bitflags = "1.3"
+regex = "1.7"
+serde = { version = "1", features = ["derive", "rc"] }
+serde_with = "2"
+strum = { version = "0.24", features = ["derive"] }
+thiserror = "1.0"
+url = { version = "2.3", features = ["serde"] }
+miette = { version = "5.5" }
+pest = "2.5"
+pest_derive = "2.5"
+indexmap = { version = "1.9", features = ["serde"] }
+emojis = "0.5"
+toml = "0.7"
+once_cell = "1.17"
+enum-map = { version = "2.4", features = ["serde"] }
+
+[dev-dependencies]
+yaml-rust = "0.4"
+
+[features]
+default = ["bundled_units"]
+bundled_units = []

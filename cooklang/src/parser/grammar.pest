@@ -1,0 +1,78 @@
+// WHITESPACE = _{ " " | "\t" }
+
+COMMENT = _{
+    "--" ~ (!NEWLINE ~ ANY)* ~ (!NEWLINE)?   // line comment
+    | "[-" ~ (!"-]" ~ ANY)* ~ "-]"?       // block comment
+}
+
+cooklang = { SOI ~ NEWLINE* ~ (line ~ line_end)* ~ line? ~ EOI }
+
+line = _{ metadata | section | step }
+line_end = _{ soft_break | NEWLINE+ }
+soft_break = { NEWLINE ~ !NEWLINE }
+
+section = { ("==" ~ section_name ~ "==") | "="{2,} }
+section_name = { (!"=" ~ text_item)+ }
+
+metadata = ${ ">>" ~ ws* ~ metadata_key ~ ":" ~ metadata_value }
+metadata_key = @{ (!":" ~ text_item)+ }
+metadata_value = @{ text_item* }
+
+step = { (component | text)+ }
+text = { ((!component_token ~ text_item)+) | text_item }
+
+component = { component_token ~ modifiers? ~ component_body ~ note? }
+component_token = { "@" | "#" | "~" }
+modifiers = ${ modifier+ }
+modifier = { "@" | "+" | "-" | "&" | "?" }
+note = { "(" ~ (!("("|")") ~ text_item)* ~ ")" }
+
+
+component_body = _{ no_name_component | multi_word_component | one_word_component }
+no_name_component = _{ close_component }
+one_word_component = @{ (!("-" | "{" | " ") ~ text_item)+ }
+multi_word_component = _{ name ~ ("|" ~ alias)? ~ close_component }
+name = { (!("{" | "|") ~ text_item)* }
+alias = { (!"{" ~ text_item)* }
+close_component = _{ (("{" ~ ws* ~ "}") | ("{" ~ quantity ~ "}")) }
+
+// TODO scaling
+// quantity = { value ~ (("|" ~ value)* | auto_scale)? ~ ("%" ~ unit)? }
+// auto_scale = { "*" }
+quantity = { ws* ~ (!LETTER ~ value ~ &ws+ ~ !unit_separator ~ unit | value ~ (unit_separator ~ unit)?) ~ ws* }
+unit_separator = { ws* ~ "%" ~ ws* }
+value = { mixed_number | fraction | range | number | value_text }
+unit = { (!"}" ~ text_item)* }
+
+value_text = { (!("%" | "}") ~ text_item)* }
+integer = @{ (!"0" ~ ASCII_DIGIT+) | ASCII_DIGIT ~ !ASCII_DIGIT }
+fraction = ${ regular_fraction | unicode_fraction }
+regular_fraction = ${ integer ~ ws* ~ "/" ~ ws* ~ integer }
+mixed_number = ${ integer ~ ws* ~ fraction }
+float = @{ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
+number = { float | integer }
+range = { number ~ ws* ~ "-" ~ ws* ~ number }
+unicode_fraction = {
+    "½" 
+    | "⅓" 
+    | "¼" 
+    | "⅕" 
+    | "⅙" 
+    | "⅐" 
+    | "⅛" 
+    | "⅑"
+    | "⅒" 
+    | "⅔" 
+    | "⅖" 
+    | "¾" 
+    | "⅗" 
+    | "⅜" 
+    | "⅘" 
+    | "⅚" 
+    | "⅝" 
+    | "⅞" 
+    | "↉" // just why?
+}
+
+text_item = @{ !NEWLINE ~ ANY }
+ws = _{ SPACE_SEPARATOR | "\t" }

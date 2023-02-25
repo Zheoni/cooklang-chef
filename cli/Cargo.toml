@@ -1,0 +1,18 @@
+[package]
+name = "cooklang-cli"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+owo-colors = { version = "3" }
+tabular = { version = "0.2", features = ["ansi-cell"] }
+supports-color = "2"
+serde_json = "1"
+miette = { version = "5.5", features = ["fancy"] }
+toml = "0.7"
+
+cooklang = { path = "../cooklang" }
