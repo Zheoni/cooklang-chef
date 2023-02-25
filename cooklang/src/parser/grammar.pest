@@ -30,7 +30,7 @@ note = { "(" ~ (!("("|")") ~ text_item)* ~ ")" }
 
 component_body = _{ no_name_component | multi_word_component | one_word_component }
 no_name_component = _{ close_component }
-one_word_component = @{ (!("-" | "{" | " ") ~ text_item)+ }
+one_word_component = @{ (!("-" | "{" | SPACE_SEPARATOR | "\t" | PUNCTUATION) ~ text_item)+ }
 multi_word_component = _{ name ~ ("|" ~ alias)? ~ close_component }
 name = { (!("{" | "|") ~ text_item)* }
 alias = { (!"{" ~ text_item)* }
