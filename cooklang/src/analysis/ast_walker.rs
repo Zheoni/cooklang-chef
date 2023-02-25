@@ -1,4 +1,6 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::ops::Range;
 use std::rc::Rc;
 
 use regex::Regex;
@@ -51,6 +53,8 @@ pub fn parse_ast<'a>(
         define_mode: DefineMode::All,
         duplicate_mode: DuplicateMode::New,
         context,
+
+        ingredient_locations: HashMap::default(),
     };
 
     walker.ast(ast);
@@ -68,6 +72,8 @@ struct Walker<'a, 'c> {
     define_mode: DefineMode,
     duplicate_mode: DuplicateMode,
     context: Context<AnalysisError, AnalysisWarning>,
+
+    ingredient_locations: HashMap<*const Ingredient<'a>, Range<usize>>,
 }
 
 #[derive(PartialEq)]
@@ -272,9 +278,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                 .map(Quantity::from_ast),
             note: ingredient.note.opt_take(),
             modifiers: ingredient.modifiers.take(),
-            references_to: None,
             referenced_from: Default::default(),
-            location,
         };
 
         let treat_as_reference = (new_igr.modifiers.contains(Modifiers::REF)
@@ -282,6 +286,7 @@ impl<'a, 'r> Walker<'a, 'r> {
             || same_name.is_some() && self.duplicate_mode == DuplicateMode::Reference)
             && !new_igr.modifiers.contains(Modifiers::NEW);
 
+        let mut references_to = None;
         if treat_as_reference {
             new_igr.modifiers |= Modifiers::REF; // mark as ref if not marked before
 
@@ -289,17 +294,19 @@ impl<'a, 'r> Walker<'a, 'r> {
                 // only the parent or the reference(s), not both because it can cause
                 // confusion when calcualting the total amount
                 if referenced.quantity.is_some() && new_igr.quantity.is_some() {
+                    let definition_span =
+                        self.ingredient_locations[&Rc::as_ptr(&referenced)].clone();
                     self.error(AnalysisError::ConflictingReferenceQuantities {
                         ingredient_name: new_igr.name.to_string(),
-                        definition_span: referenced.location.clone(),
-                        reference_span: new_igr.location.clone(),
+                        definition_span,
+                        reference_span: location.clone(),
                     });
                 }
-                new_igr.references_to = Some(referenced);
+                references_to = Some(referenced);
             } else {
                 self.error(AnalysisError::ReferenceNotFound {
                     name: new_igr.name.to_string(),
-                    reference_span: new_igr.location.clone(),
+                    reference_span: location.clone(),
                 });
             }
 
@@ -319,11 +326,13 @@ impl<'a, 'r> Walker<'a, 'r> {
         }
 
         let new_igr = Rc::new(new_igr);
-        if let Some(referenced) = &new_igr.references_to {
+        self.ingredient_locations
+            .insert(Rc::as_ptr(&new_igr), location);
+        if let Some(referenced) = references_to {
             referenced
                 .referenced_from
                 .borrow_mut()
-                .push(Rc::downgrade(&new_igr));
+                .push(Rc::clone(&new_igr));
         } else {
             self.content.ingredients.push(Rc::clone(&new_igr));
         }

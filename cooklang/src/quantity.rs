@@ -8,7 +8,7 @@ use crate::{
     parser::located::OptTake,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Quantity<'a> {
     pub value: Value<'a>,
     unit: Option<QuantityUnit<'a>>,
@@ -20,6 +20,12 @@ pub struct QuantityUnit<'a> {
     text: Cow<'a, str>,
     #[serde(skip)]
     unit: OnceCell<MaybeUnit>,
+}
+
+impl PartialEq for QuantityUnit<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
 }
 
 #[derive(Debug, Clone)]

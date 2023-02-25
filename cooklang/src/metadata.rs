@@ -3,7 +3,6 @@ use std::{borrow::Cow, ops::RangeInclusive};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use serde::{Deserialize, Serialize};
-use serde_with::skip_serializing_none;
 use thiserror::Error;
 use url::Url;
 
@@ -20,7 +19,6 @@ pub struct Metadata<'a> {
     pub slug: Option<String>,
     pub description: Option<&'a str>,
     pub tags: Vec<&'a str>,
-    #[serde(borrow)]
     pub emoji: Option<&'a str>,
     pub author: Option<NameAndUrl<'a>>,
     pub source: Option<NameAndUrl<'a>>,
@@ -30,7 +28,6 @@ pub struct Metadata<'a> {
     pub map: IndexMap<&'a str, &'a str>,
 }
 
-#[skip_serializing_none]
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct NameAndUrl<'a> {
@@ -38,7 +35,6 @@ pub struct NameAndUrl<'a> {
     pub url: Option<Url>,
 }
 
-#[skip_serializing_none]
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(untagged, deny_unknown_fields)]
 pub enum RecipeTime {

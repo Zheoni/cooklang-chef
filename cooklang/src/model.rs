@@ -1,8 +1,7 @@
 use std::{
     borrow::Cow,
     cell::{Ref, RefCell},
-    ops::Range,
-    rc::{Rc, Weak},
+    rc::Rc,
 };
 
 use serde::{Deserialize, Serialize};
@@ -13,7 +12,7 @@ use crate::{
     quantity::{Quantity, Value},
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Recipe<'a> {
     pub name: String,
     #[serde(borrow)]
@@ -24,7 +23,7 @@ pub struct Recipe<'a> {
     pub timers: Vec<Rc<Timer<'a>>>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Section<'a> {
     pub name: Option<Cow<'a, str>>,
     pub steps: Vec<Step<'a>>,
@@ -43,20 +42,20 @@ impl<'a> Section<'a> {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Step<'a> {
     pub items: Vec<Item<'a>>,
     pub is_text: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Item<'a> {
     Text(Cow<'a, str>),
     Component(Component<'a>),
     Temperature(Quantity<'a>),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Ingredient<'a> {
     pub name: Cow<'a, str>,
     pub alias: Option<Cow<'a, str>>,
@@ -64,9 +63,7 @@ pub struct Ingredient<'a> {
     pub note: Option<Cow<'a, str>>,
 
     pub(crate) modifiers: Modifiers,
-    pub(crate) references_to: Option<Rc<Self>>,
-    pub(crate) referenced_from: RefCell<Vec<Weak<Self>>>,
-    pub(crate) location: Range<usize>,
+    pub(crate) referenced_from: RefCell<Vec<Rc<Self>>>,
 }
 
 impl Ingredient<'_> {
@@ -86,28 +83,24 @@ impl Ingredient<'_> {
         self.modifiers.contains(Modifiers::REF)
     }
 
-    pub fn references_to(&self) -> Option<&Self> {
-        self.references_to.as_ref().map(|rc| rc.as_ref())
-    }
-
-    pub fn referenced_from(&self) -> Ref<Vec<Weak<Self>>> {
+    pub fn referenced_from(&self) -> Ref<Vec<Rc<Self>>> {
         self.referenced_from.borrow()
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Cookware<'a> {
     pub name: Cow<'a, str>,
     pub quantity: Option<Value<'a>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Timer<'a> {
     pub name: Option<Cow<'a, str>>,
     pub quantity: Quantity<'a>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Component<'a> {
     Ingredient(Rc<Ingredient<'a>>),
     Cookware(Rc<Cookware<'a>>),
