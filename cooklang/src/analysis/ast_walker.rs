@@ -108,12 +108,9 @@ impl<'a, 'r> Walker<'a, 'r> {
                     // added to their lists
                     if self.define_mode != DefineMode::Components {
                         if continue_last_step && !current_section.steps.is_empty() {
-                            current_section
-                                .steps
-                                .last_mut()
-                                .unwrap()
-                                .items
-                                .extend(new_step.items);
+                            let last_step = current_section.steps.last_mut().unwrap();
+                            last_step.items.push(Item::Text(" ".into()));
+                            last_step.items.extend(new_step.items);
                         } else {
                             current_section.steps.push(new_step);
                         }
