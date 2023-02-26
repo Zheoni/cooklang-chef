@@ -64,6 +64,7 @@ pub struct Ingredient<'a> {
 
     pub(crate) modifiers: Modifiers,
     pub(crate) referenced_from: RefCell<Vec<Rc<Self>>>,
+    pub(crate) defined_in_step: bool,
 }
 
 impl Ingredient<'_> {

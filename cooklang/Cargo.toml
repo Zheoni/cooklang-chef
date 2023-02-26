@@ -12,7 +12,7 @@ serde = { version = "1", features = ["derive", "rc"] }
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1.0"
 url = { version = "2.3", features = ["serde"] }
-miette = { version = "5.5" }
+miette = { version = "5.5", features = ["fancy"] }
 pest = "2.5"
 pest_derive = "2.5"
 indexmap = { version = "1.9", features = ["serde"] }

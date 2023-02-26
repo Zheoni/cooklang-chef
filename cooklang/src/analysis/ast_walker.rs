@@ -276,6 +276,7 @@ impl<'a, 'r> Walker<'a, 'r> {
             note: ingredient.note.opt_take(),
             modifiers: ingredient.modifiers.take(),
             referenced_from: Default::default(),
+            defined_in_step: self.define_mode != DefineMode::Components,
         };
 
         let treat_as_reference = (new_igr.modifiers.contains(Modifiers::REF)
@@ -288,9 +289,20 @@ impl<'a, 'r> Walker<'a, 'r> {
             new_igr.modifiers |= Modifiers::REF; // mark as ref if not marked before
 
             if let Some(referenced) = same_name {
-                // only the parent or the reference(s), not both because it can cause
-                // confusion when calcualting the total amount
-                if referenced.quantity.is_some() && new_igr.quantity.is_some() {
+                // When the ingredient is not defined in a step, only the definition
+                // or the references can have quantities.
+                // This is to aovis confusion when calculating the total amount.
+                //  - If the user defines the ingredient in a ingredient list with
+                //    a quantity and later references it with a quantity, what does
+                //    the definition quantity mean? total? partial and the reference
+                //    a portion used? Too messy. This situation is prohibited
+                //  - If the user defines the ingredient directly in a step, it's
+                //    quantity is used there, and the total is the sum of itself and
+                //    all of its references. All clear.
+                if referenced.quantity.is_some()
+                    && new_igr.quantity.is_some()
+                    && !referenced.defined_in_step
+                {
                     let definition_span =
                         self.ingredient_locations[&Rc::as_ptr(&referenced)].clone();
                     self.error(AnalysisError::ConflictingReferenceQuantities {

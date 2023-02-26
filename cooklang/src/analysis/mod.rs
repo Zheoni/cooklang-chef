@@ -61,11 +61,11 @@ pub enum AnalysisError {
     #[error("Conflicting ingredient reference quantities: {ingredient_name}")]
     #[diagnostic(
         code(cooklang::analysis::conflicting_reference_quantities),
-        help("Only the ingredient definition *OR* the reference(s) can have a quantity")
+        help("If the ingredient is not defined in a step, its references cannot have a quantity")
     )]
     ConflictingReferenceQuantities {
         ingredient_name: String,
-        #[label("defined here")]
+        #[label("defined outside step here")]
         definition_span: Range<usize>,
         #[label("referenced here")]
         reference_span: Range<usize>,
