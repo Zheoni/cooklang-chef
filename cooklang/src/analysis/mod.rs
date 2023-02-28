@@ -13,7 +13,7 @@ pub fn analyze_ast<'a>(
     input: &str,
     ast: crate::parser::ast::Ast<'a>,
     extensions: Extensions,
-    converter: Option<&Converter>,
+    converter: &Converter,
     warnings_as_errors: bool,
 ) -> Result<(RecipeContent<'a>, Vec<AnalysisWarning>), AnalysisReport> {
     let (content, context) = ast_walker::parse_ast(ast, extensions, converter);
@@ -112,6 +112,18 @@ pub enum AnalysisWarning {
     TextValueInReference {
         #[label]
         quantity_span: Range<usize>,
+    },
+
+    #[error("Incompatible units in reference prevents calculating total amount")]
+    IncompatibleUnits {
+        #[label]
+        a: Range<usize>,
+        #[label]
+        b: Range<usize>,
+
+        #[source]
+        #[diagnostic_source]
+        source: crate::quantity::IncompatibleUnits,
     },
 
     #[error("Invalid value for key: {key}. Treating it as a regular metadata key.")]

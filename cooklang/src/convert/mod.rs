@@ -10,7 +10,10 @@ use thiserror::Error;
 
 use crate::quantity::{Quantity, Value};
 
-use self::units_file::SIPrefix;
+use self::{
+    builder::ConverterBuilder,
+    units_file::{SIPrefix, UnitsFile},
+};
 
 pub mod builder;
 pub mod units_file;
@@ -21,8 +24,37 @@ pub struct Converter {
     unit_index: UnitIndex,
     quantity_index: EnumMap<PhysicalQuantity, Vec<usize>>,
     best: EnumMap<PhysicalQuantity, BestConversionsStore>,
+    default_system: System,
 
     temperature_regex: OnceCell<Regex>,
+}
+
+impl Converter {
+    pub fn builder() -> ConverterBuilder {
+        ConverterBuilder::new()
+    }
+
+    pub fn default_system(&self) -> System {
+        self.default_system
+    }
+}
+
+#[cfg(not(feature = "bundled_units"))]
+impl Default for Converter {
+    fn default() -> Self {
+        ConverterBuilder::new().finish().unwrap()
+    }
+}
+
+#[cfg(feature = "bundled_units")]
+impl Default for Converter {
+    fn default() -> Self {
+        ConverterBuilder::new()
+            .with_units_file(UnitsFile::bundled())
+            .unwrap()
+            .finish()
+            .unwrap()
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -45,6 +77,19 @@ pub struct Unit {
 impl Unit {
     fn all_keys(&self) -> impl Iterator<Item = &Arc<str>> {
         self.names.iter().chain(&self.symbols).chain(&self.aliases)
+    }
+
+    pub fn symbol(&self) -> &str {
+        self.symbols
+            .first()
+            .or_else(|| self.names.first())
+            .expect("symbol or name in unit")
+    }
+}
+
+impl std::fmt::Display for Unit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.symbol())
     }
 }
 
@@ -89,70 +134,57 @@ impl BestConversionsStore {
     }
 }
 
-impl Unit {
-    pub fn symbol(&self) -> &str {
-        self.symbols
-            .first()
-            .or_else(|| self.names.first())
-            .expect("symbol or name in unit")
-    }
-}
-
 impl Converter {
     pub fn convert<'t, F: ConvertFrom>(
         &self,
         from: F,
         to: impl Into<ConvertTo<'t>>,
-    ) -> Result<F::Output<'_>, ConvertError> {
+    ) -> Result<F::Output, ConvertError> {
         let value = from.convert_value()?;
         let unit = from.convert_unit()?;
-        let (value, unit_id) = self.convert_impl(value, unit, to.into())?;
-        let unit = &self.all_units[unit_id];
-        Ok(F::output(value, unit))
+        let to = to.into();
+        let (value, output_unit) = self.convert_impl(value, unit, to)?;
+        Ok(F::output(value, output_unit))
     }
 
-    fn convert_impl(
-        &self,
+    fn convert_impl<'a>(
+        &'a self,
         value: ConvertValue,
-        unit: &str,
+        unit: ConvertUnit,
         to: ConvertTo,
-    ) -> Result<(ConvertValue, usize), ConvertError> {
-        let unit_id = self.get_unit_id(unit)?;
+    ) -> Result<(ConvertValue, &'a Arc<Unit>), ConvertError> {
+        let unit = self.get_unit(&unit)?;
 
         match to {
-            ConvertTo::Unit(target_unit) => self.convert_to_unit(value, unit_id, target_unit),
-            ConvertTo::Best(system) => self.convert_to_system(value, unit_id, system),
+            ConvertTo::Unit(target_unit) => {
+                let to = self.get_unit(&target_unit)?;
+                self.convert_to_unit(value, unit, to)
+            }
+            ConvertTo::Best(system) => self.convert_to_best(value, unit, system),
         }
     }
 
-    fn convert_to_unit(
+    fn convert_to_unit<'a>(
         &self,
         value: ConvertValue,
-        unit_id: usize,
-        target_unit: &str,
-    ) -> Result<(ConvertValue, usize), ConvertError> {
-        let unit = &self.all_units[unit_id];
-        let target_unit_id = self.get_unit_id(target_unit)?;
-        let target_unit = &self.all_units[target_unit_id];
+        unit: &Arc<Unit>,
+        target_unit: &'a Arc<Unit>,
+    ) -> Result<(ConvertValue, &'a Arc<Unit>), ConvertError> {
         if unit.physical_quantity != target_unit.physical_quantity {
             return Err(ConvertError::MixedQuantities {
                 from: unit.physical_quantity,
                 to: target_unit.physical_quantity,
             });
         }
-        Ok((
-            self.convert_value(value, unit_id, target_unit_id),
-            target_unit_id,
-        ))
+        Ok((self.convert_value(value, unit, target_unit), target_unit))
     }
 
-    fn convert_to_system(
-        &self,
+    fn convert_to_best<'a>(
+        &'a self,
         value: ConvertValue,
-        unit_id: usize,
+        unit: &Arc<Unit>,
         system: System,
-    ) -> Result<(ConvertValue, usize), ConvertError> {
-        let unit = &self.all_units[unit_id];
+    ) -> Result<(ConvertValue, &'a Arc<Unit>), ConvertError> {
         let conversions = match &self.best[unit.physical_quantity] {
             BestConversionsStore::Unified(u) => u,
             BestConversionsStore::BySystem { metric, imperial } => match system {
@@ -161,13 +193,13 @@ impl Converter {
             },
         };
 
-        let best_unit = conversions.best_unit(self, &value, unit_id);
-        let converted = self.convert_value(value, unit_id, best_unit);
+        let best_unit = conversions.best_unit(self, &value, unit);
+        let converted = self.convert_value(value, unit, best_unit);
 
         Ok((converted, best_unit))
     }
 
-    fn convert_value(&self, value: ConvertValue, from: usize, to: usize) -> ConvertValue {
+    fn convert_value(&self, value: ConvertValue, from: &Arc<Unit>, to: &Arc<Unit>) -> ConvertValue {
         match value {
             ConvertValue::Number(n) => ConvertValue::Number(self.convert_f64(n, from, to)),
             ConvertValue::Range(r) => {
@@ -178,19 +210,20 @@ impl Converter {
         }
     }
 
-    fn convert_f64(&self, value: f64, from_id: usize, to_id: usize) -> f64 {
-        if from_id == to_id {
+    fn convert_f64(&self, value: f64, from: &Arc<Unit>, to: &Arc<Unit>) -> f64 {
+        if Arc::ptr_eq(from, to) {
             return value;
         }
-
-        let from = &self.all_units[from_id];
-        let to = &self.all_units[to_id];
-
         convert_f64(value, from, to)
     }
 
-    fn get_unit_id(&self, unit: &str) -> Result<usize, UnknownUnit> {
-        self.unit_index.get_unit_id(unit)
+    pub fn get_unit<'a>(&'a self, unit: &ConvertUnit) -> Result<&'a Arc<Unit>, UnknownUnit> {
+        let id = match unit {
+            ConvertUnit::Unit(u) => self.unit_index.get_unit_id(u.symbol())?,
+            ConvertUnit::UnitId(id) => *id,
+            ConvertUnit::Key(key) => self.unit_index.get_unit_id(key)?,
+        };
+        Ok(&self.all_units[id])
     }
 }
 
@@ -219,30 +252,38 @@ impl BestConversions {
         self.0.first().map(|c| c.1).expect("empty best conversions")
     }
 
-    fn best_unit(&self, converter: &Converter, value: &ConvertValue, unit_id: usize) -> usize {
+    fn best_unit<'a>(
+        &self,
+        converter: &'a Converter,
+        value: &ConvertValue,
+        unit: &Arc<Unit>,
+    ) -> &'a Arc<Unit> {
         let value = match value {
             ConvertValue::Number(n) => n.abs(),
             ConvertValue::Range(r) => r.start().abs(),
         };
-        let base_unit = self.base();
-        let norm = converter.convert_f64(value, unit_id, base_unit);
+        let base_unit_id = self.base();
+        let base_unit = &converter.all_units[base_unit_id];
+        let norm = converter.convert_f64(value, unit, base_unit);
 
-        self.0
+        let best_id = self
+            .0
             .iter()
             .filter_map(|c| (norm >= c.0).then_some(c))
             .last()
             .or_else(|| self.0.last())
             .map(|c| c.1)
-            .expect("empty best units")
+            .expect("empty best units");
+        &converter.all_units[best_id]
     }
 }
 
 pub trait ConvertFrom {
     fn convert_value(&self) -> Result<ConvertValue, ConvertError>;
-    fn convert_unit(&self) -> Result<&str, ConvertError>;
+    fn convert_unit(&self) -> Result<ConvertUnit, ConvertError>;
 
-    type Output<'a>;
-    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output<'_>;
+    type Output;
+    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output;
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -251,19 +292,34 @@ pub enum ConvertValue {
     Range(RangeInclusive<f64>),
 }
 
-pub enum ConvertTo<'a> {
-    Best(System),
-    Unit(&'a str),
+pub enum ConvertUnit<'a> {
+    Unit(&'a Arc<Unit>),
+    UnitId(usize),
+    Key(&'a str),
 }
 
+pub enum ConvertTo<'a> {
+    Best(System),
+    Unit(ConvertUnit<'a>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum System {
+    #[default]
     Metric,
     Imperial,
 }
 
+impl<'a> From<&'a str> for ConvertUnit<'a> {
+    fn from(value: &'a str) -> Self {
+        Self::Key(value)
+    }
+}
+
 impl<'a> From<&'a str> for ConvertTo<'a> {
     fn from(value: &'a str) -> Self {
-        Self::Unit(value)
+        Self::Unit(ConvertUnit::Key(value))
     }
 }
 
@@ -273,7 +329,13 @@ impl From<System> for ConvertTo<'_> {
     }
 }
 
-impl ConvertFrom for Quantity<'_> {
+impl<'a> From<&'a Arc<Unit>> for ConvertTo<'a> {
+    fn from(value: &'a Arc<Unit>) -> Self {
+        Self::Unit(ConvertUnit::Unit(value))
+    }
+}
+
+impl ConvertFrom for &Quantity<'_> {
     fn convert_value(&self) -> Result<ConvertValue, ConvertError> {
         match &self.value {
             Value::Number(n) => Ok(ConvertValue::Number(*n)),
@@ -282,36 +344,20 @@ impl ConvertFrom for Quantity<'_> {
         }
     }
 
-    fn convert_unit(&self) -> Result<&str, ConvertError> {
+    fn convert_unit(&self) -> Result<ConvertUnit, ConvertError> {
         match self.unit().map(|u| u.text()) {
-            Some(u) => Ok(u),
+            Some(u) => Ok(ConvertUnit::Key(u)),
             None => Err(ConvertError::NoUnit(self.value.clone().into_owned())),
         }
     }
 
-    type Output<'a> = Quantity<'a>;
-    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output<'_> {
-        Quantity::with_known_unit(value.into(), unit.symbol().into(), Some(Arc::clone(unit)))
-    }
-}
-
-impl ConvertFrom for (f64, &str) {
-    fn convert_value(&self) -> Result<ConvertValue, ConvertError> {
-        Ok(ConvertValue::Number(self.0))
-    }
-
-    fn convert_unit(&self) -> Result<&str, ConvertError> {
-        Ok(self.1)
-    }
-
-    type Output<'a> = (f64, &'a str);
-    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output<'_> {
-        let value = match value {
-            ConvertValue::Number(n) => n,
-            ConvertValue::Range(_) => panic!("got range from converting number"),
-        };
-
-        (value, unit.symbol())
+    type Output = Quantity<'static>;
+    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output {
+        Quantity::with_known_unit(
+            value.into(),
+            unit.symbol().to_string().into(), // TODO unnecesary alloc
+            Some(Arc::clone(unit)),
+        )
     }
 }
 
@@ -395,10 +441,5 @@ impl Converter {
                 .size_limit(500_000)
                 .build()
         })
-    }
-
-    pub fn get_unit(&self, unit: &str) -> Result<&Arc<Unit>, UnknownUnit> {
-        let id = self.get_unit_id(unit)?;
-        Ok(&self.all_units[id])
     }
 }

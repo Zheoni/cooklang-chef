@@ -10,7 +10,7 @@ pub mod quantity;
 use bitflags::bitflags;
 use convert::Converter;
 use error::{CookResult, CooklangWarning};
-use model::Recipe;
+pub use model::Recipe;
 
 bitflags! {
     pub struct Extensions: u32 {
@@ -35,31 +35,72 @@ impl Default for Extensions {
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CooklangParser {
+    extensions: Extensions,
+    warnings_as_errors: bool,
+    converter: Converter,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct CooklangParserBuilder {
     extensions: Extensions,
     warnings_as_errors: bool,
     converter: Option<Converter>,
 }
 
-impl CooklangParser {
-    pub fn new() -> Self {
-        Self::default()
+impl CooklangParserBuilder {
+    pub fn with_converter(mut self, converter: Converter) -> Self {
+        self.set_converter(converter);
+        self
     }
 
-    pub fn with_converter(&mut self, converter: Converter) -> &mut Self {
+    pub fn set_converter(&mut self, converter: Converter) -> &mut Self {
         self.converter = Some(converter);
         self
     }
 
-    pub fn with_extensions(&mut self, extensions: Extensions) -> &mut Self {
+    pub fn with_extensions(mut self, extensions: Extensions) -> Self {
+        self.set_extensions(extensions);
+        self
+    }
+
+    pub fn set_extensions(&mut self, extensions: Extensions) -> &mut Self {
         self.extensions = extensions;
         self
     }
 
-    pub fn warnings_as_errors(&mut self, as_err: bool) -> &mut Self {
+    pub fn warnings_as_errors(mut self, as_err: bool) -> Self {
+        self.set_warnings_as_errors(as_err);
+        self
+    }
+
+    pub fn set_warnings_as_errors(&mut self, as_err: bool) -> &mut Self {
         self.warnings_as_errors = as_err;
         self
+    }
+
+    pub fn finish(self) -> CooklangParser {
+        let converter = self.converter.unwrap_or_default();
+        CooklangParser {
+            extensions: self.extensions,
+            warnings_as_errors: self.warnings_as_errors,
+            converter,
+        }
+    }
+}
+
+impl CooklangParser {
+    pub fn builder() -> CooklangParserBuilder {
+        CooklangParserBuilder::default()
+    }
+
+    pub fn converter(&self) -> &Converter {
+        &self.converter
+    }
+
+    pub fn extensions(&self) -> Extensions {
+        self.extensions
     }
 
     pub fn parse<'a>(
@@ -75,7 +116,7 @@ impl CooklangParser {
             input,
             ast,
             self.extensions,
-            self.converter.as_ref(),
+            &self.converter,
             self.warnings_as_errors,
         )?;
         warn.extend(w.into_iter().map(CooklangWarning::from));
@@ -98,5 +139,5 @@ pub fn parse<'a>(
     input: &'a str,
     recipe_name: &str,
 ) -> CookResult<(Recipe<'a>, Vec<CooklangWarning>)> {
-    CooklangParser::new().parse(input, recipe_name)
+    CooklangParser::default().parse(input, recipe_name)
 }

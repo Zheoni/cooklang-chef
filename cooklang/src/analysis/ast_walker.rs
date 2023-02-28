@@ -27,21 +27,19 @@ pub struct RecipeContent<'a> {
 pub fn parse_ast<'a>(
     ast: ast::Ast<'a>,
     extensions: Extensions,
-    converter: Option<&Converter>,
+    converter: &Converter,
 ) -> (RecipeContent<'a>, Context<AnalysisError, AnalysisWarning>) {
     let mut context = Context::default();
-    let temperature_regex = converter.as_ref().and_then(|converter| {
-        extensions
-            .contains(Extensions::TEMPERATURE)
-            .then(|| match converter.temperature_regex() {
-                Ok(re) => Some(re),
-                Err(source) => {
-                    context.warn(AnalysisWarning::TemperatureRegexCompile { source });
-                    None
-                }
-            })
-            .flatten()
-    });
+    let temperature_regex = extensions
+        .contains(Extensions::TEMPERATURE)
+        .then(|| match converter.temperature_regex() {
+            Ok(re) => Some(re),
+            Err(source) => {
+                context.warn(AnalysisWarning::TemperatureRegexCompile { source });
+                None
+            }
+        })
+        .flatten();
 
     let mut walker = Walker {
         extensions,
@@ -65,7 +63,7 @@ pub fn parse_ast<'a>(
 struct Walker<'a, 'c> {
     extensions: Extensions,
     temperature_regex: Option<&'c Regex>,
-    converter: Option<&'c Converter>,
+    converter: &'c Converter,
 
     content: RecipeContent<'a>,
 
@@ -291,7 +289,7 @@ impl<'a, 'r> Walker<'a, 'r> {
             if let Some(referenced) = same_name {
                 // When the ingredient is not defined in a step, only the definition
                 // or the references can have quantities.
-                // This is to aovis confusion when calculating the total amount.
+                // This is to avoid confusion when calculating the total amount.
                 //  - If the user defines the ingredient in a ingredient list with
                 //    a quantity and later references it with a quantity, what does
                 //    the definition quantity mean? total? partial and the reference
@@ -311,6 +309,24 @@ impl<'a, 'r> Walker<'a, 'r> {
                         reference_span: location.clone(),
                     });
                 }
+
+                if self.extensions.contains(Extensions::ADVANCED_UNITS) {
+                    if let Some(new_quantity) = &new_igr.quantity {
+                        let referenced_from = referenced.referenced_from.borrow();
+                        let all_quantities = std::iter::once(&referenced)
+                            .chain(referenced_from.iter())
+                            .filter(|q| q.quantity.is_some());
+                        for igr in all_quantities {
+                            let q = igr.quantity.as_ref().unwrap();
+                            if let Err(e) = q.is_compatible(new_quantity, self.converter) {
+                                let a = self.ingredient_locations[&Rc::as_ptr(igr)].clone();
+                                let b = location.clone();
+                                self.warn(AnalysisWarning::IncompatibleUnits { a, b, source: e });
+                            }
+                        }
+                    }
+                }
+
                 references_to = Some(referenced);
             } else {
                 self.error(AnalysisError::ReferenceNotFound {
@@ -319,18 +335,14 @@ impl<'a, 'r> Walker<'a, 'r> {
                 });
             }
 
-            // a text value can't be processed when calculating the total sum of
-            // all ingredient references. valid, but not optimal
-            if matches!(
-                new_igr.quantity,
-                Some(Quantity {
-                    value: crate::quantity::Value::Text(_),
-                    ..
-                })
-            ) {
-                self.warn(AnalysisWarning::TextValueInReference {
-                    quantity_span: ingredient.quantity.unwrap().span(),
-                });
+            if let Some(quantity) = &new_igr.quantity {
+                // a text value can't be processed when calculating the total sum of
+                // all ingredient references. valid, but not optimal
+                if matches!(quantity.value, crate::quantity::Value::Text(_)) {
+                    self.warn(AnalysisWarning::TextValueInReference {
+                        quantity_span: ingredient.quantity.unwrap().span(),
+                    });
+                }
             }
         }
 
@@ -366,9 +378,9 @@ impl<'a, 'r> Walker<'a, 'r> {
         let (timer, span) = timer.take_pair();
 
         let quantity = Quantity::from_ast(timer.quantity.take());
-        if self.extensions.contains(Extensions::ADVANCED_UNITS) && self.converter.is_some() {
+        if self.extensions.contains(Extensions::ADVANCED_UNITS) {
             if let Some(unit) = quantity.unit() {
-                match unit.unit_or_parse(self.converter.unwrap()) {
+                match unit.unit_or_parse(self.converter) {
                     MaybeUnit::Known(unit) => {
                         if unit.physical_quantity != PhysicalQuantity::Time {
                             self.error(AnalysisError::BadTimerUnit {

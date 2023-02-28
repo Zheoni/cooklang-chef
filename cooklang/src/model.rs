@@ -7,9 +7,10 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    convert::Converter,
     metadata::Metadata,
     parser::ast::Modifiers,
-    quantity::{Quantity, Value},
+    quantity::{Quantity, QuantityAddError, Value},
 };
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -86,6 +87,28 @@ impl Ingredient<'_> {
 
     pub fn referenced_from(&self) -> Ref<Vec<Rc<Self>>> {
         self.referenced_from.borrow()
+    }
+
+    pub fn total_quantity(
+        &self,
+        converter: &Converter,
+    ) -> Result<Option<Quantity>, QuantityAddError> {
+        let mut quantities = self.all_quantities().into_iter();
+
+        let Some(mut total) = quantities.next() else { return Ok(None); };
+        for q in quantities {
+            total = total.try_add(&q, converter)?;
+        }
+
+        Ok(Some(total))
+    }
+
+    pub fn all_quantities(&self) -> Vec<Quantity> {
+        let referenced_from = self.referenced_from.borrow();
+        std::iter::once(&self.quantity)
+            .chain(referenced_from.iter().map(|i| &i.quantity))
+            .filter_map(|q| q.to_owned())
+            .collect()
     }
 }
 

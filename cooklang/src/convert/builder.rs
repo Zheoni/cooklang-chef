@@ -7,30 +7,31 @@ use thiserror::Error;
 use super::{
     convert_f64,
     units_file::{BestUnits, Extend, Precedence, SIPrefix, UnitsFile, SI},
-    BestConversions, BestConversionsStore, Converter, PhysicalQuantity, Unit, UnitIndex,
+    BestConversions, BestConversionsStore, Converter, PhysicalQuantity, System, Unit, UnitIndex,
     UnknownUnit,
 };
 
+#[derive(Default)]
 pub struct ConverterBuilder {
     all_units: Vec<Unit>,
     unit_index: UnitIndex,
     extend: Vec<Extend>,
     si: SI,
     best_units: EnumMap<PhysicalQuantity, Option<BestUnits>>,
+    default_system: System,
 }
 
 impl ConverterBuilder {
     pub fn new() -> Self {
-        Self {
-            all_units: Default::default(),
-            unit_index: Default::default(),
-            extend: Default::default(),
-            si: Default::default(),
-            best_units: Default::default(),
-        }
+        Self::default()
     }
 
-    pub fn add_units_file(&mut self, units: UnitsFile) -> Result<(), ConverterBuilderError> {
+    pub fn with_units_file(mut self, units: UnitsFile) -> Result<Self, ConverterBuilderError> {
+        self.add_units_file(units)?;
+        Ok(self)
+    }
+
+    pub fn add_units_file(&mut self, units: UnitsFile) -> Result<&mut Self, ConverterBuilderError> {
         for group in units.quantity {
             // Add all units to an index
             for unit in group.units {
@@ -68,7 +69,11 @@ impl ConverterBuilder {
             self.si.precedence = si.precedence;
         }
 
-        Ok(())
+        if let Some(default_system) = units.default_system {
+            self.default_system = default_system;
+        }
+
+        Ok(self)
     }
 
     pub fn finish(mut self) -> Result<Converter, ConverterBuilderError> {
@@ -154,6 +159,7 @@ impl ConverterBuilder {
             unit_index: self.unit_index,
             quantity_index,
             best,
+            default_system: self.default_system,
             temperature_regex: Default::default(),
         })
     }

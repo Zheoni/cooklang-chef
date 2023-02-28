@@ -3,11 +3,12 @@ use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
-use super::PhysicalQuantity;
+use super::{PhysicalQuantity, System};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct UnitsFile {
+    pub default_system: Option<System>,
     pub si: Option<SI>,
     pub extend: Option<Extend>,
     pub quantity: Vec<QuantityGroup>,

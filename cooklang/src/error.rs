@@ -30,7 +30,7 @@ pub enum CooklangWarning {
     Analysis(#[from] crate::analysis::AnalysisWarning),
 }
 
-pub fn print_warnings(input: &str, warnings: &[CooklangWarning]) {
+pub fn print_warnings(input: &str, warnings: &[CooklangWarning], color: bool) {
     if warnings.is_empty() {
         return;
     }
@@ -46,7 +46,12 @@ pub fn print_warnings(input: &str, warnings: &[CooklangWarning]) {
         warnings: &'b [CooklangWarning],
     }
 
-    let handler = miette::GraphicalReportHandler::new();
+    let theme = if color {
+        miette::GraphicalTheme::default()
+    } else {
+        miette::GraphicalTheme::unicode_nocolor()
+    };
+    let handler = miette::GraphicalReportHandler::new_themed(theme);
     let mut s = String::new();
     let report = Report { input, warnings };
     handler.render_report(&mut s, &report).unwrap();
