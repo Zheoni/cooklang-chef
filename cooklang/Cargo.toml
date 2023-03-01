@@ -20,6 +20,7 @@ emojis = "0.5"
 toml = "0.7"
 once_cell = "1.17"
 enum-map = { version = "2.4", features = ["serde"] }
+humantime = "2"
 
 [dev-dependencies]
 yaml-rust = "0.4"

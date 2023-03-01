@@ -73,25 +73,25 @@ impl<'a> Metadata<'a> {
             }
             "author" => self.author = Some(NameAndUrl::new(value)),
             "source" => self.source = Some(NameAndUrl::new(value)),
-            "time" => self.time = Some(RecipeTime::Total(value.parse()?)),
-            "prep_time" => {
+            "time" => self.time = Some(RecipeTime::Total(parse_time(value)?)),
+            "prep_time" | "prep time" => {
                 let cook_time = self.time.and_then(|t| match t {
                     RecipeTime::Total(_) => None,
                     RecipeTime::Composed { cook_time, .. } => cook_time,
                 });
                 self.time = Some(RecipeTime::Composed {
-                    prep_time: Some(value.parse()?),
+                    prep_time: Some(parse_time(value)?),
                     cook_time,
                 });
             }
-            "cook_time" => {
+            "cook_time" | "cook time" => {
                 let prep_time = self.time.and_then(|t| match t {
                     RecipeTime::Total(_) => None,
                     RecipeTime::Composed { prep_time, .. } => prep_time,
                 });
                 self.time = Some(RecipeTime::Composed {
                     prep_time,
-                    cook_time: Some(value.parse()?),
+                    cook_time: Some(parse_time(value)?),
                 });
             }
             "servings" => self.servings = Some(value.parse()?),
@@ -99,6 +99,14 @@ impl<'a> Metadata<'a> {
         }
 
         Ok(())
+    }
+}
+
+/// Returns minutes
+fn parse_time(s: &str) -> Result<u32, std::num::ParseIntError> {
+    match humantime::parse_duration(s) {
+        Ok(duration) => Ok((duration.as_secs_f64() / 60.0).round() as u32),
+        Err(_) => s.parse(),
     }
 }
 
