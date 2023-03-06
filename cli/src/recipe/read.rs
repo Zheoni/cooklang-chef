@@ -63,11 +63,11 @@ pub fn run(parser: &CooklangParser, args: ReadArgs) -> Result<()> {
         } else {
             ScaleTarget::new(1, scale, &[])
         };
-        recipe.scale(target)
+        recipe.scale(target, parser.converter())
     } else if let Some(servings) = &recipe.metadata.servings {
         let Some(base) = servings.first().copied() else { bail!("Empty servings list") };
         let target = ScaleTarget::new(base, base, servings);
-        recipe.scale(target)
+        recipe.scale(target, parser.converter())
     } else {
         recipe.skip_scaling()
     };

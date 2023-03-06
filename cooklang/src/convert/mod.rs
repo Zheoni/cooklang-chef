@@ -68,6 +68,7 @@ pub struct Unit {
     pub ratio: f64,
     pub difference: f64,
     pub physical_quantity: PhysicalQuantity,
+    pub system: Option<System>,
     #[serde(skip)]
     expand_si: bool,
     #[serde(skip)]
@@ -161,6 +162,9 @@ impl Converter {
                 self.convert_to_unit(value, unit, to)
             }
             ConvertTo::Best(system) => self.convert_to_best(value, unit, system),
+            ConvertTo::SameSystem => {
+                self.convert_to_best(value, unit, unit.system.unwrap_or(self.default_system))
+            }
         }
     }
 
@@ -299,11 +303,12 @@ pub enum ConvertUnit<'a> {
 }
 
 pub enum ConvertTo<'a> {
+    SameSystem,
     Best(System),
     Unit(ConvertUnit<'a>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum System {
     #[default]

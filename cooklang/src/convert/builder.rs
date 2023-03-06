@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use super::{
     convert_f64,
-    units_file::{BestUnits, Extend, Precedence, SIPrefix, UnitsFile, SI},
+    units_file::{BestUnits, Extend, Precedence, SIPrefix, UnitEntry, Units, UnitsFile, SI},
     BestConversions, BestConversionsStore, Converter, PhysicalQuantity, System, Unit, UnitIndex,
     UnknownUnit,
 };
@@ -34,19 +34,37 @@ impl ConverterBuilder {
     pub fn add_units_file(&mut self, units: UnitsFile) -> Result<&mut Self, ConverterBuilderError> {
         for group in units.quantity {
             // Add all units to an index
-            for unit in group.units {
-                let unit = Unit {
-                    names: unit.names,
-                    symbols: unit.symbols,
-                    aliases: unit.aliases,
-                    ratio: unit.ratio,
-                    difference: unit.difference,
-                    physical_quantity: group.quantity,
-                    expand_si: unit.expand_si,
-                    expanded_units: None,
+            let mut add_units =
+                |units: Vec<UnitEntry>, system| -> Result<(), ConverterBuilderError> {
+                    for unit in units {
+                        let unit = Unit {
+                            names: unit.names,
+                            symbols: unit.symbols,
+                            aliases: unit.aliases,
+                            ratio: unit.ratio,
+                            difference: unit.difference,
+                            physical_quantity: group.quantity,
+                            expand_si: unit.expand_si,
+                            expanded_units: None,
+                            system,
+                        };
+                        let _id = self.add_unit(unit)?;
+                    }
+                    Ok(())
                 };
-                let _id = self.add_unit(unit)?;
-            }
+            match group.units {
+                Units::Unified(units) => add_units(units, None)?,
+                Units::BySystem {
+                    metric,
+                    imperial,
+                    unspecified,
+                } => {
+                    add_units(metric, Some(System::Metric))?;
+                    add_units(imperial, Some(System::Imperial))?;
+                    add_units(unspecified, None)?;
+                }
+            };
+
             // store best units. this will always override
             if let Some(best_units) = group.best {
                 self.best_units[group.quantity] = Some(best_units);
@@ -132,7 +150,7 @@ impl ConverterBuilder {
         let best = enum_map! {
             q =>  {
                 if let Some(best_units) = &self.best_units[q] {
-                    let c = BestConversionsStore::new(best_units, &self.unit_index, &self.all_units)?;
+                    let c = BestConversionsStore::new(best_units, &self.unit_index, &mut self.all_units)?;
                     if c.is_empty() {
                         return Err(ConverterBuilderError::EmptyBest {
                             reason: "empty list of units",
@@ -176,15 +194,20 @@ impl BestConversionsStore {
     fn new(
         best_units: &BestUnits,
         unit_index: &UnitIndex,
-        all_units: &[Unit],
+        all_units: &mut [Unit],
     ) -> Result<Self, ConverterBuilderError> {
         let v = match best_units {
             BestUnits::Unified(names) => {
-                Self::Unified(BestConversions::new(names, unit_index, all_units)?)
+                Self::Unified(BestConversions::new(names, unit_index, all_units, None)?)
             }
             BestUnits::BySystem { metric, imperial } => Self::BySystem {
-                metric: BestConversions::new(metric, unit_index, all_units)?,
-                imperial: BestConversions::new(imperial, unit_index, all_units)?,
+                metric: BestConversions::new(metric, unit_index, all_units, Some(System::Metric))?,
+                imperial: BestConversions::new(
+                    imperial,
+                    unit_index,
+                    all_units,
+                    Some(System::Imperial),
+                )?,
             },
         };
         Ok(v)
@@ -195,12 +218,30 @@ impl BestConversions {
     fn new(
         units: &[String],
         unit_index: &UnitIndex,
-        all_units: &[Unit],
+        all_units: &mut [Unit],
+        system: Option<System>,
     ) -> Result<Self, ConverterBuilderError> {
         let mut units = units
             .iter()
             .map(|n| unit_index.get_unit_id(n))
             .collect::<Result<Vec<_>, _>>()?;
+
+        if let Some(group_system) = system {
+            for &unit_id in &units {
+                match all_units[unit_id].system {
+                    Some(unit_system) => {
+                        if group_system != unit_system {
+                            return Err(ConverterBuilderError::IncorrectUnitSystem {
+                                unit: all_units[unit_id].clone(),
+                                expected: group_system,
+                                got: unit_system,
+                            });
+                        }
+                    }
+                    None => all_units[unit_id].system = Some(group_system),
+                }
+            }
+        }
 
         units.sort_unstable_by(|a, b| {
             let a = &all_units[*a];
@@ -313,6 +354,7 @@ fn expand_si(unit: &Unit, si: &SI) -> Result<EnumMap<SIPrefix, Unit>, ConverterB
                 physical_quantity: unit.physical_quantity,
                 expand_si: false,
                 expanded_units: None,
+                system: unit.system,
             }
         }
     };
@@ -392,4 +434,13 @@ pub enum ConverterBuilderError {
     #[error("Empty SI prefixes")]
     #[diagnostic(help("Tried to expand an unit but no prefixes (name or symbol) were declared in any configuration file."))]
     EmptySIPrefixes,
+
+    #[error(
+        "Best units' unit incorrect system: in unit '{unit}' expected {expected:?}, got {got:?}"
+    )]
+    IncorrectUnitSystem {
+        unit: Unit,
+        expected: System,
+        got: System,
+    },
 }

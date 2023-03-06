@@ -17,9 +17,11 @@ milli = ["m"]
 [[quantity]]
 quantity = "volume"
 best = { metric = ["ml", "l"], imperial = ["cup", "tsp", "tbsp"] }
-units = [
+[quantity.units]
+metric = [
     { names = ["liter", "liters", "litre", "litres"], symbols = ["l", "L"], ratio = 1, expand_si = true },
-
+]
+imperial = [
     { names = ["cup", "cups"], symbols = ["c"], ratio = 0.2841306 },
     { names = ["tablespoon", "tablespoons"], symbols = ["tbs", "tbs.", "tbsp", "tbsp."], ratio = 0.01775816 },
     { names = ["teaspoon", "teaspoons"], symbols = ["tsp", "tsp."], ratio = 0.005919387 },
@@ -32,9 +34,11 @@ units = [
 [[quantity]]
 quantity = "length"
 best = { metric = ["cm", "mm", "m"], imperial = ["in", "ft"] }
-units = [
+[quantity.units]
+metric = [
     { names = ["meter", "meters", "metre", "metres"], symbols = ["m"], ratio = 1, expand_si = true },
-    
+]
+imperial = [
     { names = ["foot", "feet"], symbols = ["ft", "'"], ratio = 0.3084 },
     { names = ["inch", "inches"], symbols = ["in", "\""], ratio = 0.0254 },
 ]
@@ -42,9 +46,11 @@ units = [
 [[quantity]]
 quantity = "mass"
 best = { metric = ["mg", "g", "kg"], imperial = ["oz", "lb"] }
-units = [
+[quantity.units]
+metric = [
     { names = ["gram", "grams"], symbols = ["g"], ratio = 1, expand_si = true },
-    
+]
+imperial = [
     { names = ["ounce", "ounces"], symbols = ["oz", "oz."], ratio = 28.34952 },
     { names = ["pound", "pounds"], symbols = ["lb", "lb."], ratio = 453.5924 },
 ]
@@ -62,7 +68,10 @@ units = [
 [[quantity]]
 quantity = "temperature"
 best = { metric = ["C"], imperial = ["F"] }
-units = [
+[quantity.units]
+metric = [
     { names = ["celsius"], symbols = ["°C", "ºC", "℃", "C"], ratio = 1, difference = 273.15 },
+]
+imperial = [
     { names = ["fahrenheit"], symbols = ["°F", "ºF", "℉", "F"], ratio = 0.55555555556, difference = 459.67 }
 ]

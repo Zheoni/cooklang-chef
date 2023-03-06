@@ -385,17 +385,22 @@ impl Quantity<'_> {
         let value = self.value.try_add(&rhs.value)?;
 
         // 4. New quantity
-        let mut qty = Quantity {
+        let qty = Quantity {
             value,
             unit: self.unit.clone(), // unit is mantained
         };
 
-        // 5. Convert to the best unit in the same system if the unit is known
-        if matches!(qty.unit_info(), Some(UnitInfo::Known(_))) {
-            qty = converter.convert(&qty, converter.default_system())?;
-        }
-
         Ok(qty.into_owned())
+    }
+
+    pub fn fit(&mut self, converter: &Converter) -> Result<(), ConvertError> {
+        use crate::convert::ConvertTo;
+
+        // if the unit is known, convert to the best match in the same system
+        if matches!(self.unit_info(), Some(UnitInfo::Known(_))) {
+            *self = converter.convert(&*self, ConvertTo::SameSystem)?;
+        }
+        Ok(())
     }
 }
 

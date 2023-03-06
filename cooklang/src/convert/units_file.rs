@@ -72,7 +72,7 @@ pub struct QuantityGroup {
     pub quantity: PhysicalQuantity,
     #[serde(default)]
     pub best: Option<BestUnits>,
-    pub units: Vec<UnitEntry>,
+    pub units: Units,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -82,6 +82,20 @@ pub enum BestUnits {
     BySystem {
         metric: Vec<String>,
         imperial: Vec<String>,
+    },
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged, rename = "snake_case", deny_unknown_fields)]
+pub enum Units {
+    Unified(Vec<UnitEntry>),
+    BySystem {
+        #[serde(default)]
+        metric: Vec<UnitEntry>,
+        #[serde(default)]
+        imperial: Vec<UnitEntry>,
+        #[serde(default)]
+        unspecified: Vec<UnitEntry>,
     },
 }
 

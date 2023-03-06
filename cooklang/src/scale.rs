@@ -2,6 +2,7 @@ use miette::Diagnostic;
 use thiserror::Error;
 
 use crate::{
+    convert::Converter,
     quantity::{QuantityValue, ScalableValue, TextValueError, Value},
     Recipe,
 };
@@ -79,9 +80,15 @@ pub enum ScaleError {
 }
 
 impl<'a> Recipe<'a> {
-    pub fn scale(mut self, target: ScaleTarget) -> ScaledRecipe<'a> {
+    pub fn scale(mut self, target: ScaleTarget, converter: &Converter) -> ScaledRecipe<'a> {
         let ingredients = scale_many(target, &mut self.ingredients, |igr| {
             igr.quantity.as_mut().map(|q| &mut q.value)
+        });
+        self.ingredients.iter_mut().for_each(|i| {
+            if let Some(q) = &mut i.quantity {
+                // TODO handle this, at least notify
+                let _ = q.fit(converter);
+            }
         });
         let cookware = scale_many(target, &mut self.cookware, |ck| ck.quantity.as_mut());
         let timers = scale_many(target, &mut self.timers, |tm| Some(&mut tm.quantity.value));
