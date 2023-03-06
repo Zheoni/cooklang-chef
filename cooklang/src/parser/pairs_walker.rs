@@ -12,7 +12,9 @@ use crate::{
 };
 
 use super::{
-    ast::{Ast, Component, Cookware, Ingredient, Item, Line, Modifiers, Quantity, Timer},
+    ast::{
+        Ast, Component, Cookware, Ingredient, Item, Line, Modifiers, Quantity, QuantityValue, Timer,
+    },
     located::Located,
     ComponentKind, Pair, Pairs, ParserError, ParserWarning, Rule,
 };
@@ -54,6 +56,13 @@ macro_rules! unexpected_ignore {
             );
         }
         $val
+    }};
+}
+
+macro_rules! unexpected_panic {
+    ($pair:ident, $where:literal) => {{
+        unexpected_ignore!($pair);
+        panic!(concat!("unexpected rule inside ", $where));
     }};
 }
 
@@ -114,12 +123,12 @@ impl Walker {
             .next()
             .expect("No key in metadata")
             .as_located_str()
-            .transform(str::trim);
+            .map_inner(str::trim);
         let value = pairs
             .next()
             .expect("No value in metadata")
             .as_located_str()
-            .transform(str::trim);
+            .map_inner(str::trim);
 
         assert!(!key.is_empty(), "Key is empty");
         if value.is_empty() {
@@ -196,7 +205,7 @@ impl Walker {
                     alias = Some(pair.located_text_trimmed());
                 }
                 Rule::quantity => {
-                    quantity = Some(Located::from(pair).transform(|p| self.quantity(p)))
+                    quantity = Some(Located::from(pair).map_inner(|p| self.quantity(p)))
                 }
                 Rule::note => note = Some(pair.located_text()),
                 _ => unexpected_ignore!(pair),
@@ -257,7 +266,7 @@ impl Walker {
     fn ingredient<'a>(&mut self, component: GenericComponent<'a>) -> Ingredient<'a> {
         let modifiers = component
             .modifiers
-            .map(|p| p.transform(|p| self.modifiers(p)))
+            .map(|p| p.map_inner(|p| self.modifiers(p)))
             .unwrap_or_else(Recover::recover);
 
         let name = component.name.unwrap_or_else(Recover::recover);
@@ -336,12 +345,20 @@ impl Walker {
                 self.error(ParserError::ComponentPartNotAllowed {
                     component_kind: ComponentKind::Cookware.into(),
                     what: "unit in quantity",
-                    to_remove: quantity.value.span().start..unit.span().end,
+                    to_remove: quantity.value.span().end..unit.span().end,
                     help: Some("Cookware quantity can't have an unit"),
                 });
             }
             quantity.take().value
         });
+        if let Some(value @ QuantityValue::Single { scalable: true, .. }) = &quantity {
+            self.error(ParserError::ComponentPartNotAllowed {
+                component_kind: ComponentKind::Cookware.into(),
+                what: "auto scale marker",
+                to_remove: value.span().end..value.span().end + 1,
+                help: Some("Cookware quantity can't be auto scaled"),
+            });
+        }
 
         Cookware { name, quantity }
     }
@@ -383,6 +400,15 @@ impl Walker {
             });
             Recover::recover()
         });
+
+        if let value @ QuantityValue::Single { scalable: true, .. } = &quantity.value {
+            self.error(ParserError::ComponentPartNotAllowed {
+                component_kind: ComponentKind::Cookware.into(),
+                what: "auto scale marker",
+                to_remove: value.span().end..value.span().end + 1,
+                help: Some("Timer quantity can't be auto scaled"),
+            });
+        }
         if quantity.unit.is_none() {
             self.error(ParserError::ComponentPartMissing {
                 component_kind: ComponentKind::Timer.into(),
@@ -436,25 +462,53 @@ impl Walker {
     fn quantity<'a>(&mut self, pair: Pair<'a>) -> Quantity<'a> {
         is_rule!(pair, Rule::quantity);
         let mut inner = pair.clone().into_inner();
-        let mut value = inner
-            .next()
-            .expect("No value in quantity")
-            .located()
-            .transform(|p| self.value(p));
-        let has_separator = if let Some(Rule::unit_separator) = inner.peek().map(|p| p.as_rule()) {
-            inner.next();
-            true
-        } else {
-            false
-        };
 
-        let mut unit = inner.next().map(|p| p.located_text_trimmed());
+        let mut values = Vec::new();
+        let mut auto_scale = false;
+        let mut has_separator = false;
+        let mut unit = None;
+        for pair in inner.by_ref() {
+            match pair.as_rule() {
+                Rule::value => values.push(pair.located().map_inner(|p| self.value(p))),
+                Rule::auto_scale => auto_scale = true,
+                Rule::unit_separator => has_separator = true,
+                Rule::unit => {
+                    unit = Some(pair.located_text_trimmed());
+                    break;
+                }
+                _ => unexpected_panic!(pair, "quantity"),
+            }
+        }
         debug_assert!(inner.next().is_none());
+
+        // if the extension is disabled and there is no unit separator, treat
+        // all as a value text, even if a unit has been found. this is the default
+        // (original) cooklang behaviour
         if !self.extensions.contains(Extensions::ADVANCED_UNITS) && !has_separator && unit.is_some()
         {
-            value = pair.located().transform(|p| Value::Text(p.text_trimmed()));
+            values = vec![pair
+                .clone()
+                .located()
+                .map_inner(|p| Value::Text(p.text_trimmed()))];
             unit = None;
         };
+
+        let value = match values.len() {
+            0 => panic!("no value inside quantity"),
+            1 => QuantityValue::Single {
+                value: values.pop().unwrap(),
+                scalable: auto_scale,
+            },
+            _ => {
+                if auto_scale {
+                    self.error(ParserError::QuantityScalingConflict {
+                        bad_bit: pair.span(),
+                    });
+                }
+                QuantityValue::Many(values)
+            }
+        };
+
         Quantity { value, unit }
     }
 
@@ -467,7 +521,7 @@ impl Walker {
             Rule::range => Value::Range(self.recover_val(range(pair), 1.0..=1.0)),
             Rule::number => Value::Number(self.recover(number(pair))),
             Rule::value_text => Value::Text(pair.text_trimmed()),
-            _ => panic!("unexpected pair inside value"),
+            _ => unexpected_panic!(pair, "value"),
         }
     }
 }
@@ -489,7 +543,7 @@ fn number(pair: Pair) -> Result<f64, ParserError> {
     match pair.as_rule() {
         Rule::integer => integer(pair),
         Rule::float => float(pair),
-        _ => panic!("unexpected pair inside number"),
+        _ => unexpected_panic!(pair, "number"),
     }
 }
 
@@ -535,7 +589,7 @@ fn fraction(pair: Pair) -> Result<f64, ParserError> {
             num / den
         }
         Rule::unicode_fraction => unicode_fraction(pair.as_str()),
-        _ => panic!("Unexpected rule inside fraction"),
+        _ => unexpected_panic!(pair, "fraction"),
     };
 
     Ok(r)

@@ -128,6 +128,13 @@ pub enum ParserError {
         #[label("this has to be a positive integer")]
         bad_bit: Range<usize>,
     },
+
+    #[error("Quantity scaling conflict")]
+    #[diagnostic(code(cooklang::parser::unit_scaling), help("A quantity cannot have the auto scaling marker (*) and have fixed values at the same time"))]
+    QuantityScalingConflict {
+        #[label]
+        bad_bit: Range<usize>,
+    },
 }
 
 #[derive(Debug, Error, Diagnostic)]

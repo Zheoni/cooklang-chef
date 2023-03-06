@@ -1,8 +1,4 @@
-use std::{
-    borrow::Cow,
-    cell::{Ref, RefCell},
-    rc::Rc,
-};
+use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 
@@ -10,18 +6,34 @@ use crate::{
     convert::Converter,
     metadata::Metadata,
     parser::ast::Modifiers,
-    quantity::{Quantity, QuantityAddError, Value},
+    quantity::{Quantity, QuantityAddError, QuantityValue},
 };
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Recipe<'a> {
+pub struct Recipe<'a, D = ()> {
     pub name: String,
     #[serde(borrow)]
     pub metadata: Metadata<'a>,
     pub sections: Vec<Section<'a>>,
-    pub ingredients: Vec<Rc<Ingredient<'a>>>,
-    pub cookware: Vec<Rc<Cookware<'a>>>,
-    pub timers: Vec<Rc<Timer<'a>>>,
+    pub ingredients: Vec<Ingredient<'a>>,
+    pub cookware: Vec<Cookware<'a>>,
+    pub timers: Vec<Timer<'a>>,
+    #[serde(skip)]
+    pub(crate) data: D,
+}
+
+impl<'a> Recipe<'a> {
+    pub(crate) fn from_content(name: String, content: crate::analysis::RecipeContent<'a>) -> Self {
+        Recipe {
+            name,
+            metadata: content.metadata,
+            sections: content.sections,
+            ingredients: content.ingredients,
+            cookware: content.cookware,
+            timers: content.timers,
+            data: (),
+        }
+    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -52,8 +64,8 @@ pub struct Step<'a> {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Item<'a> {
     Text(Cow<'a, str>),
-    Component(Component<'a>),
-    Temperature(Quantity<'a>),
+    Component(Component),
+    InlineQuantity(Quantity<'a>),
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -64,7 +76,8 @@ pub struct Ingredient<'a> {
     pub note: Option<Cow<'a, str>>,
 
     pub(crate) modifiers: Modifiers,
-    pub(crate) referenced_from: RefCell<Vec<Rc<Self>>>,
+    pub(crate) references_to: Option<usize>,
+    pub(crate) referenced_from: Vec<usize>,
     pub(crate) defined_in_step: bool,
 }
 
@@ -85,37 +98,45 @@ impl Ingredient<'_> {
         self.modifiers.contains(Modifiers::REF)
     }
 
-    pub fn referenced_from(&self) -> Ref<Vec<Rc<Self>>> {
-        self.referenced_from.borrow()
+    pub fn referenced_from(&self) -> &[usize] {
+        &self.referenced_from
     }
 
-    pub fn total_quantity(
-        &self,
+    pub fn total_quantity<'a>(
+        &'a self,
+        all_ingredients: &'a [Self],
         converter: &Converter,
     ) -> Result<Option<Quantity>, QuantityAddError> {
-        let mut quantities = self.all_quantities().into_iter();
+        let mut quantities = self.all_quantities(all_ingredients);
 
-        let Some(mut total) = quantities.next() else { return Ok(None); };
+        let Some(total) = quantities.next() else { return Ok(None); };
+        let mut total = total.clone().into_owned();
         for q in quantities {
-            total = total.try_add(&q, converter)?;
+            total = total.try_add(q, converter)?;
         }
 
         Ok(Some(total))
     }
 
-    pub fn all_quantities(&self) -> Vec<Quantity> {
-        let referenced_from = self.referenced_from.borrow();
-        std::iter::once(&self.quantity)
-            .chain(referenced_from.iter().map(|i| &i.quantity))
-            .filter_map(|q| q.to_owned())
-            .collect()
+    pub fn all_quantities<'a>(
+        &'a self,
+        all_ingredients: &'a [Self],
+    ) -> impl Iterator<Item = &Quantity> {
+        std::iter::once(self.quantity.as_ref())
+            .chain(
+                self.referenced_from
+                    .iter()
+                    .copied()
+                    .map(|i| all_ingredients[i].quantity.as_ref()),
+            )
+            .flatten()
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Cookware<'a> {
     pub name: Cow<'a, str>,
-    pub quantity: Option<Value<'a>>,
+    pub quantity: Option<QuantityValue<'a>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -125,8 +146,14 @@ pub struct Timer<'a> {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub enum Component<'a> {
-    Ingredient(Rc<Ingredient<'a>>),
-    Cookware(Rc<Cookware<'a>>),
-    Timer(Rc<Timer<'a>>),
+pub struct Component {
+    pub kind: ComponentKind,
+    pub index: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub enum ComponentKind {
+    Ingredient,
+    Cookware,
+    Timer,
 }

@@ -5,15 +5,31 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{
-    convert::{ConvertError, Converter, PhysicalQuantity, Unit},
-    parser::located::OptTake,
-};
+use crate::convert::{ConvertError, Converter, PhysicalQuantity, Unit};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Quantity<'a> {
-    pub value: Value<'a>,
-    unit: Option<QuantityUnit<'a>>,
+    pub value: QuantityValue<'a>,
+    pub(crate) unit: Option<QuantityUnit<'a>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum QuantityValue<'a> {
+    Fixed(Value<'a>),
+    Scalable(ScalableValue<'a>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ScalableValue<'a> {
+    Linear(Value<'a>),
+    ByServings(Vec<Value<'a>>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum Value<'a> {
+    Number(f64),
+    Range(RangeInclusive<f64>),
+    Text(Cow<'a, str>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,7 +37,47 @@ pub struct Quantity<'a> {
 pub struct QuantityUnit<'a> {
     text: Cow<'a, str>,
     #[serde(skip)]
-    unit: OnceCell<MaybeUnit>,
+    info: OnceCell<UnitInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub enum UnitInfo {
+    Known(Arc<Unit>),
+    Unknown,
+}
+
+impl QuantityValue<'_> {
+    pub fn into_owned(self) -> QuantityValue<'static> {
+        match self {
+            QuantityValue::Fixed(v) => QuantityValue::Fixed(v.into_owned()),
+            QuantityValue::Scalable(v) => QuantityValue::Scalable(v.into_owned()),
+        }
+    }
+}
+
+impl ScalableValue<'_> {
+    pub fn into_owned(self) -> ScalableValue<'static> {
+        match self {
+            ScalableValue::Linear(v) => ScalableValue::Linear(v.into_owned()),
+            ScalableValue::ByServings(v) => {
+                ScalableValue::ByServings(v.into_iter().map(Value::into_owned).collect())
+            }
+        }
+    }
+}
+
+impl Value<'_> {
+    pub fn into_owned(self) -> Value<'static> {
+        match self {
+            Value::Number(n) => Value::Number(n),
+            Value::Range(r) => Value::Range(r),
+            Value::Text(t) => Value::Text(t.into_owned().into()),
+        }
+    }
+
+    pub fn is_text(&self) -> bool {
+        matches!(self, Value::Text(_))
+    }
 }
 
 impl PartialEq for QuantityUnit<'_> {
@@ -30,24 +86,18 @@ impl PartialEq for QuantityUnit<'_> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum MaybeUnit {
-    Known(Arc<Unit>),
-    Unknown,
-}
-
 impl QuantityUnit<'_> {
     pub fn text(&self) -> &str {
         &self.text
     }
 
-    pub fn unit(&self) -> Option<&MaybeUnit> {
-        self.unit.get()
+    pub fn unit(&self) -> Option<&UnitInfo> {
+        self.info.get()
     }
 
-    pub fn unit_or_parse(&self, converter: &Converter) -> &MaybeUnit {
-        self.unit
-            .get_or_init(|| MaybeUnit::new(&self.text, converter))
+    pub fn unit_or_parse(&self, converter: &Converter) -> &UnitInfo {
+        self.info
+            .get_or_init(|| UnitInfo::new(&self.text, converter))
     }
 
     pub fn into_owned(self) -> QuantityUnit<'static> {
@@ -58,7 +108,7 @@ impl QuantityUnit<'_> {
     }
 }
 
-impl MaybeUnit {
+impl UnitInfo {
     fn new(text: &str, converter: &Converter) -> Self {
         match converter.get_unit(&text.into()) {
             Ok(unit) => Self::Known(Arc::clone(unit)),
@@ -67,40 +117,33 @@ impl MaybeUnit {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum Value<'a> {
-    Number(f64),
-    Range(RangeInclusive<f64>),
-    Text(Cow<'a, str>),
-}
-
 impl<'a> Quantity<'a> {
-    pub fn new(value: Value<'a>, unit: Option<Cow<'a, str>>) -> Self {
+    pub fn new(value: QuantityValue<'a>, unit: Option<Cow<'a, str>>) -> Self {
         Self {
             value,
             unit: unit.map(|text| QuantityUnit {
                 text,
-                unit: OnceCell::new(),
+                info: OnceCell::new(),
             }),
         }
     }
 
     pub fn new_and_parse(
-        value: Value<'a>,
+        value: QuantityValue<'a>,
         unit: Option<Cow<'a, str>>,
         converter: &Converter,
     ) -> Self {
         Self {
             value,
             unit: unit.map(|text| QuantityUnit {
-                unit: OnceCell::from(MaybeUnit::new(&text, converter)),
+                info: OnceCell::from(UnitInfo::new(&text, converter)),
                 text,
             }),
         }
     }
 
     pub fn with_known_unit(
-        value: Value<'a>,
+        value: QuantityValue<'a>,
         unit_text: Cow<'a, str>,
         unit: Option<Arc<Unit>>,
     ) -> Self {
@@ -108,15 +151,15 @@ impl<'a> Quantity<'a> {
             value,
             unit: Some(QuantityUnit {
                 text: unit_text,
-                unit: OnceCell::from(match unit {
-                    Some(unit) => MaybeUnit::Known(unit),
-                    None => MaybeUnit::Unknown,
+                info: OnceCell::from(match unit {
+                    Some(unit) => UnitInfo::Known(unit),
+                    None => UnitInfo::Unknown,
                 }),
             }),
         }
     }
 
-    pub fn unitless(value: Value<'a>) -> Self {
+    pub fn unitless(value: QuantityValue<'a>) -> Self {
         Self { value, unit: None }
     }
 
@@ -128,8 +171,8 @@ impl<'a> Quantity<'a> {
         self.unit.as_ref().map(|u| u.text.as_ref())
     }
 
-    pub fn unit_info(&self) -> Option<&MaybeUnit> {
-        self.unit.as_ref().and_then(|u| u.unit.get())
+    pub fn unit_info(&self) -> Option<&UnitInfo> {
+        self.unit.as_ref().and_then(|u| u.info.get())
     }
 
     pub fn into_owned(self) -> Quantity<'static> {
@@ -138,36 +181,69 @@ impl<'a> Quantity<'a> {
             unit: self.unit.map(QuantityUnit::into_owned),
         }
     }
-
-    pub(crate) fn from_ast(quantity: crate::parser::ast::Quantity<'a>) -> Self {
-        let crate::parser::ast::Quantity { value, unit } = quantity;
-        Quantity::new(value.take(), unit.opt_take())
-    }
 }
 
-impl<'a> Value<'a> {
-    pub fn into_owned(self) -> Value<'static> {
+impl<'a> QuantityValue<'a> {
+    pub(crate) fn from_ast(value: crate::parser::ast::QuantityValue<'a>) -> Self {
+        use crate::parser::ast;
+        match value {
+            ast::QuantityValue::Single {
+                value,
+                scalable: false,
+            } => Self::Fixed(value.take()),
+            ast::QuantityValue::Single {
+                value,
+                scalable: true,
+            } => Self::Scalable(ScalableValue::Linear(value.take())),
+            ast::QuantityValue::Many(v) => Self::Scalable(ScalableValue::ByServings(
+                v.into_iter()
+                    .map(crate::parser::located::Located::take)
+                    .collect(),
+            )),
+        }
+    }
+
+    pub fn contains_text_value(&self) -> bool {
         match self {
-            Value::Text(t) => Value::Text(Cow::Owned(t.into_owned())),
-            Value::Number(n) => Value::Number(n),
-            Value::Range(r) => Value::Range(r),
+            QuantityValue::Fixed(v) => v.is_text(),
+            QuantityValue::Scalable(v) => match v {
+                ScalableValue::Linear(v) => v.is_text(),
+                ScalableValue::ByServings(v) => v.iter().any(Value::is_text),
+            },
         }
     }
 }
 
 impl Display for Quantity<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)?;
         if let Some(unit) = &self.unit {
-            write!(f, "{} {}", self.value, unit)
-        } else {
-            write!(f, "{}", self.value)
+            write!(f, " {}", unit)?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for QuantityValue<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QuantityValue::Fixed(v) => v.fmt(f),
+            QuantityValue::Scalable(v) => v.fmt(f), // TODO revise this, maybe a marker is needed
         }
     }
 }
 
-impl Display for QuantityUnit<'_> {
+impl Display for ScalableValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.text)
+        match self {
+            ScalableValue::Linear(value) => value.fmt(f),
+            ScalableValue::ByServings(v) => {
+                for value in &v[..v.len() - 1] {
+                    write!(f, "{}|", value)?;
+                }
+                write!(f, "{}", v.last().unwrap())
+            }
+        }
     }
 }
 
@@ -180,8 +256,14 @@ impl Display for Value<'_> {
         match self {
             Value::Number(n) => write!(f, "{}", float(*n)),
             Value::Range(r) => write!(f, "{}-{}", float(*r.start()), float(*r.end())),
-            Value::Text(t) => write! {f, "{}", t},
+            Value::Text(t) => write!(f, "{}", t),
         }
+    }
+}
+
+impl Display for QuantityUnit<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.text)
     }
 }
 
@@ -211,11 +293,15 @@ pub enum QuantityAddError {
 
     #[error(transparent)]
     #[diagnostic(transparent)]
-    Value(#[from] ValueAddError),
+    Value(#[from] TextValueError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
     Convert(#[from] ConvertError),
+
+    #[error("Quantities must be scaled before adding them")]
+    #[diagnostic(code(cooklang::quantity::add::not_scaled))]
+    NotScaled(#[from] NotScaled),
 }
 
 #[derive(Debug, Error, Diagnostic)]
@@ -254,7 +340,7 @@ impl Quantity<'_> {
                 let b_unit = b.unit_or_parse(converter);
 
                 match (a_unit, b_unit) {
-                    (MaybeUnit::Known(a_unit), MaybeUnit::Known(b_unit)) => {
+                    (UnitInfo::Known(a_unit), UnitInfo::Known(b_unit)) => {
                         if a_unit.physical_quantity != b_unit.physical_quantity {
                             return Err(IncompatibleUnits::DifferentPhysicalQuantities {
                                 a: a_unit.physical_quantity,
@@ -305,7 +391,7 @@ impl Quantity<'_> {
         };
 
         // 5. Convert to the best unit in the same system if the unit is known
-        if matches!(qty.unit_info(), Some(MaybeUnit::Known(_))) {
+        if matches!(qty.unit_info(), Some(UnitInfo::Known(_))) {
             qty = converter.convert(&qty, converter.default_system())?;
         }
 
@@ -314,14 +400,31 @@ impl Quantity<'_> {
 }
 
 #[derive(Debug, Error, Diagnostic)]
-#[diagnostic(code(cooklang::quantity::add::value))]
-pub enum ValueAddError {
-    #[error("Cannot add text value")]
-    TextValue { val: Value<'static> },
+#[error("Value needs to be scaled")]
+#[diagnostic(code(cooklang::quantity::not_scaled))]
+pub struct NotScaled(ScalableValue<'static>);
+
+impl QuantityValue<'_> {
+    pub fn extract_value(&self) -> Result<&Value, NotScaled> {
+        match self {
+            QuantityValue::Fixed(v) => Ok(v),
+            QuantityValue::Scalable(v) => Err(NotScaled(v.clone().into_owned())),
+        }
+    }
+
+    pub fn try_add(&self, rhs: &Self) -> Result<Self, QuantityAddError> {
+        let value = self.extract_value()?.try_add(rhs.extract_value()?)?;
+        Ok(QuantityValue::Fixed(value))
+    }
 }
 
+#[derive(Debug, Error, Diagnostic, Clone)]
+#[error("Cannot operate on a text value")]
+#[diagnostic(code(cooklang::quantity::value))]
+pub struct TextValueError(pub Value<'static>);
+
 impl Value<'_> {
-    pub fn try_add(&self, rhs: &Self) -> Result<Self, ValueAddError> {
+    pub fn try_add(&self, rhs: &Self) -> Result<Value<'static>, TextValueError> {
         let val = match (self, rhs) {
             (Value::Number(a), Value::Number(b)) => Value::Number(a + b),
             (Value::Number(n), Value::Range(r)) | (Value::Range(r), Value::Number(n)) => {
@@ -331,9 +434,7 @@ impl Value<'_> {
                 Value::Range(a.start() + b.start()..=a.end() + b.end())
             }
             (t @ Value::Text(_), _) | (_, t @ Value::Text(_)) => {
-                return Err(ValueAddError::TextValue {
-                    val: t.clone().into_owned(),
-                });
+                return Err(TextValueError(t.clone().into_owned()));
             }
         };
 

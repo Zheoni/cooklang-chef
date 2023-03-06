@@ -25,7 +25,7 @@ impl<T> Located<T> {
         }
     }
 
-    pub fn transform<F, O>(self, f: F) -> Located<O>
+    pub fn map_inner<F, O>(self, f: F) -> Located<O>
     where
         F: FnOnce(T) -> O,
     {

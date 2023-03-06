@@ -30,21 +30,20 @@ note = { "(" ~ (!("("|")") ~ text_item)* ~ ")" }
 
 component_body = _{ no_name_component | multi_word_component | one_word_component }
 no_name_component = _{ close_component }
-one_word_component = @{ (!("-" | "{" | SPACE_SEPARATOR | "\t" | PUNCTUATION) ~ text_item)+ }
+one_word_component = @{ (!("-" | "{" | SPACE_SEPARATOR | "\t" | PUNCTUATION) ~ text_item)+ ~ !"{" }
 multi_word_component = _{ name ~ ("|" ~ alias)? ~ close_component }
-name = { (!("{" | "|") ~ text_item)* }
-alias = { (!"{" ~ text_item)* }
+name = { (!(component_token | "{" | "|") ~ text_item)* }
+alias = { (!(component_token | "{") ~ text_item)* }
 close_component = _{ (("{" ~ ws* ~ "}") | ("{" ~ quantity ~ "}")) }
 
-// TODO scaling
-// quantity = { value ~ (("|" ~ value)* | auto_scale)? ~ ("%" ~ unit)? }
-// auto_scale = { "*" }
-quantity = { ws* ~ (!LETTER ~ value ~ &ws+ ~ !unit_separator ~ unit | value ~ (unit_separator ~ unit)?) ~ ws* }
+quantity = { ws* ~ (!LETTER ~ value ~ &ws+ ~ !unit_separator ~ unit | value ~ ("|" ~ value)* ~ auto_scale? ~ (unit_separator ~ unit)?) ~ ws* }
+auto_scale = { "*" }
 unit_separator = { ws* ~ "%" ~ ws* }
+// TODO does not backtrack to value_text in something like "1L"
 value = { mixed_number | fraction | range | number | value_text }
 unit = { (!"}" ~ text_item)* }
 
-value_text = { (!("%" | "}") ~ text_item)* }
+value_text = { (!("%" | "}" | "|") ~ text_item)+ }
 integer = @{ (!"0" ~ ASCII_DIGIT+) | ASCII_DIGIT ~ !ASCII_DIGIT }
 fraction = ${ regular_fraction | unicode_fraction }
 regular_fraction = ${ integer ~ ws* ~ "/" ~ ws* ~ integer }

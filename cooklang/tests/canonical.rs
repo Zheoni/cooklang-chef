@@ -1,4 +1,7 @@
-use cooklang::quantity::Value;
+use cooklang::{
+    model::ComponentKind,
+    quantity::{QuantityValue, Value},
+};
 use yaml_rust::{Yaml, YamlLoader};
 
 #[test]
@@ -24,7 +27,7 @@ fn run_test(name: &str, test: &Yaml) {
     let expected = &test["result"];
 
     compare_metadata(&expected["metadata"], &got.metadata);
-    compare_steps(&expected["steps"], &got.sections);
+    compare_steps(&expected["steps"], &got.sections, &got);
 }
 
 fn compare_metadata(expected: &Yaml, got: &cooklang::metadata::Metadata) {
@@ -40,7 +43,7 @@ fn compare_metadata(expected: &Yaml, got: &cooklang::metadata::Metadata) {
     }
 }
 
-fn compare_steps(expected: &Yaml, got: &[cooklang::model::Section]) {
+fn compare_steps(expected: &Yaml, got: &[cooklang::model::Section], recipe: &cooklang::Recipe) {
     let expected = expected.as_vec().unwrap();
     if expected.is_empty() {
         assert!(got.is_empty());
@@ -59,13 +62,12 @@ fn compare_steps(expected: &Yaml, got: &[cooklang::model::Section]) {
         assert_eq!(expected.len(), got.len()); // same number of items
                                                // for each item
         for (expected, got) in expected.iter().zip(got.iter()) {
-            compare_items(expected, got);
+            compare_items(expected, got, recipe);
         }
     }
 }
 
-fn compare_items(expected: &Yaml, got: &cooklang::model::Item) {
-    use cooklang::model::Component;
+fn compare_items(expected: &Yaml, got: &cooklang::model::Item, recipe: &cooklang::Recipe) {
     use cooklang::model::Item;
 
     let tyype = expected["type"].as_str().unwrap();
@@ -75,8 +77,9 @@ fn compare_items(expected: &Yaml, got: &cooklang::model::Item) {
             assert_eq!(tyype, "text");
             assert_eq!(expected["value"].as_str().unwrap(), text);
         }
-        Item::Component(component) => match component {
-            Component::Ingredient(i) => {
+        Item::Component(component) => match component.kind {
+            ComponentKind::Ingredient => {
+                let i = &recipe.ingredients[component.index];
                 assert_eq!(tyype, "ingredient");
                 assert!(i.alias.is_none());
                 assert!(i.note.is_none());
@@ -97,7 +100,8 @@ fn compare_items(expected: &Yaml, got: &cooklang::model::Item) {
                     None => assert_eq!("some", expected["quantity"].as_str().unwrap()),
                 }
             }
-            Component::Cookware(c) => {
+            ComponentKind::Cookware => {
+                let c = &recipe.cookware[component.index];
                 assert_eq!(tyype, "cookware");
                 assert_eq!(c.name, expected["name"].as_str().unwrap());
                 match &c.quantity {
@@ -105,7 +109,8 @@ fn compare_items(expected: &Yaml, got: &cooklang::model::Item) {
                     None => assert_eq!(expected["quantity"].as_i64().unwrap(), 1),
                 }
             }
-            Component::Timer(t) => {
+            ComponentKind::Timer => {
+                let t = &recipe.timers[component.index];
                 assert_eq!(tyype, "timer");
                 match &t.name {
                     Some(n) => assert_eq!(n, expected["name"].as_str().unwrap()),
@@ -122,8 +127,14 @@ fn compare_items(expected: &Yaml, got: &cooklang::model::Item) {
     }
 }
 
-fn compare_value(expected: &Yaml, got: &Value) {
-    match got {
+fn compare_value(expected: &Yaml, got: &QuantityValue) {
+    let value = match got {
+        QuantityValue::Fixed(v) => v,
+        QuantityValue::Scalable(_) => {
+            panic!("scalable values not supported by cooklang currently");
+        }
+    };
+    match value {
         Value::Number(n) => {
             assert_eq!(
                 *n as f64,

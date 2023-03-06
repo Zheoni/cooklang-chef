@@ -2,15 +2,18 @@ pub mod analysis;
 mod context;
 pub mod convert;
 pub mod error;
+pub mod helper;
 pub mod metadata;
 pub mod model;
 pub mod parser;
 pub mod quantity;
+pub mod scale;
 
 use bitflags::bitflags;
 use convert::Converter;
 use error::{CookResult, CooklangWarning};
 pub use model::Recipe;
+pub use scale::ScaledRecipe;
 
 bitflags! {
     pub struct Extensions: u32 {
@@ -121,17 +124,7 @@ impl CooklangParser {
         )?;
         warn.extend(w.into_iter().map(CooklangWarning::from));
 
-        Ok((
-            Recipe {
-                name: recipe_name.to_string(),
-                metadata: content.metadata,
-                sections: content.sections,
-                ingredients: content.ingredients,
-                cookware: content.cookware,
-                timers: content.timers,
-            },
-            warn,
-        ))
+        Ok((Recipe::from_content(recipe_name.to_string(), content), warn))
     }
 }
 

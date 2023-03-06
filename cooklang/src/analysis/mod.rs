@@ -1,9 +1,15 @@
-use std::{borrow::Borrow, ops::Range};
+use std::{
+    borrow::{Borrow, Cow},
+    ops::Range,
+};
 
 use miette::Diagnostic;
 use thiserror::Error;
 
-use crate::{context::Context, convert::Converter, metadata::MetadataError, Extensions};
+use crate::{
+    context::Context, convert::Converter, metadata::MetadataError, parser::located::Located,
+    Extensions,
+};
 
 mod ast_walker;
 
@@ -39,12 +45,10 @@ pub enum AnalysisError {
         help("Possible values are: {possible_values:?}")
     )]
     InvalidSpecialMetadataValue {
-        key: String,
-        value: String,
         #[label("this key")]
-        key_span: Range<usize>,
+        key: Located<String>,
         #[label("does not support this value")]
-        value_span: Range<usize>,
+        value: Located<String>,
 
         possible_values: Vec<&'static str>,
     },
@@ -88,6 +92,14 @@ pub enum AnalysisError {
         unit: crate::convert::Unit,
         #[label]
         timer_span: Range<usize>,
+    },
+
+    #[error("Quantity scaling error: {reason}")]
+    #[diagnostic(code(cooklang::analysis::scaling_conflict))]
+    SacalingConflict {
+        reason: Cow<'static, str>,
+        #[label]
+        value_span: Range<usize>,
     },
 }
 
@@ -153,6 +165,13 @@ pub enum AnalysisWarning {
     TemperatureRegexCompile {
         #[source]
         source: regex::Error,
+    },
+
+    #[error("Redundant auto scale marker")]
+    #[diagnostic(help("Be caraful as every ingredient is already marked to auto scale"))]
+    RedundantAutoScaleMarker {
+        #[label]
+        quantity_span: Range<usize>,
     },
 }
 

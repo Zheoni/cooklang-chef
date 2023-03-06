@@ -23,7 +23,7 @@ pub struct Metadata<'a> {
     pub author: Option<NameAndUrl<'a>>,
     pub source: Option<NameAndUrl<'a>>,
     pub time: Option<RecipeTime>,
-    pub servings: Option<u32>,
+    pub servings: Option<Vec<u32>>,
     #[serde(borrow)]
     pub map: IndexMap<&'a str, &'a str>,
 }
@@ -94,7 +94,15 @@ impl<'a> Metadata<'a> {
                     cook_time: Some(parse_time(value)?),
                 });
             }
-            "servings" => self.servings = Some(value.parse()?),
+            "servings" => {
+                self.servings = Some(
+                    value
+                        .split('|')
+                        .map(str::trim)
+                        .map(str::parse)
+                        .collect::<Result<_, _>>()?,
+                )
+            }
             _ => {}
         }
 

@@ -8,7 +8,7 @@ use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::quantity::{Quantity, Value};
+use crate::quantity::{Quantity, QuantityValue, ScalableValue, Value};
 
 use self::{
     builder::ConverterBuilder,
@@ -338,16 +338,21 @@ impl<'a> From<&'a Arc<Unit>> for ConvertTo<'a> {
 impl ConvertFrom for &Quantity<'_> {
     fn convert_value(&self) -> Result<ConvertValue, ConvertError> {
         match &self.value {
-            Value::Number(n) => Ok(ConvertValue::Number(*n)),
-            Value::Range(r) => Ok(ConvertValue::Range(r.clone())),
-            Value::Text(t) => Err(ConvertError::TextValue(t.to_string())),
+            crate::quantity::QuantityValue::Fixed(v) => match v {
+                Value::Number(n) => Ok(ConvertValue::Number(*n)),
+                Value::Range(r) => Ok(ConvertValue::Range(r.clone())),
+                Value::Text(t) => Err(ConvertError::TextValue(t.to_string())),
+            },
+            crate::quantity::QuantityValue::Scalable(v) => {
+                Err(ConvertError::NotScaled(v.clone().into_owned()))
+            }
         }
     }
 
     fn convert_unit(&self) -> Result<ConvertUnit, ConvertError> {
         match self.unit().map(|u| u.text()) {
             Some(u) => Ok(ConvertUnit::Key(u)),
-            None => Err(ConvertError::NoUnit(self.value.clone().into_owned())),
+            None => Err(ConvertError::NoUnit(Quantity::clone(self).into_owned())),
         }
     }
 
@@ -355,9 +360,15 @@ impl ConvertFrom for &Quantity<'_> {
     fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output {
         Quantity::with_known_unit(
             value.into(),
-            unit.symbol().to_string().into(), // TODO unnecesary alloc
+            unit.symbol().to_string().into(), // ? unnecesary alloc
             Some(Arc::clone(unit)),
         )
+    }
+}
+
+impl From<ConvertValue> for QuantityValue<'_> {
+    fn from(value: ConvertValue) -> Self {
+        Self::Fixed(value.into())
     }
 }
 
@@ -400,11 +411,18 @@ impl PartialOrd<Self> for ConvertValue {
 pub enum ConvertError {
     #[error("Tried to convert a value with no unit: {0}")]
     #[diagnostic(code(cooklang::convert::unitless_quantity))]
-    NoUnit(Value<'static>),
+    NoUnit(Quantity<'static>),
 
     #[error("Tried to convert a text value: {0}")]
     #[diagnostic(code(cooklang::convert::text_value))]
     TextValue(String),
+
+    #[error("Tried to convert a non scaled value: {0}")]
+    #[diagnostic(
+        code(cooklang::convert::not_scaled),
+        help("Values need to be scaled before conversion")
+    )]
+    NotScaled(ScalableValue<'static>),
 
     #[error("Mixed physical quantities: {from} {to}")]
     #[diagnostic(code(cooklang::convert::mixed_quantities))]

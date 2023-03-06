@@ -24,7 +24,7 @@ struct Args {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Manage recipe files
-    Recipe(recipe::RecipeArgs),
+    Recipe(Box<recipe::RecipeArgs>),
     /// Run a web server that serves of your recipes
     Serve,
     /// Creates a shopping list from a given list of recipes
@@ -62,12 +62,14 @@ pub fn main() -> Result<()> {
     let parser = configure_parser(args.global_args)?;
 
     match args.command {
-        Command::Recipe(args) => recipe::run(&parser, args),
+        Command::Recipe(args) => recipe::run(&parser, *args),
         Command::Serve => serve::run(&parser),
         Command::ShoppingList => shopping_list::run(&parser),
     }
 }
 
+static STD_OUT_COLOR_ENABLED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 static STD_ERR_COLOR_ENABLED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
@@ -81,17 +83,25 @@ fn init_color(color: &ColorChoice) {
 
     match color {
         ColorChoice::Auto => {
-            let color = supports_color::on(supports_color::Stream::Stderr).is_some();
-            STD_ERR_COLOR_ENABLED.store(color, std::sync::atomic::Ordering::Relaxed);
+            STD_OUT_COLOR_ENABLED.store(
+                console::colors_enabled(),
+                std::sync::atomic::Ordering::Relaxed,
+            );
+            STD_ERR_COLOR_ENABLED.store(
+                console::colors_enabled_stderr(),
+                std::sync::atomic::Ordering::Relaxed,
+            );
         }
         ColorChoice::Always => {
-            owo_colors::set_override(true);
+            console::set_colors_enabled(true);
             set_miette_color(true);
+            STD_OUT_COLOR_ENABLED.store(true, std::sync::atomic::Ordering::Relaxed);
             STD_ERR_COLOR_ENABLED.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         ColorChoice::Never => {
-            owo_colors::set_override(false);
+            console::set_colors_enabled(false);
             set_miette_color(false);
+            STD_OUT_COLOR_ENABLED.store(false, std::sync::atomic::Ordering::Relaxed);
             STD_ERR_COLOR_ENABLED.store(false, std::sync::atomic::Ordering::Relaxed);
         }
     }

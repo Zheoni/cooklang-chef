@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Range};
 
 use crate::{context::Recover, quantity::Value};
 
@@ -50,7 +50,7 @@ pub struct Ingredient<'a> {
 #[derive(Debug)]
 pub struct Cookware<'a> {
     pub name: Located<Cow<'a, str>>,
-    pub quantity: Option<Located<Value<'a>>>,
+    pub quantity: Option<QuantityValue<'a>>,
 }
 #[derive(Debug)]
 pub struct Timer<'a> {
@@ -60,8 +60,26 @@ pub struct Timer<'a> {
 
 #[derive(Debug, Clone)]
 pub struct Quantity<'a> {
-    pub value: Located<Value<'a>>,
+    pub value: QuantityValue<'a>,
     pub unit: Option<Located<Cow<'a, str>>>,
+}
+
+#[derive(Debug, Clone)]
+pub enum QuantityValue<'a> {
+    Single {
+        value: Located<Value<'a>>,
+        scalable: bool,
+    },
+    Many(Vec<Located<Value<'a>>>),
+}
+
+impl QuantityValue<'_> {
+    pub fn span(&self) -> Range<usize> {
+        match self {
+            QuantityValue::Single { value, .. } => value.span(),
+            QuantityValue::Many(v) => v.first().unwrap().span().start..v.last().unwrap().span().end, // unwrap as the vec should not be empty
+        }
+    }
 }
 
 impl Recover for Quantity<'_> {
@@ -69,6 +87,15 @@ impl Recover for Quantity<'_> {
         Self {
             value: Recover::recover(),
             unit: Recover::recover(),
+        }
+    }
+}
+
+impl Recover for QuantityValue<'_> {
+    fn recover() -> Self {
+        Self::Single {
+            value: Recover::recover(),
+            scalable: false,
         }
     }
 }
