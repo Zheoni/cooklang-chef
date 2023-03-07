@@ -7,9 +7,11 @@ use cooklang::{
 };
 use miette::{IntoDiagnostic, Result};
 
+mod convert;
 mod recipe;
 mod serve;
 mod shopping_list;
+mod units;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -29,6 +31,10 @@ enum Command {
     Serve,
     /// Creates a shopping list from a given list of recipes
     ShoppingList,
+    /// Manage unit files
+    Units(units::UnitsArgs),
+    /// Convert values and units
+    Convert(convert::ConvertArgs),
 }
 
 #[derive(Debug, Parser)]
@@ -65,6 +71,8 @@ pub fn main() -> Result<()> {
         Command::Recipe(args) => recipe::run(&parser, *args),
         Command::Serve => serve::run(&parser),
         Command::ShoppingList => shopping_list::run(&parser),
+        Command::Units(args) => units::run(parser.converter(), args),
+        Command::Convert(args) => convert::run(parser.converter(), args),
     }
 }
 

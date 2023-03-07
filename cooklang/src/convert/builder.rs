@@ -67,6 +67,17 @@ impl ConverterBuilder {
 
             // store best units. this will always override
             if let Some(best_units) = group.best {
+                if match &best_units {
+                    BestUnits::Unified(v) => v.is_empty(),
+                    BestUnits::BySystem { metric, imperial } => {
+                        metric.is_empty() || imperial.is_empty()
+                    }
+                } {
+                    return Err(ConverterBuilderError::EmptyBest {
+                        reason: "empty list of units",
+                        quantity: group.quantity,
+                    });
+                }
                 self.best_units[group.quantity] = Some(best_units);
             }
         }
@@ -150,14 +161,7 @@ impl ConverterBuilder {
         let best = enum_map! {
             q =>  {
                 if let Some(best_units) = &self.best_units[q] {
-                    let c = BestConversionsStore::new(best_units, &self.unit_index, &mut self.all_units)?;
-                    if c.is_empty() {
-                        return Err(ConverterBuilderError::EmptyBest {
-                            reason: "empty list of units",
-                            quantity: q,
-                        });
-                    }
-                    c
+                    BestConversionsStore::new(best_units, &self.unit_index, &mut self.all_units)?
                 } else {
                     return Err(ConverterBuilderError::EmptyBest { reason: "no best units given", quantity: q })
                 }
@@ -226,13 +230,14 @@ impl BestConversions {
             .map(|n| unit_index.get_unit_id(n))
             .collect::<Result<Vec<_>, _>>()?;
 
+        // TODO do it in other side... it makes no sense to do this in this function
         if let Some(group_system) = system {
             for &unit_id in &units {
                 match all_units[unit_id].system {
                     Some(unit_system) => {
                         if group_system != unit_system {
                             return Err(ConverterBuilderError::IncorrectUnitSystem {
-                                unit: all_units[unit_id].clone(),
+                                unit: all_units[unit_id].clone().into(),
                                 expected: group_system,
                                 got: unit_system,
                             });
@@ -398,6 +403,11 @@ impl UnitIndex {
     fn add_unit(&mut self, unit: &Unit, id: usize) -> Result<usize, ConverterBuilderError> {
         let mut added = 0;
         for key in unit.all_keys() {
+            if key.trim().is_empty() {
+                return Err(ConverterBuilderError::EmptyUnitKey {
+                    unit: unit.clone().into(),
+                });
+            }
             let maybe_other = self.0.insert(Arc::clone(key), id);
             if maybe_other.is_some() {
                 return Err(ConverterBuilderError::DuplicateUnit {
@@ -408,7 +418,7 @@ impl UnitIndex {
         }
         if added == 0 {
             return Err(ConverterBuilderError::EmptyUnit {
-                quantity: unit.physical_quantity,
+                unit: unit.clone().into(),
             });
         }
         Ok(added)
@@ -424,8 +434,11 @@ pub enum ConverterBuilderError {
     #[error(transparent)]
     UnknownUnit(#[from] UnknownUnit),
 
-    #[error("Unit without names or symbols in {quantity}")]
-    EmptyUnit { quantity: PhysicalQuantity },
+    #[error("Unit without names or symbols in {}", unit.physical_quantity)]
+    EmptyUnit { unit: Box<Unit> },
+
+    #[error("Unit where a name, symbol or alias is empty in {}: {}", unit.physical_quantity, unit.names.first().or(unit.symbols.first()).or(unit.aliases.first()).map(|s| s.to_string()).unwrap_or_else(|| "-".to_string()))]
+    EmptyUnitKey { unit: Box<Unit> },
 
     #[error("Best units for '{quantity}' empty: {reason}")]
     EmptyBest {
@@ -437,11 +450,9 @@ pub enum ConverterBuilderError {
     #[diagnostic(help("Tried to expand an unit but no prefixes (name or symbol) were declared in any configuration file."))]
     EmptySIPrefixes,
 
-    #[error(
-        "Best units' unit incorrect system: in unit '{unit}' expected {expected:?}, got {got:?}"
-    )]
+    #[error("Best units' unit incorrect system: in unit '{unit}' expected {expected}, got {got}")]
     IncorrectUnitSystem {
-        unit: Unit,
+        unit: Box<Unit>,
         expected: System,
         got: System,
     },

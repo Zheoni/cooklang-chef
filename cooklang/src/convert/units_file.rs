@@ -11,6 +11,7 @@ pub struct UnitsFile {
     pub default_system: Option<System>,
     pub si: Option<SI>,
     pub extend: Option<Extend>,
+    #[serde(default)]
     pub quantity: Vec<QuantityGroup>,
 }
 

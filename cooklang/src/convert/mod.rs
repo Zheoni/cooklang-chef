@@ -22,7 +22,7 @@ pub mod units_file;
 pub struct Converter {
     all_units: Vec<Arc<Unit>>,
     unit_index: UnitIndex,
-    quantity_index: EnumMap<PhysicalQuantity, Vec<usize>>,
+    quantity_index: UnitQuantityIndex,
     best: EnumMap<PhysicalQuantity, BestConversionsStore>,
     default_system: System,
 
@@ -36,6 +36,34 @@ impl Converter {
 
     pub fn default_system(&self) -> System {
         self.default_system
+    }
+
+    pub fn unit_count(&self) -> usize {
+        self.all_units.len()
+    }
+
+    pub fn unit_count_detailed(&self) -> UnitCount {
+        UnitCount::new(self)
+    }
+
+    pub fn all_units(&self) -> impl Iterator<Item = &Unit> {
+        self.all_units.iter().map(|u| u.as_ref())
+    }
+
+    pub fn is_best_unit(&self, unit: &Unit) -> bool {
+        let unit_id = self
+            .unit_index
+            .get_unit_id(unit.symbol())
+            .expect("unit not found");
+        let mut iter = match &self.best[unit.physical_quantity] {
+            BestConversionsStore::Unified(u) => u.0.iter(),
+            BestConversionsStore::BySystem { metric, imperial } => match unit.system {
+                Some(System::Metric) => metric.0.iter(),
+                Some(System::Imperial) => imperial.0.iter(),
+                None => return false,
+            },
+        };
+        iter.any(|&(_, id)| id == unit_id)
     }
 }
 
@@ -58,7 +86,9 @@ impl Default for Converter {
 }
 
 #[derive(Debug, Default, Clone)]
-struct UnitIndex(HashMap<Arc<str>, usize>);
+pub struct UnitIndex(HashMap<Arc<str>, usize>);
+
+pub type UnitQuantityIndex = EnumMap<PhysicalQuantity, Vec<usize>>;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Unit {
@@ -84,7 +114,8 @@ impl Unit {
         self.symbols
             .first()
             .or_else(|| self.names.first())
-            .expect("symbol or name in unit")
+            .or_else(|| self.aliases.first())
+            .expect("symbol, name or alias in unit")
     }
 }
 
@@ -113,9 +144,19 @@ impl Default for BestConversionsStore {
 struct BestConversions(Vec<(f64, usize)>);
 
 #[derive(
-    Clone, Copy, PartialEq, Eq, Debug, strum::Display, Serialize, Deserialize, enum_map::Enum,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Deserialize,
+    Serialize,
+    strum::Display,
+    strum::EnumString,
+    enum_map::Enum,
 )]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum PhysicalQuantity {
     Volume,
     Mass,
@@ -124,25 +165,13 @@ pub enum PhysicalQuantity {
     Time,
 }
 
-impl BestConversionsStore {
-    pub fn is_empty(&self) -> bool {
-        match self {
-            BestConversionsStore::Unified(v) => v.0.is_empty(),
-            BestConversionsStore::BySystem { metric, imperial } => {
-                metric.0.is_empty() || imperial.0.is_empty()
-            }
-        }
-    }
-}
-
 impl Converter {
-    pub fn convert<'t, F: ConvertFrom>(
+    pub fn convert<'f, 't, F: ConvertFrom<'f>>(
         &self,
         from: F,
         to: impl Into<ConvertTo<'t>>,
     ) -> Result<F::Output, ConvertError> {
-        let value = from.convert_value()?;
-        let unit = from.convert_unit()?;
+        let (value, unit) = from.into_convert_value_unit()?;
         let to = to.into();
         let (value, output_unit) = self.convert_impl(value, unit, to)?;
         Ok(F::output(value, output_unit))
@@ -238,8 +267,8 @@ pub(crate) fn convert_f64(value: f64, from: &Unit, to: &Unit) -> f64 {
     (norm / to.ratio) - to.difference
 }
 
-#[derive(Debug, Error)]
-#[error("Unknown unit: {0}")]
+#[derive(Debug, Error, Diagnostic)]
+#[error("Unknown unit: '{0}'")]
 pub struct UnknownUnit(String);
 
 impl UnitIndex {
@@ -282,14 +311,6 @@ impl BestConversions {
     }
 }
 
-pub trait ConvertFrom {
-    fn convert_value(&self) -> Result<ConvertValue, ConvertError>;
-    fn convert_unit(&self) -> Result<ConvertUnit, ConvertError>;
-
-    type Output;
-    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output;
-}
-
 #[derive(PartialEq, Clone, Debug)]
 pub enum ConvertValue {
     Number(f64),
@@ -308,8 +329,21 @@ pub enum ConvertTo<'a> {
     Unit(ConvertUnit<'a>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Deserialize,
+    Serialize,
+    Default,
+    strum::Display,
+    strum::EnumString,
+    enum_map::Enum,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum System {
     #[default]
     Metric,
@@ -340,9 +374,16 @@ impl<'a> From<&'a Arc<Unit>> for ConvertTo<'a> {
     }
 }
 
-impl ConvertFrom for &Quantity<'_> {
-    fn convert_value(&self) -> Result<ConvertValue, ConvertError> {
-        match &self.value {
+pub trait ConvertFrom<'a> {
+    fn into_convert_value_unit(self) -> Result<(ConvertValue, ConvertUnit<'a>), ConvertError>;
+
+    type Output;
+    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output;
+}
+
+impl<'a> ConvertFrom<'a> for &'a Quantity<'a> {
+    fn into_convert_value_unit(self) -> Result<(ConvertValue, ConvertUnit<'a>), ConvertError> {
+        let value = match &self.value {
             crate::quantity::QuantityValue::Fixed(v) => match v {
                 Value::Number(n) => Ok(ConvertValue::Number(*n)),
                 Value::Range(r) => Ok(ConvertValue::Range(r.clone())),
@@ -351,14 +392,12 @@ impl ConvertFrom for &Quantity<'_> {
             crate::quantity::QuantityValue::Scalable(v) => {
                 Err(ConvertError::NotScaled(v.clone().into_owned()))
             }
-        }
-    }
-
-    fn convert_unit(&self) -> Result<ConvertUnit, ConvertError> {
-        match self.unit().map(|u| u.text()) {
+        }?;
+        let unit = match self.unit().map(|u| u.text()) {
             Some(u) => Ok(ConvertUnit::Key(u)),
             None => Err(ConvertError::NoUnit(Quantity::clone(self).into_owned())),
-        }
+        }?;
+        Ok((value, unit))
     }
 
     type Output = Quantity<'static>;
@@ -368,6 +407,22 @@ impl ConvertFrom for &Quantity<'_> {
             unit.symbol().to_string().into(), // ? unnecesary alloc
             Some(Arc::clone(unit)),
         )
+    }
+}
+
+impl<'u, V, U> ConvertFrom<'u> for (V, U)
+where
+    V: Into<ConvertValue>,
+    U: Into<ConvertUnit<'u>>,
+{
+    fn into_convert_value_unit(self) -> Result<(ConvertValue, ConvertUnit<'u>), ConvertError> {
+        Ok((self.0.into(), self.1.into()))
+    }
+
+    type Output = (ConvertValue, Unit);
+
+    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output {
+        (value, unit.as_ref().clone())
     }
 }
 
@@ -464,5 +519,31 @@ impl Converter {
                 .size_limit(500_000)
                 .build()
         })
+    }
+}
+
+pub struct UnitCount {
+    pub all: usize,
+    pub by_system: EnumMap<System, usize>,
+    pub by_quantity: EnumMap<PhysicalQuantity, usize>,
+}
+
+impl UnitCount {
+    pub fn new(converter: &Converter) -> Self {
+        Self {
+            all: converter.all_units.len(),
+            by_system: converter
+                .all_units
+                .iter()
+                .fold(EnumMap::default(), |mut m, u| {
+                    if let Some(s) = u.system {
+                        m[s] += 1
+                    }
+                    m
+                }),
+            by_quantity: enum_map::enum_map! {
+                q => converter.quantity_index[q].len()
+            },
+        }
     }
 }

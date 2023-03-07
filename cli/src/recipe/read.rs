@@ -360,19 +360,19 @@ fn print_human(
         table.add_row(row);
     }
     write!(w, "{table}")?;
-    if crate::STD_ERR_COLOR_ENABLED.load(std::sync::atomic::Ordering::Relaxed) {
-        if there_is_fixed || there_is_err {
-            if there_is_fixed {
-                write!(w, "{} fixed value", style("\u{25A0}").yellow())?;
-            }
-            if there_is_err {
-                if there_is_fixed {
-                    write!(w, " | ")?;
-                }
-                write!(w, "{} error scaling", style("\u{25A0}").red())?;
-            }
-            writeln!(w)?;
+    if crate::STD_ERR_COLOR_ENABLED.load(std::sync::atomic::Ordering::Relaxed)
+        && (there_is_fixed || there_is_err)
+    {
+        if there_is_fixed {
+            write!(w, "{} fixed value", style("\u{25A0}").yellow())?;
         }
+        if there_is_err {
+            if there_is_fixed {
+                write!(w, " | ")?;
+            }
+            write!(w, "{} error scaling", style("\u{25A0}").red())?;
+        }
+        writeln!(w)?;
     }
     writeln!(w)?;
 
