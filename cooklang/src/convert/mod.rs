@@ -273,10 +273,10 @@ impl BestConversions {
         let best_id = self
             .0
             .iter()
-            .filter_map(|c| (norm >= c.0).then_some(c))
-            .last()
-            .or_else(|| self.0.last())
-            .map(|c| c.1)
+            .rev()
+            .find(|(th, _)| norm >= *th)
+            .or_else(|| self.0.first())
+            .map(|&(_, id)| id)
             .expect("empty best units");
         &converter.all_units[best_id]
     }
