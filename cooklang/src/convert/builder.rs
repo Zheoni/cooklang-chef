@@ -278,7 +278,9 @@ fn update_expanded_units(
     let new_units = expand_si(&all_units[id], si)?;
     for (prefix, expanded_unit) in new_units.into_iter() {
         let expanded_id = all_units[id].expanded_units.as_ref().unwrap()[prefix];
+        let old_unit_aliases = all_units[expanded_id].aliases.clone();
         all_units[expanded_id] = expanded_unit;
+        all_units[expanded_id].aliases = old_unit_aliases;
         unit_index.add_unit(&all_units[expanded_id], expanded_id)?;
     }
     // (re)add the new entries to the index
