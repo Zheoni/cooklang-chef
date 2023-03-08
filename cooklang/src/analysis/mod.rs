@@ -15,6 +15,7 @@ mod ast_walker;
 
 pub use ast_walker::RecipeContent;
 
+#[tracing::instrument(skip_all, fields(ast_lines = ast.lines.len()))]
 pub fn analyze_ast<'a>(
     input: &str,
     ast: crate::parser::ast::Ast<'a>,

@@ -106,6 +106,7 @@ impl CooklangParser {
         self.extensions
     }
 
+    #[tracing::instrument(skip_all, fields(len = input.len()))]
     pub fn parse<'a>(
         &self,
         input: &'a str,
@@ -123,7 +124,6 @@ impl CooklangParser {
             self.warnings_as_errors,
         )?;
         warn.extend(w.into_iter().map(CooklangWarning::from));
-
         Ok((Recipe::from_content(recipe_name.to_string(), content), warn))
     }
 }

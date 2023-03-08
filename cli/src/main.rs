@@ -23,7 +23,7 @@ struct Args {
     global_args: GlobalArgs,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Subcommand, strum::Display)]
 enum Command {
     /// Manage recipe files
     Recipe(Box<recipe::RecipeArgs>),
@@ -58,6 +58,9 @@ struct GlobalArgs {
 
     #[arg(long, global = true, default_value = "auto")]
     color: ColorChoice,
+
+    #[arg(long, global = true)]
+    debug_trace: bool,
 }
 
 pub fn main() -> Result<()> {
@@ -65,8 +68,17 @@ pub fn main() -> Result<()> {
 
     init_color(&args.global_args.color);
 
+    if args.global_args.debug_trace {
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(tracing::Level::TRACE)
+            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+            .with_ansi(STD_ERR_COLOR_ENABLED.load(std::sync::atomic::Ordering::Relaxed))
+            .init();
+    }
+
     let parser = configure_parser(args.global_args)?;
 
+    let _enter = tracing::info_span!("run", command = %args.command).entered();
     match args.command {
         Command::Recipe(args) => recipe::run(&parser, *args),
         Command::Serve => serve::run(&parser),
@@ -115,6 +127,7 @@ fn init_color(color: &ColorChoice) {
     }
 }
 
+#[tracing::instrument(skip_all)]
 fn configure_parser(args: GlobalArgs) -> Result<CooklangParser> {
     let mut parser = CooklangParser::builder()
         .warnings_as_errors(args.warnings_as_errors)

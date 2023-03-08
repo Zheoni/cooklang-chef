@@ -10,7 +10,10 @@ use url::Url;
 macro_rules! regex {
     ($re:literal $(,)?) => {{
         static RE: once_cell::sync::OnceCell<regex::Regex> = once_cell::sync::OnceCell::new();
-        RE.get_or_init(|| regex::Regex::new($re).unwrap())
+        RE.get_or_init(|| {
+            let _enter = tracing::trace_span!("regex", re = $re).entered();
+            regex::Regex::new($re).unwrap()
+        })
     }};
 }
 
