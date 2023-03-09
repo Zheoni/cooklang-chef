@@ -196,9 +196,7 @@ impl<'a> QuantityValue<'a> {
                 scalable: true,
             } => Self::Scalable(ScalableValue::Linear(value.take())),
             ast::QuantityValue::Many(v) => Self::Scalable(ScalableValue::ByServings(
-                v.into_iter()
-                    .map(crate::parser::located::Located::take)
-                    .collect(),
+                v.into_iter().map(crate::located::Located::take).collect(),
             )),
         }
     }

@@ -5,8 +5,6 @@ use std::{
 
 use crate::context::Recover;
 
-use super::{pest_ext::Span, Pair};
-
 #[derive(Debug)]
 pub struct Located<T> {
     pub(crate) inner: T,
@@ -110,15 +108,6 @@ impl<T> DerefMut for Located<T> {
 impl<T> From<Located<T>> for miette::SourceSpan {
     fn from(value: Located<T>) -> Self {
         value.span.into()
-    }
-}
-
-impl<'a> From<Pair<'a>> for Located<Pair<'a>> {
-    fn from(value: Pair<'a>) -> Self {
-        Self {
-            span: value.span(),
-            inner: value,
-        }
     }
 }
 

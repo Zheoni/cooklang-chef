@@ -1,6 +1,7 @@
 use std::{borrow::Cow, ops::Range};
 
-use super::{located::Located, Pair};
+use super::Pair;
+use crate::located::Located;
 
 pub trait PairExt<'a> {
     fn located(self) -> Located<Self>
@@ -108,5 +109,12 @@ impl Span for pest::error::InputLocation {
             pest::error::InputLocation::Pos(p) => p..p,
             pest::error::InputLocation::Span((start, end)) => start..end,
         }
+    }
+}
+
+impl<'a> From<Pair<'a>> for Located<Pair<'a>> {
+    fn from(value: Pair<'a>) -> Self {
+        let span = value.span();
+        Self::new(value, span)
     }
 }

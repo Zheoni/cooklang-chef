@@ -11,7 +11,6 @@ use self::pest_ext::Span;
 use crate::Extensions;
 
 pub(crate) mod ast;
-pub(crate) mod located;
 mod pairs_walker;
 mod pest_ext;
 

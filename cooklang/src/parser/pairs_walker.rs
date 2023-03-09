@@ -6,6 +6,7 @@ use std::{
 use crate::{
     context::{Context, Recover},
     impl_deref_context,
+    located::Located,
     parser::pest_ext::{PairExt, Span},
     quantity::Value,
     Extensions,
@@ -15,7 +16,6 @@ use super::{
     ast::{
         Ast, Component, Cookware, Ingredient, Item, Line, Modifiers, Quantity, QuantityValue, Timer,
     },
-    located::Located,
     ComponentKind, Pair, Pairs, ParserError, ParserWarning, Rule,
 };
 

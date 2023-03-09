@@ -7,8 +7,7 @@ use miette::Diagnostic;
 use thiserror::Error;
 
 use crate::{
-    context::Context, convert::Converter, metadata::MetadataError, parser::located::Located,
-    Extensions,
+    context::Context, convert::Converter, located::Located, metadata::MetadataError, Extensions,
 };
 
 mod ast_walker;

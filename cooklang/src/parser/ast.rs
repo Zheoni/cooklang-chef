@@ -1,8 +1,6 @@
 use std::{borrow::Cow, ops::Range};
 
-use crate::{context::Recover, quantity::Value};
-
-use super::located::Located;
+use crate::{context::Recover, located::Located, quantity::Value};
 
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};

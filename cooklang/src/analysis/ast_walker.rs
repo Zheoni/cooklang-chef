@@ -4,9 +4,9 @@ use std::ops::Range;
 use regex::Regex;
 
 use crate::convert::{Converter, PhysicalQuantity};
+use crate::located::{Located, OptTake};
 use crate::metadata::Metadata;
 use crate::parser::ast::{self, Modifiers};
-use crate::parser::located::{Located, OptTake};
 use crate::quantity::{Quantity, QuantityValue, ScalableValue, UnitInfo, Value};
 use crate::{context::Context, impl_deref_context};
 use crate::{model::*, Extensions};
