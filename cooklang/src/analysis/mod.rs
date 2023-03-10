@@ -1,13 +1,10 @@
-use std::{
-    borrow::{Borrow, Cow},
-    ops::Range,
-};
+use std::{borrow::Cow, ops::Range};
 
-use miette::Diagnostic;
 use thiserror::Error;
 
 use crate::{
-    context::Context, convert::Converter, located::Located, metadata::MetadataError, Extensions,
+    context::Context, convert::Converter, error::RichError, located::Located,
+    metadata::MetadataError, Extensions,
 };
 
 mod ast_walker;
@@ -16,7 +13,6 @@ pub use ast_walker::RecipeContent;
 
 #[tracing::instrument(skip_all, fields(ast_lines = ast.lines.len()))]
 pub fn analyze_ast<'a>(
-    input: &str,
     ast: crate::parser::ast::Ast<'a>,
     extensions: Extensions,
     converter: &Converter,
@@ -27,188 +23,196 @@ pub fn analyze_ast<'a>(
     let Context { errors, warnings } = context;
 
     if !errors.is_empty() || warnings_as_errors && !warnings.is_empty() {
-        return Err(AnalysisReport {
-            input: input.to_string(),
-            errors,
-            warnings,
-        });
+        return Err(AnalysisReport::new(errors, warnings));
     }
 
     Ok((content, warnings))
 }
 
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Error)]
 pub enum AnalysisError {
     #[error("Invalid value for '{key}': {value}")]
-    #[diagnostic(
-        code(cooklang::analysis::invalid_special_key_value),
-        help("Possible values are: {possible_values:?}")
-    )]
     InvalidSpecialMetadataValue {
-        #[label("this key")]
         key: Located<String>,
-        #[label("does not support this value")]
         value: Located<String>,
-
         possible_values: Vec<&'static str>,
     },
     #[error("Reference not found: {name}")]
-    #[diagnostic(
-        code(cooklang::analysis::reference_not_found),
-        help("A non reference ingredient with the same name defined before cannot be found")
-    )]
     ReferenceNotFound {
         name: String,
-        #[label]
         reference_span: Range<usize>,
     },
     #[error("Conflicting ingredient reference quantities: {ingredient_name}")]
-    #[diagnostic(
-        code(cooklang::analysis::conflicting_reference_quantities),
-        help("If the ingredient is not defined in a step, its references cannot have a quantity")
-    )]
     ConflictingReferenceQuantities {
         ingredient_name: String,
-        #[label("defined outside step here")]
         definition_span: Range<usize>,
-        #[label("referenced here")]
         reference_span: Range<usize>,
     },
 
     #[error("Unknown timer unit: {unit}")]
-    #[diagnostic(
-        code(cooklang::analysis::unknown_timer_unit),
-        help("With the ADVANCED_UNITS extensions, timers are required to have a time unit.")
-    )]
     UnknownTimerUnit {
         unit: String,
-        #[label]
         timer_span: Range<usize>,
     },
 
     #[error("Bad timer unit. Expecting time, got: {}", .unit.physical_quantity)]
-    #[diagnostic(code(cooklang::analysis::bad_timer_unit))]
     BadTimerUnit {
         unit: crate::convert::Unit,
-        #[label]
         timer_span: Range<usize>,
     },
 
     #[error("Quantity scaling error: {reason}")]
-    #[diagnostic(code(cooklang::analysis::scaling_conflict))]
     SacalingConflict {
         reason: Cow<'static, str>,
-        #[label]
         value_span: Range<usize>,
     },
 }
 
-#[derive(Debug, Error, Diagnostic)]
-#[diagnostic(severity(warning))]
+#[derive(Debug, Error)]
 pub enum AnalysisWarning {
     #[error("Ignoring unknown special metadata key: {key}")]
-    #[diagnostic(help("Possible values are 'duplicate' and 'reference'"))]
-    UnknownSpecialMetadataKey {
-        key: String,
-        #[label]
-        key_span: Range<usize>,
-    },
+    UnknownSpecialMetadataKey { key: String, key_span: Range<usize> },
 
     #[error("Ingoring text in define ingredients mode")]
-    TextDefiningIngredients {
-        #[label]
-        text_span: Range<usize>,
-    },
+    TextDefiningIngredients { text_span: Range<usize> },
 
     #[error("Text value in reference prevents calculating total amount")]
-    TextValueInReference {
-        #[label]
-        quantity_span: Range<usize>,
-    },
+    TextValueInReference { quantity_span: Range<usize> },
 
     #[error("Incompatible units in reference prevents calculating total amount")]
     IncompatibleUnits {
-        #[label]
         a: Range<usize>,
-        #[label]
         b: Range<usize>,
 
         #[source]
-        #[diagnostic_source]
         source: crate::quantity::IncompatibleUnits,
     },
 
     #[error("Invalid value for key: {key}. Treating it as a regular metadata key.")]
-    #[diagnostic(help("Rich information for this metadata will not be available"))]
     InvalidMetadataValue {
         key: String,
         value: String,
 
-        #[label("this key")]
         key_span: Range<usize>,
-        #[label("does not understand this value")]
         value_span: Range<usize>,
 
         #[source]
-        #[diagnostic_source]
         source: MetadataError,
     },
 
     #[error("Component found in text mode")]
-    ComponentInTextMode {
-        #[label("this will be ignored")]
-        component_span: Range<usize>,
-    },
+    ComponentInTextMode { component_span: Range<usize> },
 
     #[error("An error ocurred searching temperature values")]
-    #[diagnostic(help("Check the temperature symbols defined in the units.toml file"))]
     TemperatureRegexCompile {
         #[source]
         source: regex::Error,
     },
 
     #[error("Redundant auto scale marker")]
-    #[diagnostic(help("Be caraful as every ingredient is already marked to auto scale"))]
-    RedundantAutoScaleMarker {
-        #[label]
-        quantity_span: Range<usize>,
-    },
+    RedundantAutoScaleMarker { quantity_span: Range<usize> },
 }
 
-#[derive(Debug, Error)]
-#[error("Parse analysis did not finish successfully")]
-pub struct AnalysisReport {
-    input: String,
-    errors: Vec<AnalysisError>,
-    warnings: Vec<AnalysisWarning>,
-}
-
-impl miette::Diagnostic for AnalysisReport {
-    fn source_code(&self) -> Option<&dyn miette::SourceCode> {
-        Some(&self.input)
-    }
-
-    fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn Diagnostic> + 'a>> {
-        let related = self
-            .warnings
-            .iter()
-            .map(|x| -> &(dyn miette::Diagnostic) { x.borrow() })
-            .chain(
-                self.errors
-                    .iter()
-                    .map(|x| -> &(dyn miette::Diagnostic) { x.borrow() }),
-            );
-
-        Some(Box::new(related))
-    }
-
-    fn severity(&self) -> Option<miette::Severity> {
-        if !self.errors.is_empty() {
-            Some(miette::Severity::Error)
-        } else if !self.warnings.is_empty() {
-            Some(miette::Severity::Warning)
-        } else {
-            None
+impl RichError for AnalysisError {
+    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+        use crate::error::label;
+        match self {
+            AnalysisError::InvalidSpecialMetadataValue { key, value, .. } => vec![
+                label!(key, "this key"),
+                label!(value, "does not support this value"),
+            ],
+            AnalysisError::ReferenceNotFound { reference_span, .. } => vec![label!(reference_span)],
+            AnalysisError::ConflictingReferenceQuantities {
+                definition_span,
+                reference_span,
+                ..
+            } => vec![
+                label!(definition_span, "defined outside step here"),
+                label!(reference_span, "referenced here"),
+            ],
+            AnalysisError::UnknownTimerUnit { timer_span, .. } => vec![label!(timer_span)],
+            AnalysisError::BadTimerUnit { timer_span, .. } => vec![label!(timer_span)],
+            AnalysisError::SacalingConflict { value_span, .. } => vec![label!(value_span)],
         }
     }
+
+    fn help(&self) -> Option<Cow<'static, str>> {
+        use crate::error::help;
+        match self {
+            AnalysisError::InvalidSpecialMetadataValue {
+                possible_values, ..
+            } => help!(format!("Possible values are: {possible_values:?}")),
+            AnalysisError::ReferenceNotFound { .. } => help!(
+                "A non reference ingredient with the same name defined before cannot be found"
+            ),
+            AnalysisError::ConflictingReferenceQuantities { .. } => help!(
+                "If the ingredient is not defined in a step, its references cannot have a quantity"
+            ),
+            AnalysisError::UnknownTimerUnit { .. } => {
+                help!("With the ADVANCED_UNITS extensions, timers are required to have a time unit")
+            }
+            AnalysisError::BadTimerUnit { .. } => None,
+            AnalysisError::SacalingConflict { .. } => None,
+        }
+    }
+
+    fn code(&self) -> Option<&'static str> {
+        Some("analysis")
+    }
 }
+
+impl RichError for AnalysisWarning {
+    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+        use crate::error::label;
+        match self {
+            AnalysisWarning::UnknownSpecialMetadataKey { key_span, .. } => vec![label!(key_span)],
+            AnalysisWarning::TextDefiningIngredients { text_span } => vec![label!(text_span)],
+            AnalysisWarning::TextValueInReference { quantity_span } => vec![label!(quantity_span)],
+            AnalysisWarning::IncompatibleUnits { a, b, .. } => vec![label!(a), label!(b)],
+            AnalysisWarning::InvalidMetadataValue {
+                key_span,
+                value_span,
+                ..
+            } => vec![
+                label!(key_span, "this key"),
+                label!(value_span, "does not understand this value"),
+            ],
+            AnalysisWarning::ComponentInTextMode { component_span } => {
+                vec![label!(component_span, "this will be ignored")]
+            }
+            AnalysisWarning::TemperatureRegexCompile { .. } => vec![],
+            AnalysisWarning::RedundantAutoScaleMarker { quantity_span } => {
+                vec![label!(quantity_span)]
+            }
+        }
+    }
+
+    fn help(&self) -> Option<Cow<'static, str>> {
+        use crate::error::help;
+        match self {
+            AnalysisWarning::UnknownSpecialMetadataKey { .. } => {
+                help!("Possible values are 'duplicate' and 'reference'")
+            }
+            AnalysisWarning::InvalidMetadataValue { .. } => {
+                help!("Rich information for this metadata will not be available")
+            }
+            AnalysisWarning::TemperatureRegexCompile { .. } => {
+                help!("Check the temperature symbols defined in the units.toml file")
+            }
+            AnalysisWarning::RedundantAutoScaleMarker { .. } => {
+                help!("Be careful as every ingredient is already marked to auto scale")
+            }
+            _ => None,
+        }
+    }
+
+    fn code(&self) -> Option<&'static str> {
+        Some("analysis")
+    }
+
+    fn kind(&self) -> ariadne::ReportKind {
+        ariadne::ReportKind::Warning
+    }
+}
+
+pub type AnalysisReport = crate::error::Report<AnalysisError, AnalysisWarning>;

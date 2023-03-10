@@ -1,6 +1,5 @@
 use std::{borrow::Cow, fmt::Display, ops::RangeInclusive, sync::Arc};
 
-use miette::Diagnostic;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -283,37 +282,31 @@ impl<'a> From<Cow<'a, str>> for Value<'a> {
     }
 }
 
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Error)]
 pub enum QuantityAddError {
     #[error(transparent)]
-    #[diagnostic(code(cooklang::quantity::add::incompatible_units))]
     IncompatibleUnits(#[from] IncompatibleUnits),
 
     #[error(transparent)]
-    #[diagnostic(transparent)]
     Value(#[from] TextValueError),
 
     #[error(transparent)]
-    #[diagnostic(transparent)]
     Convert(#[from] ConvertError),
 
     #[error("Quantities must be scaled before adding them")]
-    #[diagnostic(code(cooklang::quantity::add::not_scaled))]
     NotScaled(#[from] NotScaled),
 }
 
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Error)]
 pub enum IncompatibleUnits {
     #[error("Missing unit: one unit is '{found}' but the other quantity is missing a unit")]
     MissingUnit { found: QuantityUnit<'static> },
     #[error("Different physical quantity: '{a}' '{b}'")]
-    #[diagnostic(help("The physical quantity must be the same to add the values"))]
     DifferentPhysicalQuantities {
         a: PhysicalQuantity,
         b: PhysicalQuantity,
     },
     #[error("Unknown units differ: '{a}' '{b}'")]
-    #[diagnostic(help("Unknown units can only be added when they are exactly the same"))]
     UnknownDifferentUnits { a: String, b: String },
 }
 
@@ -402,10 +395,9 @@ impl Quantity<'_> {
     }
 }
 
-#[derive(Debug, Error, Diagnostic)]
-#[error("Value needs to be scaled")]
-#[diagnostic(code(cooklang::quantity::not_scaled))]
-pub struct NotScaled(ScalableValue<'static>);
+#[derive(Debug, Error)]
+#[error("Tried to operate on a non scaled value: {0}")]
+pub struct NotScaled(pub ScalableValue<'static>);
 
 impl QuantityValue<'_> {
     pub fn extract_value(&self) -> Result<&Value, NotScaled> {
@@ -421,9 +413,8 @@ impl QuantityValue<'_> {
     }
 }
 
-#[derive(Debug, Error, Diagnostic, Clone)]
+#[derive(Debug, Error, Clone)]
 #[error("Cannot operate on a text value")]
-#[diagnostic(code(cooklang::quantity::value))]
 pub struct TextValueError(pub Value<'static>);
 
 impl Value<'_> {

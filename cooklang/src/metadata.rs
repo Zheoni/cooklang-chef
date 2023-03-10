@@ -1,7 +1,6 @@
 use std::{borrow::Cow, ops::RangeInclusive};
 
 use indexmap::IndexMap;
-use miette::Diagnostic;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::Url;
@@ -160,10 +159,9 @@ impl RecipeTime {
     }
 }
 
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Error)]
 pub enum MetadataError {
     #[error("Value is not an emoji: {value}")]
-    #[diagnostic(code(cooklang::metadata::not_emoji))]
     NotEmoji { value: String },
     #[error("Invalid tag: {tag}")]
     InvalidTag { tag: String },

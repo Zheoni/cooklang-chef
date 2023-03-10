@@ -105,9 +105,9 @@ impl<T> DerefMut for Located<T> {
     }
 }
 
-impl<T> From<Located<T>> for miette::SourceSpan {
+impl<T> From<Located<T>> for Range<usize> {
     fn from(value: Located<T>) -> Self {
-        value.span.into()
+        value.span
     }
 }
 

@@ -1,14 +1,13 @@
 use std::{collections::HashMap, ops::RangeInclusive, sync::Arc};
 
 use enum_map::EnumMap;
-use miette::Diagnostic;
 use once_cell::sync::OnceCell;
 
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::quantity::{Quantity, QuantityValue, ScalableValue, Value};
+use crate::quantity::{NotScaled, Quantity, QuantityValue, Value};
 
 use self::{
     builder::ConverterBuilder,
@@ -267,7 +266,7 @@ pub(crate) fn convert_f64(value: f64, from: &Unit, to: &Unit) -> f64 {
     (norm / to.ratio) - to.difference
 }
 
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Error)]
 #[error("Unknown unit: '{0}'")]
 pub struct UnknownUnit(String);
 
@@ -390,7 +389,7 @@ impl<'a> ConvertFrom<'a> for &'a Quantity<'a> {
                 Value::Text(t) => Err(ConvertError::TextValue(t.to_string())),
             },
             crate::quantity::QuantityValue::Scalable(v) => {
-                Err(ConvertError::NotScaled(v.clone().into_owned()))
+                Err(ConvertError::NotScaled(NotScaled(v.clone().into_owned())))
             }
         }?;
         let unit = match self.unit().map(|u| u.text()) {
@@ -467,32 +466,24 @@ impl PartialOrd<Self> for ConvertValue {
     }
 }
 
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Error)]
 pub enum ConvertError {
     #[error("Tried to convert a value with no unit: {0}")]
-    #[diagnostic(code(cooklang::convert::unitless_quantity))]
     NoUnit(Quantity<'static>),
 
     #[error("Tried to convert a text value: {0}")]
-    #[diagnostic(code(cooklang::convert::text_value))]
     TextValue(String),
 
-    #[error("Tried to convert a non scaled value: {0}")]
-    #[diagnostic(
-        code(cooklang::convert::not_scaled),
-        help("Values need to be scaled before conversion")
-    )]
-    NotScaled(ScalableValue<'static>),
+    #[error(transparent)]
+    NotScaled(#[from] NotScaled),
 
     #[error("Mixed physical quantities: {from} {to}")]
-    #[diagnostic(code(cooklang::convert::mixed_quantities))]
     MixedQuantities {
         from: PhysicalQuantity,
         to: PhysicalQuantity,
     },
 
     #[error(transparent)]
-    #[diagnostic(code(cooklang::convert::unknown_unit))]
     UnknownUnit(#[from] UnknownUnit),
 }
 

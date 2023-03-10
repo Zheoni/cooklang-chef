@@ -1,2 +1,4 @@
 target/
 *.cook
+thoughts.md
+.vscode/launch.json

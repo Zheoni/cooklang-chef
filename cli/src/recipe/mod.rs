@@ -1,8 +1,8 @@
 use std::{io::Read, path::PathBuf};
 
+use anyhow::{bail, Context, Result};
 use clap::{Args, Subcommand};
 use cooklang::CooklangParser;
-use miette::{Context, IntoDiagnostic, Result};
 
 use self::read::ReadArgs;
 
@@ -57,33 +57,24 @@ pub fn run(parser: &CooklangParser, args: RecipeArgs) -> Result<()> {
 }
 
 impl RecipeInput {
-    pub fn read(&self) -> Result<(String, String)> {
+    pub fn read(&self) -> Result<(String, String, String)> {
         let (text, filename) = if let Some(path) = &self.file {
-            let filename = path
-                .file_name()
-                .map(|s| s.to_string_lossy().to_string())
-                .map(|name| {
-                    name.strip_suffix(".cook")
-                        .map(|s| s.to_string())
-                        .unwrap_or(name)
-                });
-            let text = std::fs::read_to_string(path)
-                .into_diagnostic()
-                .wrap_err("Failed to read input file")?;
+            let filename = path.file_name().map(|s| s.to_string_lossy().to_string());
+            let text = std::fs::read_to_string(path).context("Failed to read input file")?;
             (text, filename)
         } else {
             let mut buf = String::new();
             std::io::stdin()
                 .read_to_string(&mut buf)
-                .into_diagnostic()
-                .wrap_err("Failed to read stdin")?;
+                .context("Failed to read stdin")?;
             (buf, None)
         };
 
         if let Some(name) = self.name.as_ref().or(filename.as_ref()) {
-            Ok((text, name.to_owned()))
+            let recipe_name = name.strip_suffix(".cook").unwrap_or(&name);
+            Ok((text, name.to_owned(), recipe_name.to_owned()))
         } else {
-            miette::bail!("No name for the recipe")
+            bail!("No name for the recipe")
         }
     }
 }

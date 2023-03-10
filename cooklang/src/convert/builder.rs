@@ -1,7 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
 use enum_map::{enum_map, EnumMap};
-use miette::Diagnostic;
 use thiserror::Error;
 
 use super::{
@@ -425,8 +424,7 @@ impl UnitIndex {
     }
 }
 
-#[derive(Debug, Error, Diagnostic)]
-#[diagnostic(code(cooklang::convert::units_file))]
+#[derive(Debug, Error)]
 pub enum ConverterBuilderError {
     #[error("Duplicate unit: {name}")]
     DuplicateUnit { name: String },
@@ -446,8 +444,7 @@ pub enum ConverterBuilderError {
         quantity: PhysicalQuantity,
     },
 
-    #[error("Empty SI prefixes")]
-    #[diagnostic(help("Tried to expand an unit but no prefixes (name or symbol) were declared in any configuration file."))]
+    #[error("No SI prefixes found when expandind SI on a unit")]
     EmptySIPrefixes,
 
     #[error("Best units' unit incorrect system: in unit '{unit}' expected {expected}, got {got}")]

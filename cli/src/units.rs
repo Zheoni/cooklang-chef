@@ -1,7 +1,7 @@
+use anyhow::Result;
 use clap::{Args, ValueEnum};
 use console::{style, StyledObject};
 use cooklang::convert::{Converter, Unit};
-use miette::Result;
 
 #[derive(Debug, Args)]
 pub struct UnitsArgs {

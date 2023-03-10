@@ -1,4 +1,3 @@
-use miette::Diagnostic;
 use thiserror::Error;
 
 use crate::{
@@ -60,10 +59,9 @@ pub enum ScaleOutcome {
 
 pub type ScaledRecipe<'a> = Recipe<'a, Scaled>;
 
-#[derive(Debug, Error, Diagnostic, Clone)]
+#[derive(Debug, Error, Clone)]
 pub enum ScaleError {
     #[error(transparent)]
-    #[diagnostic(transparent)]
     TextValueError(#[from] TextValueError),
 
     #[error("Value not scalable: {reason}")]

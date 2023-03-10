@@ -21,7 +21,7 @@ pub struct ConvertArgs {
     no_round: bool,
 }
 
-pub fn run(converter: &Converter, args: ConvertArgs) -> miette::Result<()> {
+pub fn run(converter: &Converter, args: ConvertArgs) -> anyhow::Result<()> {
     let to = match args.to.as_str() {
         "fit" => ConvertTo::SameSystem,
         "metric" => ConvertTo::Best(System::Metric),

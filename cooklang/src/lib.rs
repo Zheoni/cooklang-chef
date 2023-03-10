@@ -12,7 +12,7 @@ pub mod scale;
 
 use bitflags::bitflags;
 use convert::Converter;
-use error::{CookResult, CooklangWarning};
+use error::{CookResult, CooklangReport, CooklangWarning};
 pub use model::Recipe;
 pub use scale::ScaledRecipe;
 
@@ -115,15 +115,16 @@ impl CooklangParser {
     ) -> CookResult<(Recipe<'a>, Vec<CooklangWarning>)> {
         let mut warn = Vec::new();
 
-        let (ast, w) = parser::parse(input, self.extensions, self.warnings_as_errors)?;
+        let (ast, w) = parser::parse(input, self.extensions, self.warnings_as_errors)
+            .map_err(CooklangReport::from_report)?;
         warn.extend(w.into_iter().map(CooklangWarning::from));
         let (content, w) = analysis::analyze_ast(
-            input,
             ast,
             self.extensions,
             &self.converter,
             self.warnings_as_errors,
-        )?;
+        )
+        .map_err(CooklangReport::from_report)?;
         warn.extend(w.into_iter().map(CooklangWarning::from));
         Ok((Recipe::from_content(recipe_name.to_string(), content), warn))
     }

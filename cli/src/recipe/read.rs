@@ -1,5 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
+use anyhow::{bail, Context, Result};
 use clap::{Args, ValueEnum};
 use cooklang::{
     convert::Converter,
@@ -8,7 +9,6 @@ use cooklang::{
     scale::{ScaleOutcome, ScaleTarget},
     CooklangParser,
 };
-use miette::{bail, Context, IntoDiagnostic, Result};
 
 use super::RecipeInput;
 
@@ -45,15 +45,17 @@ enum Output {
 }
 
 pub fn run(parser: &CooklangParser, args: ReadArgs) -> Result<()> {
-    let (input, name) = args.input.read()?;
+    let (input, file_name, recipe_name) = args.input.read()?;
 
-    let (recipe, warnings) = parser.parse(&input, &name)?;
+    let (recipe, warnings) = match parser.parse(&input, &recipe_name) {
+        Ok(t) => t,
+        Err(r) => {
+            r.eprint(&file_name, &input)?;
+            bail!("Error parsing recipe");
+        }
+    };
     if !args.ignore_warnings {
-        cooklang::error::print_warnings(
-            &input,
-            &warnings,
-            crate::STD_ERR_COLOR_ENABLED.load(std::sync::atomic::Ordering::Relaxed),
-        );
+        cooklang::error::print_warnings(&file_name, &input, &warnings);
     }
 
     let scaled_recipe = if let Some(scale) = args.scale {
@@ -79,9 +81,7 @@ pub fn run(parser: &CooklangParser, args: ReadArgs) -> Result<()> {
 impl ReadArgs {
     fn to_output(&self, recipe: &cooklang::ScaledRecipe, converter: &Converter) -> Result<()> {
         if let Some(path) = &self.output {
-            let file = std::fs::File::create(path)
-                .into_diagnostic()
-                .wrap_err("Failed to create output file")?;
+            let file = std::fs::File::create(path).context("Failed to create output file")?;
             self.write(recipe, converter, file)?;
         } else {
             self.write(recipe, converter, std::io::stdout())?;
@@ -97,13 +97,13 @@ impl ReadArgs {
     ) -> Result<()> {
         match self.format {
             Output::Human => {
-                print_human(recipe, converter, writer).into_diagnostic()?;
+                print_human(recipe, converter, writer)?;
             }
             Output::Json => {
                 if self.pretty {
-                    serde_json::to_writer_pretty(writer, recipe).into_diagnostic()?;
+                    serde_json::to_writer_pretty(writer, recipe)?;
                 } else {
-                    serde_json::to_writer(writer, recipe).into_diagnostic()?;
+                    serde_json::to_writer(writer, recipe)?;
                 }
             }
         };
@@ -360,9 +360,7 @@ fn print_human(
         table.add_row(row);
     }
     write!(w, "{table}")?;
-    if crate::STD_ERR_COLOR_ENABLED.load(std::sync::atomic::Ordering::Relaxed)
-        && (there_is_fixed || there_is_err)
-    {
+    if there_is_fixed || there_is_err {
         if there_is_fixed {
             write!(w, "{} fixed value", style("\u{25A0}").yellow())?;
         }

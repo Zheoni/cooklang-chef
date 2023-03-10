@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
-use clap::{ColorChoice, Parser, Subcommand};
+use anyhow::Result;
+use clap::{Parser, Subcommand};
 use cooklang::{
     convert::{builder::ConverterBuilder, units_file::UnitsFile},
     CooklangParser, Extensions,
 };
-use miette::{IntoDiagnostic, Result};
 
 mod convert;
 mod recipe;
@@ -15,6 +15,7 @@ mod units;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
+#[clap(color = concolor_clap::color_choice())]
 struct Args {
     #[command(subcommand)]
     command: Command,
@@ -56,8 +57,8 @@ struct GlobalArgs {
     #[arg(long, global = true)]
     warnings_as_errors: bool,
 
-    #[arg(long, global = true, default_value = "auto")]
-    color: ColorChoice,
+    #[command(flatten)]
+    color: concolor_clap::Color,
 
     #[arg(long, global = true)]
     debug_trace: bool,
@@ -66,13 +67,13 @@ struct GlobalArgs {
 pub fn main() -> Result<()> {
     let args = Args::parse();
 
-    init_color(&args.global_args.color);
+    init_color(args.global_args.color);
 
     if args.global_args.debug_trace {
         tracing_subscriber::FmtSubscriber::builder()
             .with_max_level(tracing::Level::TRACE)
             .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
-            .with_ansi(STD_ERR_COLOR_ENABLED.load(std::sync::atomic::Ordering::Relaxed))
+            .with_ansi(concolor::get(concolor::Stream::Stderr).ansi_color())
             .init();
     }
 
@@ -88,43 +89,8 @@ pub fn main() -> Result<()> {
     }
 }
 
-static STD_OUT_COLOR_ENABLED: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-static STD_ERR_COLOR_ENABLED: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
-fn init_color(color: &ColorChoice) {
-    fn set_miette_color(color: bool) {
-        miette::set_hook(Box::new(move |_| {
-            Box::new(miette::MietteHandlerOpts::new().color(color).build())
-        }))
-        .expect("Error initializing error formatter")
-    }
-
-    match color {
-        ColorChoice::Auto => {
-            STD_OUT_COLOR_ENABLED.store(
-                console::colors_enabled(),
-                std::sync::atomic::Ordering::Relaxed,
-            );
-            STD_ERR_COLOR_ENABLED.store(
-                console::colors_enabled_stderr(),
-                std::sync::atomic::Ordering::Relaxed,
-            );
-        }
-        ColorChoice::Always => {
-            console::set_colors_enabled(true);
-            set_miette_color(true);
-            STD_OUT_COLOR_ENABLED.store(true, std::sync::atomic::Ordering::Relaxed);
-            STD_ERR_COLOR_ENABLED.store(true, std::sync::atomic::Ordering::Relaxed);
-        }
-        ColorChoice::Never => {
-            console::set_colors_enabled(false);
-            set_miette_color(false);
-            STD_OUT_COLOR_ENABLED.store(false, std::sync::atomic::Ordering::Relaxed);
-            STD_ERR_COLOR_ENABLED.store(false, std::sync::atomic::Ordering::Relaxed);
-        }
-    }
+fn init_color(color: concolor_clap::Color) {
+    color.apply();
 }
 
 #[tracing::instrument(skip_all)]
@@ -144,8 +110,8 @@ fn configure_parser(args: GlobalArgs) -> Result<CooklangParser> {
                 .expect("Failed to add bundled units");
         }
         for file in &args.units {
-            let text = std::fs::read_to_string(file).into_diagnostic()?;
-            let units = toml::from_str(&text).into_diagnostic()?;
+            let text = std::fs::read_to_string(file)?;
+            let units = toml::from_str(&text)?;
             builder.add_units_file(units)?;
         }
         parser.set_converter(builder.finish()?);
