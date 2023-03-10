@@ -15,9 +15,9 @@ toml = "0.7"
 cooklang = { path = "../cooklang" }
 textwrap = { version = "0.16", features = ["terminal_size"] }
 humantime = "2.1"
-console = "0.15"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 anyhow = "1"
 concolor-clap = { version = "0.1", features = ["api"] }
 concolor = "0.1"
+yansi = "0.5"

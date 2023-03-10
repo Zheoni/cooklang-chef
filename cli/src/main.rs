@@ -91,6 +91,18 @@ pub fn main() -> Result<()> {
 
 fn init_color(color: concolor_clap::Color) {
     color.apply();
+    let stdout_support = concolor::get(concolor::Stream::Stdout);
+    if stdout_support.ansi_color() {
+        yansi::Paint::enable();
+    } else if stdout_support.color() {
+        // Legacy Windows version, control the console as needed
+        if cfg!(windows) && !yansi::Paint::enable_windows_ascii() {
+            yansi::Paint::disable();
+        }
+    } else {
+        // No coloring
+        yansi::Paint::disable();
+    }
 }
 
 #[tracing::instrument(skip_all)]

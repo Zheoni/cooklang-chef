@@ -1,5 +1,4 @@
 use clap::Args;
-use console::style;
 use cooklang::convert::{ConvertTo, ConvertValue, Converter, System};
 
 #[derive(Debug, Args)]
@@ -36,7 +35,7 @@ pub fn run(converter: &Converter, args: ConvertArgs) -> anyhow::Result<()> {
         n = (n * 1000.0).round() / 1000.0;
     }
 
-    println!("{} {}", n, style(unit).italic());
+    println!("{} {}", n, yansi::Paint::new(unit).italic());
 
     Ok(())
 }

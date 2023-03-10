@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Args, ValueEnum};
-use console::{style, StyledObject};
 use cooklang::convert::{Converter, Unit};
+use yansi::Paint;
 
 #[derive(Debug, Args)]
 pub struct UnitsArgs {
@@ -105,7 +105,7 @@ pub fn run(converter: &Converter, args: UnitsArgs) -> Result<()> {
                     .with_ansi_cell(
                         unit.system
                             .map(style_system)
-                            .unwrap_or_else(|| style("-").dim().to_string()),
+                            .unwrap_or_else(|| Paint::new("-").dimmed().to_string()),
                     )
                     .with_ansi_cell(display_best_unit(converter, unit))
                     .with_cell(unit.ratio)
@@ -124,7 +124,7 @@ pub fn run(converter: &Converter, args: UnitsArgs) -> Result<()> {
 
 fn list(l: &[std::sync::Arc<str>], all: bool) -> String {
     if l.is_empty() {
-        return style("-").dim().to_string();
+        return Paint::new("-").dimmed().to_string();
     }
     let mut l = l.iter().map(|l| {
         if l.contains(char::is_whitespace) {
@@ -141,31 +141,31 @@ fn list(l: &[std::sync::Arc<str>], all: bool) -> String {
 }
 
 fn style_quantity(q: cooklang::convert::PhysicalQuantity) -> String {
-    let mut s = console::Style::new();
-    s = match q {
-        cooklang::convert::PhysicalQuantity::Volume => s.green(),
-        cooklang::convert::PhysicalQuantity::Mass => s.magenta(),
-        cooklang::convert::PhysicalQuantity::Length => s.blue(),
-        cooklang::convert::PhysicalQuantity::Temperature => s.yellow(),
-        cooklang::convert::PhysicalQuantity::Time => s.cyan(),
+    use yansi::Color;
+    let color = match q {
+        cooklang::convert::PhysicalQuantity::Volume => Color::Green,
+        cooklang::convert::PhysicalQuantity::Mass => Color::Magenta,
+        cooklang::convert::PhysicalQuantity::Length => Color::Blue,
+        cooklang::convert::PhysicalQuantity::Temperature => Color::Yellow,
+        cooklang::convert::PhysicalQuantity::Time => Color::Cyan,
     };
-    s.apply_to(q).to_string()
+    Paint::new(q).fg(color).to_string()
 }
 
 fn style_system(system: cooklang::convert::System) -> String {
-    let mut s = console::Style::new();
-    s = match system {
-        cooklang::convert::System::Metric => s.green(),
-        cooklang::convert::System::Imperial => s.red(),
+    use yansi::Color;
+    let color = match system {
+        cooklang::convert::System::Metric => Color::Green,
+        cooklang::convert::System::Imperial => Color::Red,
     };
-    s.apply_to(system).to_string()
+    Paint::new(system).fg(color).to_string()
 }
 
-fn display_best_unit(converter: &Converter, unit: &Unit) -> StyledObject<&'static str> {
+fn display_best_unit(converter: &Converter, unit: &Unit) -> Paint<&'static str> {
     if converter.is_best_unit(unit) {
-        style("b").yellow()
+        Paint::yellow("b")
     } else {
-        style("-").dim()
+        Paint::new("-").dimmed()
     }
 }
 

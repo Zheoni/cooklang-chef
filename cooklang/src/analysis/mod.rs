@@ -168,7 +168,10 @@ impl RichError for AnalysisWarning {
             AnalysisWarning::UnknownSpecialMetadataKey { key_span, .. } => vec![label!(key_span)],
             AnalysisWarning::TextDefiningIngredients { text_span } => vec![label!(text_span)],
             AnalysisWarning::TextValueInReference { quantity_span } => vec![label!(quantity_span)],
-            AnalysisWarning::IncompatibleUnits { a, b, .. } => vec![label!(a), label!(b)],
+            AnalysisWarning::IncompatibleUnits { a, b, .. } => {
+                println!("{a:?} -- {b:?}");
+                vec![label!(a), label!(b)]
+            }
             AnalysisWarning::InvalidMetadataValue {
                 key_span,
                 value_span,
