@@ -299,7 +299,7 @@ pub enum QuantityAddError {
 
 #[derive(Debug, Error)]
 pub enum IncompatibleUnits {
-    #[error("Missing unit: one unit is '{found}' but the other quantity is missing a unit")]
+    #[error("Missing unit: one unit is '{found}' but the other quantity is missing an unit")]
     MissingUnit { found: QuantityUnit<'static> },
     #[error("Different physical quantity: '{a}' '{b}'")]
     DifferentPhysicalQuantities {

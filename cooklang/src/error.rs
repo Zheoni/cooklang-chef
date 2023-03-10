@@ -227,7 +227,7 @@ macro_rules! help {
 pub(crate) use help;
 
 fn build_report(err: &dyn RichError) -> ariadne::Report {
-    use ariadne::{ColorGenerator, Label, Report};
+    use ariadne::{Color, ColorGenerator, Fmt, Label, Report};
 
     let labels = err.labels();
     let offset = err
@@ -235,7 +235,21 @@ fn build_report(err: &dyn RichError) -> ariadne::Report {
         .or_else(|| err.labels().first().map(|l| l.0.start))
         .unwrap_or_default();
 
-    let mut r = Report::build(err.kind(), (), offset).with_message(err);
+    let mut r = Report::build(err.kind(), (), offset);
+
+    if let Some(source) = err.source() {
+        let color = match err.kind() {
+            ariadne::ReportKind::Error => Color::Red,
+            ariadne::ReportKind::Warning => Color::Yellow,
+            ariadne::ReportKind::Advice => Color::Fixed(147),
+            ariadne::ReportKind::Custom(_, c) => c,
+        };
+        let message = format!("{err}\n  {} {source}", "╰▶ ".fg(color));
+        r.set_message(message);
+    } else {
+        r.set_message(err);
+    }
+
     let mut c = ColorGenerator::new();
     r.add_labels(labels.into_iter().map(|(span, text)| {
         let mut l = Label::new(span).with_color(c.next());
