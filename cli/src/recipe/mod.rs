@@ -71,7 +71,7 @@ impl RecipeInput {
         };
 
         if let Some(name) = self.name.as_ref().or(filename.as_ref()) {
-            let recipe_name = name.strip_suffix(".cook").unwrap_or(&name);
+            let recipe_name = name.strip_suffix(".cook").unwrap_or(name);
             Ok((text, name.to_owned(), recipe_name.to_owned()))
         } else {
             bail!("No name for the recipe")

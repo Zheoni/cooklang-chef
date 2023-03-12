@@ -6,7 +6,7 @@ use pest_derive::Parser;
 use thiserror::Error;
 
 use self::pest_ext::Span;
-use crate::error::RichError;
+use crate::error::{PassResult, RichError};
 use crate::Extensions;
 
 pub(crate) mod ast;
@@ -14,25 +14,19 @@ mod pairs_walker;
 mod pest_ext;
 
 #[tracing::instrument(skip_all, fields(len = input.len()))]
-pub fn parse(
-    input: &str,
-    extensions: Extensions,
-    warnings_as_errors: bool,
-) -> Result<(ast::Ast, Vec<ParserWarning>), ParserReport> {
-    let pairs = CooklangParser::parse(Rule::cooklang, input).map_err(|e| {
-        ParserReport::from_err(ParserError::Parse {
-            span: e.location.span(),
-            message: e.variant.message().to_string(),
-        })
-    })?;
+pub fn parse(input: &str, extensions: Extensions) -> ParserResult {
+    let pairs = match CooklangParser::parse(Rule::cooklang, input) {
+        Ok(pairs) => pairs,
+        Err(e) => {
+            return ParserError::Parse {
+                span: e.location.span(),
+                message: e.variant.message().to_string(),
+            }
+            .into()
+        }
+    };
 
-    let (ast, errors, warnings) = pairs_walker::build_ast(pairs, extensions);
-
-    if !errors.is_empty() || warnings_as_errors && !warnings.is_empty() {
-        return Err(ParserReport::new(errors, warnings));
-    }
-
-    Ok((ast, warnings))
+    pairs_walker::build_ast(pairs, extensions)
 }
 
 #[derive(Parser)]
@@ -41,6 +35,8 @@ struct CooklangParser;
 
 type Pair<'a> = pest::iterators::Pair<'a, Rule>;
 type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
+
+pub type ParserResult<'a> = PassResult<ast::Ast<'a>, ParserError, ParserWarning>;
 
 #[derive(Debug, Error)]
 pub enum ParserError {

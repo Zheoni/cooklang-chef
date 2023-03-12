@@ -48,16 +48,12 @@ enum Output {
 pub fn run(parser: &CooklangParser, args: ReadArgs) -> Result<()> {
     let (input, file_name, recipe_name) = args.input.read()?;
 
-    let (recipe, warnings) = match parser.parse(&input, &recipe_name) {
-        Ok(t) => t,
-        Err(r) => {
-            r.eprint(&file_name, &input)?;
-            bail!("Error parsing recipe");
-        }
-    };
-    if !args.ignore_warnings {
-        cooklang::error::print_warnings(&file_name, &input, &warnings);
+    let r = parser.parse(&input, &recipe_name);
+    if r.should_return(!args.ignore_warnings) {
+        r.into_report().eprint(&file_name, &input)?;
+        bail!("Error parsing recipe");
     }
+    let recipe = r.into_output().unwrap();
 
     let scaled_recipe = if let Some(scale) = args.scale {
         let target = if let Some(servings) = recipe.metadata.servings.as_ref() {

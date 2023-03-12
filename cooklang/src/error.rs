@@ -2,13 +2,10 @@ use std::{borrow::Cow, ops::Range};
 
 use thiserror::Error;
 
-pub type CookResult<T> = Result<T, CooklangReport>;
-pub type CooklangReport = Report<CooklangError, CooklangWarning>;
-
 #[derive(Debug, Clone)]
 pub struct Report<E, W> {
-    errors: Vec<E>,
-    warnings: Vec<W>,
+    pub(crate) errors: Vec<E>,
+    pub(crate) warnings: Vec<W>,
 }
 
 impl<E, W> Report<E, W>
@@ -100,88 +97,136 @@ where
 {
 }
 
-#[derive(Debug, Error)]
-pub enum CooklangError {
-    #[error(transparent)]
-    Parser(#[from] crate::parser::ParserError),
-    #[error(transparent)]
-    Analysis(#[from] crate::analysis::AnalysisError),
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error("No file name in path: '{path}'")]
-    NoFilename { path: std::path::PathBuf },
+pub struct PassResult<T, E, W> {
+    output: Option<T>,
+    warnings: Vec<W>,
+    errors: Vec<E>,
 }
 
-#[derive(Debug, Error)]
-#[error(transparent)]
-pub enum CooklangWarning {
-    Parser(#[from] crate::parser::ParserWarning),
-    Analysis(#[from] crate::analysis::AnalysisWarning),
-}
-
-impl RichError for CooklangError {
-    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
-        match self {
-            CooklangError::Parser(e) => e.labels(),
-            CooklangError::Analysis(e) => e.labels(),
-            CooklangError::Io(_) => vec![],
-            CooklangError::NoFilename { .. } => vec![],
+impl<T, E, W> PassResult<T, E, W> {
+    pub fn new(output: Option<T>, warnings: Vec<W>, errors: Vec<E>) -> Self {
+        Self {
+            output,
+            warnings,
+            errors,
         }
     }
 
-    fn help(&self) -> Option<Cow<'static, str>> {
-        match self {
-            CooklangError::Parser(e) => e.help(),
-            CooklangError::Analysis(e) => e.help(),
-            CooklangError::Io(_) => None,
-            CooklangError::NoFilename { .. } => {
-                help!("The recipe name is needed and comes from the file name")
+    pub(crate) fn from_error(error: E) -> Self {
+        Self {
+            output: None,
+            warnings: vec![],
+            errors: vec![error],
+        }
+    }
+
+    pub fn has_output(&self) -> bool {
+        self.output.is_some()
+    }
+
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    pub fn has_warnings(&self) -> bool {
+        !self.warnings.is_empty()
+    }
+
+    pub fn should_return(&self, warnings_as_errors: bool) -> bool {
+        self.has_errors() || warnings_as_errors && self.has_warnings() || !self.has_output()
+    }
+
+    pub fn output(&self) -> Option<&T> {
+        self.output.as_ref()
+    }
+
+    pub fn warnings(&self) -> &[W] {
+        &self.warnings
+    }
+
+    pub fn errors(&self) -> &[E] {
+        &self.errors
+    }
+
+    pub fn into_result(mut self) -> Result<(T, Vec<W>), Report<E, W>> {
+        if let Some(o) = self.output.take() {
+            if self.errors.is_empty() {
+                return Ok((o, self.warnings));
             }
         }
+        Err(self.into_report())
     }
 
-    fn code(&self) -> Option<&'static str> {
-        match self {
-            CooklangError::Parser(e) => e.code(),
-            CooklangError::Analysis(e) => e.code(),
-            CooklangError::Io(_) => Some("io"),
-            CooklangError::NoFilename { .. } => Some("no_file_name"),
+    pub fn into_report(self) -> Report<E, W> {
+        Report {
+            errors: self.errors,
+            warnings: self.warnings,
+        }
+    }
+
+    pub fn take_output(&mut self) -> Option<T> {
+        self.output.take()
+    }
+
+    pub fn into_output(self) -> Option<T> {
+        self.output
+    }
+
+    pub fn into_errors(self) -> Vec<E> {
+        self.errors
+    }
+
+    pub fn into_warnings(self) -> Vec<W> {
+        self.warnings
+    }
+
+    pub fn into_tuple(self) -> (Option<T>, Vec<W>, Vec<E>) {
+        (self.output, self.warnings, self.errors)
+    }
+
+    pub(crate) fn into_context_result<E2, W2>(self) -> PassResult<T, E2, W2>
+    where
+        E2: From<E>,
+        W2: From<W>,
+    {
+        PassResult {
+            output: self.output,
+            errors: self.errors.into_iter().map(Into::into).collect(),
+            warnings: self.warnings.into_iter().map(Into::into).collect(),
+        }
+    }
+
+    pub(crate) fn discard_output<T2>(self) -> PassResult<T2, E, W> {
+        PassResult {
+            output: None,
+            warnings: self.warnings,
+            errors: self.errors,
+        }
+    }
+
+    pub(crate) fn merge<T2>(mut self, mut other: PassResult<T2, E, W>) -> Self {
+        other.errors.append(&mut self.errors);
+        other.warnings.append(&mut self.warnings);
+        self.errors = other.errors;
+        self.warnings = other.warnings;
+        self
+    }
+
+    pub(crate) fn map<F, O>(self, f: F) -> PassResult<O, E, W>
+    where
+        F: FnOnce(T) -> O,
+    {
+        PassResult {
+            output: self.output.map(f),
+            warnings: self.warnings,
+            errors: self.errors,
         }
     }
 }
 
-impl RichError for CooklangWarning {
-    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
-        match self {
-            CooklangWarning::Parser(e) => e.labels(),
-            CooklangWarning::Analysis(e) => e.labels(),
-        }
-    }
-
-    fn help(&self) -> Option<Cow<'static, str>> {
-        match self {
-            CooklangWarning::Parser(e) => e.help(),
-            CooklangWarning::Analysis(e) => e.help(),
-        }
-    }
-
-    fn code(&self) -> Option<&'static str> {
-        match self {
-            CooklangWarning::Parser(e) => e.code(),
-            CooklangWarning::Analysis(e) => e.code(),
-        }
-    }
-
-    fn kind(&self) -> ariadne::ReportKind {
-        ariadne::ReportKind::Warning
-    }
-}
-
-pub fn print_warnings(file_name: &str, source_code: &str, warnings: &[CooklangWarning]) {
-    let mut cache = DummyCache::new(file_name, source_code);
-    let mut stderr = std::io::stderr();
-    for w in warnings {
-        w.write(&mut cache, &mut stderr).unwrap()
+impl<T, E, W> From<E> for PassResult<T, E, W> {
+    fn from(value: E) -> Self {
+        Self::from_error(value)
     }
 }
 
@@ -299,5 +344,82 @@ where
 {
     fn write(&self, cache: &mut C, w: &mut impl std::io::Write) -> std::io::Result<()> {
         build_report(self).write(cache, w)
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum CooklangError {
+    #[error(transparent)]
+    Parser(#[from] crate::parser::ParserError),
+    #[error(transparent)]
+    Analysis(#[from] crate::analysis::AnalysisError),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("No file name in path: '{path}'")]
+    NoFilename { path: std::path::PathBuf },
+}
+
+#[derive(Debug, Error)]
+#[error(transparent)]
+pub enum CooklangWarning {
+    Parser(#[from] crate::parser::ParserWarning),
+    Analysis(#[from] crate::analysis::AnalysisWarning),
+}
+
+impl RichError for CooklangError {
+    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+        match self {
+            CooklangError::Parser(e) => e.labels(),
+            CooklangError::Analysis(e) => e.labels(),
+            CooklangError::Io(_) => vec![],
+            CooklangError::NoFilename { .. } => vec![],
+        }
+    }
+
+    fn help(&self) -> Option<Cow<'static, str>> {
+        match self {
+            CooklangError::Parser(e) => e.help(),
+            CooklangError::Analysis(e) => e.help(),
+            CooklangError::Io(_) => None,
+            CooklangError::NoFilename { .. } => {
+                help!("The recipe name is needed and comes from the file name")
+            }
+        }
+    }
+
+    fn code(&self) -> Option<&'static str> {
+        match self {
+            CooklangError::Parser(e) => e.code(),
+            CooklangError::Analysis(e) => e.code(),
+            CooklangError::Io(_) => Some("io"),
+            CooklangError::NoFilename { .. } => Some("no_file_name"),
+        }
+    }
+}
+
+impl RichError for CooklangWarning {
+    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+        match self {
+            CooklangWarning::Parser(e) => e.labels(),
+            CooklangWarning::Analysis(e) => e.labels(),
+        }
+    }
+
+    fn help(&self) -> Option<Cow<'static, str>> {
+        match self {
+            CooklangWarning::Parser(e) => e.help(),
+            CooklangWarning::Analysis(e) => e.help(),
+        }
+    }
+
+    fn code(&self) -> Option<&'static str> {
+        match self {
+            CooklangWarning::Parser(e) => e.code(),
+            CooklangWarning::Analysis(e) => e.code(),
+        }
+    }
+
+    fn kind(&self) -> ariadne::ReportKind {
+        ariadne::ReportKind::Warning
     }
 }

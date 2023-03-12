@@ -15,7 +15,7 @@ A step with @ingredients{}. References to @&ingredients{}, #cookware,
 
 #[test]
 fn serde_test() {
-    let recipe = parse(RECIPE, "serde test").unwrap().0;
+    let recipe = parse(RECIPE, "serde test").into_output().unwrap();
 
     let serialized = serde_json::to_string(&recipe).unwrap();
     let deserialized = serde_json::from_str(&serialized).unwrap();

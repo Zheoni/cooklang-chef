@@ -3,15 +3,15 @@ use std::ops::Range;
 
 use regex::Regex;
 
+use crate::context::Context;
 use crate::convert::{Converter, PhysicalQuantity};
 use crate::located::{Located, OptTake};
 use crate::metadata::Metadata;
 use crate::parser::ast::{self, Modifiers};
 use crate::quantity::{Quantity, QuantityValue, ScalableValue, UnitInfo, Value};
-use crate::{context::Context, impl_deref_context};
 use crate::{model::*, Extensions};
 
-use super::{AnalysisError, AnalysisWarning};
+use super::{AnalysisError, AnalysisResult, AnalysisWarning};
 
 #[derive(Default, Debug)]
 pub struct RecipeContent<'a> {
@@ -22,11 +22,12 @@ pub struct RecipeContent<'a> {
     pub timers: Vec<Timer<'a>>,
 }
 
+#[tracing::instrument(skip_all, fields(ast_lines = ast.lines.len()))]
 pub fn parse_ast<'a>(
     ast: ast::Ast<'a>,
     extensions: Extensions,
     converter: &Converter,
-) -> (RecipeContent<'a>, Context<AnalysisError, AnalysisWarning>) {
+) -> AnalysisResult<'a> {
     let mut context = Context::default();
     let temperature_regex = extensions
         .contains(Extensions::TEMPERATURE)
@@ -56,7 +57,7 @@ pub fn parse_ast<'a>(
 
     walker.ast(ast);
 
-    (walker.content, walker.context)
+    walker.context.finish(Some(walker.content))
 }
 
 struct Walker<'a, 'c> {
@@ -88,7 +89,7 @@ enum DuplicateMode {
     Reference,
 }
 
-impl_deref_context!(Walker<'_, '_>, AnalysisError, AnalysisWarning);
+crate::context::impl_deref_context!(Walker<'_, '_>, AnalysisError, AnalysisWarning);
 
 impl<'a, 'r> Walker<'a, 'r> {
     fn ast(&mut self, ast: ast::Ast<'a>) {

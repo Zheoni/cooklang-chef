@@ -19,10 +19,11 @@ fn canonical_tests() {
 
 fn run_test(name: &str, test: &Yaml) {
     eprintln!("Running test {name}");
-    let (got, _) = cooklang::CooklangParser::builder()
+    let got = cooklang::CooklangParser::builder()
         .with_extensions(cooklang::Extensions::empty())
         .finish()
         .parse(test["source"].as_str().unwrap(), name)
+        .into_output()
         .expect("Failed to parse");
     let expected = &test["result"];
 

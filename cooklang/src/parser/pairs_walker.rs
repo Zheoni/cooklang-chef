@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     context::{Context, Recover},
-    impl_deref_context,
+    error::PassResult,
     located::Located,
     parser::pest_ext::{PairExt, Span},
     quantity::Value,
@@ -73,7 +73,7 @@ macro_rules! unexpected_panic {
 pub fn build_ast(
     mut pairs: Pairs,
     extensions: Extensions,
-) -> (Ast, Vec<ParserError>, Vec<ParserWarning>) {
+) -> PassResult<Ast, ParserError, ParserWarning> {
     let mut walker = Walker {
         context: Context::<ParserError, ParserWarning>::default(),
         extensions,
@@ -83,8 +83,7 @@ pub fn build_ast(
     debug_assert!(pairs.next().is_none());
 
     let ast = walker.cooklang(pair);
-
-    (ast, walker.context.errors, walker.context.warnings)
+    walker.context.finish(Some(ast))
 }
 
 struct Walker {
@@ -92,7 +91,7 @@ struct Walker {
     extensions: Extensions,
 }
 
-impl_deref_context!(Walker, ParserError, ParserWarning);
+crate::context::impl_deref_context!(Walker, ParserError, ParserWarning);
 
 impl Walker {
     fn cooklang<'a>(&mut self, pair: Pair<'a>) -> Ast<'a> {
@@ -135,7 +134,7 @@ impl Walker {
             .map_inner(str::trim);
 
         assert!(!key.is_empty(), "Key is empty");
-        if value.is_empty() {
+        if value.trim().is_empty() {
             self.warn(ParserWarning::EmptyMetadataValue {
                 key: key.to_string(),
                 position: value.offset(),
@@ -438,7 +437,7 @@ impl Walker {
                 _ => panic!("Unknown modifier"),
             };
             if modifiers.contains(m) {
-                self.errors.push(ParserError::InvalidModifiers {
+                self.context.errors.push(ParserError::InvalidModifiers {
                     modifiers_span: pair.span(),
                     reason: format!("duplicate modifier '{c}'").into(),
                     help: Some("Modifier order does not matter, but duplicates are not allowed"),
@@ -452,7 +451,7 @@ impl Walker {
         if modifiers.contains(Modifiers::REF)
             && modifiers.intersects(Modifiers::NEW | Modifiers::HIDDEN | Modifiers::OPT)
         {
-            self.errors.push(ParserError::InvalidModifiers {
+            self.context.errors.push(ParserError::InvalidModifiers {
                 modifiers_span: pair.span(),
                 reason: "unsuported combination with reference".into(),
                 help: Some("Reference ('&') modifier can only be combined with recipe ('@')"),

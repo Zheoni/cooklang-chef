@@ -43,9 +43,12 @@ impl<E, W> Context<E, W> {
             }
         }
     }
+
+    pub fn finish<T>(self, output: Option<T>) -> PassResult<T, E, W> {
+        PassResult::new(output, self.warnings, self.errors)
+    }
 }
 
-#[macro_export]
 macro_rules! impl_deref_context {
     ($t:ty, $e:ty, $w:ty) => {
         impl std::ops::Deref for $t {
@@ -63,6 +66,9 @@ macro_rules! impl_deref_context {
         }
     };
 }
+pub(crate) use impl_deref_context;
+
+use crate::error::PassResult;
 
 pub trait Recover {
     fn recover() -> Self;

@@ -12,7 +12,7 @@ pub mod scale;
 
 use bitflags::bitflags;
 use convert::Converter;
-use error::{CookResult, CooklangReport, CooklangWarning};
+use error::{CooklangError, CooklangWarning, PassResult};
 pub use model::Recipe;
 pub use scale::ScaledRecipe;
 
@@ -112,27 +112,22 @@ impl CooklangParser {
         &self,
         input: &'a str,
         recipe_name: &str,
-    ) -> CookResult<(Recipe<'a>, Vec<CooklangWarning>)> {
-        let mut warn = Vec::new();
-
-        let (ast, w) = parser::parse(input, self.extensions, self.warnings_as_errors)
-            .map_err(CooklangReport::from_report)?;
-        warn.extend(w.into_iter().map(CooklangWarning::from));
-        let (content, w) = analysis::analyze_ast(
-            ast,
-            self.extensions,
-            &self.converter,
-            self.warnings_as_errors,
-        )
-        .map_err(CooklangReport::from_report)?;
-        warn.extend(w.into_iter().map(CooklangWarning::from));
-        Ok((Recipe::from_content(recipe_name.to_string(), content), warn))
+    ) -> PassResult<Recipe<'a>, CooklangError, CooklangWarning> {
+        let mut r = parser::parse(input, self.extensions).into_context_result();
+        if r.should_return(self.warnings_as_errors) {
+            return r.discard_output();
+        }
+        let ast = r.take_output().unwrap();
+        analysis::parse_ast(ast, self.extensions, &self.converter)
+            .into_context_result()
+            .merge(r)
+            .map(|c| Recipe::from_content(recipe_name.to_string(), c))
     }
 }
 
 pub fn parse<'a>(
     input: &'a str,
     recipe_name: &str,
-) -> CookResult<(Recipe<'a>, Vec<CooklangWarning>)> {
+) -> PassResult<Recipe<'a>, CooklangError, CooklangWarning> {
     CooklangParser::default().parse(input, recipe_name)
 }

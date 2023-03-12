@@ -2,32 +2,15 @@ use std::{borrow::Cow, ops::Range};
 
 use thiserror::Error;
 
-use crate::{
-    context::Context, convert::Converter, error::RichError, located::Located,
-    metadata::MetadataError, Extensions,
-};
+use crate::error::PassResult;
+use crate::{error::RichError, located::Located, metadata::MetadataError};
 
 mod ast_walker;
 
+pub use ast_walker::parse_ast;
 pub use ast_walker::RecipeContent;
 
-#[tracing::instrument(skip_all, fields(ast_lines = ast.lines.len()))]
-pub fn analyze_ast<'a>(
-    ast: crate::parser::ast::Ast<'a>,
-    extensions: Extensions,
-    converter: &Converter,
-    warnings_as_errors: bool,
-) -> Result<(RecipeContent<'a>, Vec<AnalysisWarning>), AnalysisReport> {
-    let (content, context) = ast_walker::parse_ast(ast, extensions, converter);
-
-    let Context { errors, warnings } = context;
-
-    if !errors.is_empty() || warnings_as_errors && !warnings.is_empty() {
-        return Err(AnalysisReport::new(errors, warnings));
-    }
-
-    Ok((content, warnings))
-}
+pub type AnalysisResult<'a> = PassResult<RecipeContent<'a>, AnalysisError, AnalysisWarning>;
 
 #[derive(Debug, Error)]
 pub enum AnalysisError {
