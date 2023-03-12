@@ -354,7 +354,7 @@ fn print_human(
                 }
             }
             if let Some(note) = &igr.note {
-                row.add_cell(note);
+                row.add_cell(format!("({note})"));
             } else {
                 row.add_cell("");
             }
