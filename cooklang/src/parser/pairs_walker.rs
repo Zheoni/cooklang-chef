@@ -16,8 +16,12 @@ use super::{
     ast::{
         Ast, Component, Cookware, Ingredient, Item, Line, Modifiers, Quantity, QuantityValue, Timer,
     },
-    ComponentKind, Pair, Pairs, ParserError, ParserWarning, Rule,
+    Pair, Pairs, ParserError, ParserWarning, Rule,
 };
+
+const INGREDIENT: &str = "ingredient";
+const COOKWARE: &str = "cookware";
+const TIMER: &str = "timer";
 
 macro_rules! is_rule {
     ($pair:ident, $rule:expr) => {
@@ -273,7 +277,7 @@ impl Walker {
 
         if name.is_empty() {
             self.error(ParserError::ComponentPartMissing {
-                component_kind: ComponentKind::Ingredient.into(),
+                container: INGREDIENT,
                 what: "name",
                 component_span: component.span,
             });
@@ -283,7 +287,7 @@ impl Walker {
         if let Some(alias) = &alias {
             if alias.is_empty() {
                 self.error(ParserError::ComponentPartNotAllowed {
-                    component_kind: ComponentKind::Ingredient.into(),
+                    container: INGREDIENT,
                     what: "empty alias",
                     to_remove: alias.offset() - 1..alias.offset(),
                     help: Some("Add an alias or remove the '|'"),
@@ -306,7 +310,7 @@ impl Walker {
     fn cookware<'a>(&mut self, component: GenericComponent<'a>) -> Cookware<'a> {
         if let Some(modifiers) = component.modifiers {
             self.error(ParserError::ComponentPartNotAllowed {
-                component_kind: ComponentKind::Cookware.into(),
+                container: COOKWARE,
                 what: "modifiers",
                 to_remove: modifiers.span(),
                 help: Some("Modifiers are only available in ingredients"),
@@ -315,7 +319,7 @@ impl Walker {
 
         if let Some(alias) = component.alias {
             self.error(ParserError::ComponentPartNotAllowed {
-                component_kind: ComponentKind::Cookware.into(),
+                container: COOKWARE,
                 what: "alias",
                 to_remove: alias.span(),
                 help: Some("Aliases are only available in ingredients"),
@@ -324,7 +328,7 @@ impl Walker {
 
         if let Some(note) = component.note {
             self.error(ParserError::ComponentPartNotAllowed {
-                component_kind: ComponentKind::Cookware.into(),
+                container: COOKWARE,
                 what: "note",
                 to_remove: note.span(),
                 help: Some("Notes are only available in ingredients"),
@@ -334,7 +338,7 @@ impl Walker {
         let name = component.name.unwrap_or_else(Recover::recover);
         if name.is_empty() {
             self.error(ParserError::ComponentPartMissing {
-                component_kind: ComponentKind::Cookware.into(),
+                container: COOKWARE,
                 what: "name",
                 component_span: component.span,
             });
@@ -343,7 +347,7 @@ impl Walker {
         let quantity = component.quantity.map(|quantity| {
             if let Some(unit) = &quantity.unit {
                 self.error(ParserError::ComponentPartNotAllowed {
-                    component_kind: ComponentKind::Cookware.into(),
+                    container: COOKWARE,
                     what: "unit in quantity",
                     to_remove: quantity.value.span().end..unit.span().end,
                     help: Some("Cookware quantity can't have an unit"),
@@ -353,7 +357,7 @@ impl Walker {
         });
         if let Some(value @ QuantityValue::Single { scalable: true, .. }) = &quantity {
             self.error(ParserError::ComponentPartNotAllowed {
-                component_kind: ComponentKind::Cookware.into(),
+                container: COOKWARE,
                 what: "auto scale marker",
                 to_remove: value.span().end..value.span().end + 1,
                 help: Some("Cookware quantity can't be auto scaled"),
@@ -366,7 +370,7 @@ impl Walker {
     fn timer<'a>(&mut self, component: GenericComponent<'a>) -> Timer<'a> {
         if let Some(modifiers) = component.modifiers {
             self.error(ParserError::ComponentPartNotAllowed {
-                component_kind: ComponentKind::Timer.into(),
+                container: TIMER,
                 what: "modifiers",
                 to_remove: modifiers.span(),
                 help: Some("Modifiers are only available in ingredients"),
@@ -375,7 +379,7 @@ impl Walker {
 
         if let Some(alias) = component.alias {
             self.error(ParserError::ComponentPartNotAllowed {
-                component_kind: ComponentKind::Timer.into(),
+                container: TIMER,
                 what: "alias",
                 to_remove: alias.span(),
                 help: Some("Aliases are only available in ingredients"),
@@ -384,7 +388,7 @@ impl Walker {
 
         if let Some(note) = component.note {
             self.error(ParserError::ComponentPartNotAllowed {
-                component_kind: ComponentKind::Timer.into(),
+                container: TIMER,
                 what: "note",
                 to_remove: note.span(),
                 help: Some("Notes are only available in ingredients"),
@@ -394,7 +398,7 @@ impl Walker {
         let name = component.name;
         let quantity = component.quantity.unwrap_or_else(|| {
             self.error(ParserError::ComponentPartMissing {
-                component_kind: ComponentKind::Timer.into(),
+                container: TIMER,
                 what: "quantity",
                 component_span: component.span.clone(),
             });
@@ -403,7 +407,7 @@ impl Walker {
 
         if let value @ QuantityValue::Single { scalable: true, .. } = &quantity.value {
             self.error(ParserError::ComponentPartNotAllowed {
-                component_kind: ComponentKind::Cookware.into(),
+                container: COOKWARE,
                 what: "auto scale marker",
                 to_remove: value.span().end..value.span().end + 1,
                 help: Some("Timer quantity can't be auto scaled"),
@@ -411,7 +415,7 @@ impl Walker {
         }
         if quantity.unit.is_none() {
             self.error(ParserError::ComponentPartMissing {
-                component_kind: ComponentKind::Timer.into(),
+                container: TIMER,
                 what: "quantity unit",
                 component_span: component.span,
             });
@@ -465,16 +469,21 @@ impl Walker {
 
         let mut values = Vec::new();
         let mut auto_scale = false;
-        let mut has_separator = false;
+        let mut separator = None;
         let mut unit = None;
         for pair in inner.by_ref() {
             match pair.as_rule() {
-                Rule::value => values.push(pair.located().map_inner(|p| self.value(p))),
+                Rule::numeric_value => {
+                    values.push(pair.located().map_inner(|p| self.numeric_value(p)))
+                }
+                Rule::value_text => {
+                    values.push(pair.located().map_inner(|p| Value::Text(p.text_trimmed())))
+                }
                 Rule::auto_scale => auto_scale = true,
-                Rule::unit_separator => has_separator = true,
+                Rule::unit_separator => separator = Some(pair),
                 Rule::unit => {
                     unit = Some(pair.located_text_trimmed());
-                    break;
+                    break; // should be the last thing
                 }
                 _ => unexpected_panic!(pair, "quantity"),
             }
@@ -484,12 +493,14 @@ impl Walker {
         // if the extension is disabled and there is no unit separator, treat
         // all as a value text, even if a unit has been found. this is the default
         // (original) cooklang behaviour
-        if !self.extensions.contains(Extensions::ADVANCED_UNITS) && !has_separator && unit.is_some()
+        if !self.extensions.contains(Extensions::ADVANCED_UNITS)
+            && separator.is_none()
+            && unit.is_some()
         {
             values = vec![pair
                 .clone()
                 .located()
-                .map_inner(|p| Value::Text(p.text_trimmed()))];
+                .map_inner(|p| Value::Text(p.as_str().trim().into()))];
             unit = None;
         };
 
@@ -509,19 +520,34 @@ impl Walker {
             }
         };
 
+        if let Some(u) = &unit {
+            if u.is_empty() {
+                if let Some(separator) = separator {
+                    let to_remove = separator.span().start..u.span().end;
+                    self.error(ParserError::ComponentPartNotAllowed {
+                        container: "quantity",
+                        what: "empty unit",
+                        to_remove,
+                        help: Some("Or add a unit"),
+                    });
+                } else {
+                    unit = None;
+                };
+            }
+        }
+
         Quantity { value, unit }
     }
 
-    fn value<'a>(&mut self, pair: Pair<'a>) -> Value<'a> {
-        is_rule!(pair, Rule::value);
+    fn numeric_value<'a>(&mut self, pair: Pair<'a>) -> Value<'a> {
+        is_rule!(pair, Rule::numeric_value);
         let pair = pair.first_inner();
         match pair.as_rule() {
             Rule::mixed_number => Value::Number(self.recover(mixed_number(pair))),
             Rule::fraction => Value::Number(self.recover(fraction(pair))),
             Rule::range => Value::Range(self.recover_val(range(pair), 1.0..=1.0)),
             Rule::number => Value::Number(self.recover(number(pair))),
-            Rule::value_text => Value::Text(pair.text_trimmed()),
-            _ => unexpected_panic!(pair, "value"),
+            _ => unexpected_panic!(pair, "numeric_value"),
         }
     }
 }

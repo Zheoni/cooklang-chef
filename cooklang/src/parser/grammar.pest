@@ -36,14 +36,17 @@ name = { (!(component_token | "{" | "|") ~ text_item)* }
 alias = { (!(component_token | "{") ~ text_item)* }
 close_component = _{ (("{" ~ ws* ~ "}") | ("{" ~ quantity ~ "}")) }
 
-quantity = { ws* ~ (!LETTER ~ value ~ &ws+ ~ !unit_separator ~ unit | value ~ ("|" ~ value)* ~ auto_scale? ~ (unit_separator ~ unit)?) ~ ws* }
-auto_scale = { "*" }
+quantity = { ws* ~ (
+    numeric_value ~ &ws+ ~ !unit_separator ~ unit
+    | value ~ (ws* ~ "|" ~ ws* ~ value)* ~ auto_scale? ~ (unit_separator ~ unit)?
+) ~ ws* }
+auto_scale = { ws* ~ "*" ~ ws* }
 unit_separator = { ws* ~ "%" ~ ws* }
-// TODO does not backtrack to value_text in something like "1L"
-value = { mixed_number | fraction | range | number | value_text }
-unit = { (!"}" ~ text_item)* }
+value = _{ numeric_value ~ &(ws+ | "|" | "%" | "*" | "}") | value_text  }
+numeric_value = { mixed_number | fraction | range | number }
+unit = @{ (!"}" ~ text_item)* }
 
-value_text = { (!("%" | "}" | "|") ~ text_item)+ }
+value_text = @{ (!("%" | "}" | "|") ~ text_item)+ }
 integer = @{ (!"0" ~ ASCII_DIGIT+) | ASCII_DIGIT ~ !ASCII_DIGIT }
 fraction = ${ regular_fraction | unicode_fraction }
 regular_fraction = ${ integer ~ ws* ~ "/" ~ ws* ~ integer }

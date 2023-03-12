@@ -3,7 +3,6 @@ use std::ops::Range;
 
 use pest::Parser;
 use pest_derive::Parser;
-use strum::IntoStaticStr;
 use thiserror::Error;
 
 use self::pest_ext::Span;
@@ -43,29 +42,21 @@ struct CooklangParser;
 type Pair<'a> = pest::iterators::Pair<'a, Rule>;
 type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 
-#[derive(IntoStaticStr)]
-#[strum(serialize_all = "lowercase")]
-enum ComponentKind {
-    Ingredient,
-    Cookware,
-    Timer,
-}
-
 #[derive(Debug, Error)]
 pub enum ParserError {
     #[error("Error parsing input: {message}")]
     Parse { span: Range<usize>, message: String },
 
-    #[error("A {component_kind} is missing: {what}")]
+    #[error("A {container} is missing: {what}")]
     ComponentPartMissing {
-        component_kind: &'static str,
+        container: &'static str,
         what: &'static str,
         component_span: Range<usize>,
     },
 
-    #[error("A {component_kind} cannot have: {what}")]
+    #[error("A {container} cannot have: {what}")]
     ComponentPartNotAllowed {
-        component_kind: &'static str,
+        container: &'static str,
         what: &'static str,
         to_remove: Range<usize>,
         help: Option<&'static str>,
