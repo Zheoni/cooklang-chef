@@ -9,6 +9,7 @@ pub mod model;
 pub mod parser;
 pub mod quantity;
 pub mod scale;
+mod span;
 
 use bitflags::bitflags;
 use convert::Converter;

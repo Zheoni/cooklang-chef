@@ -3,6 +3,7 @@ use std::{borrow::Cow, ops::Range};
 use thiserror::Error;
 
 use crate::error::PassResult;
+use crate::span::Span;
 use crate::{error::RichError, located::Located, metadata::MetadataError};
 
 mod ast_walker;
@@ -54,18 +55,18 @@ pub enum AnalysisError {
 #[derive(Debug, Error)]
 pub enum AnalysisWarning {
     #[error("Ignoring unknown special metadata key: {key}")]
-    UnknownSpecialMetadataKey { key: String, key_span: Range<usize> },
+    UnknownSpecialMetadataKey { key: Located<String> },
 
     #[error("Ingoring text in define ingredients mode")]
-    TextDefiningIngredients { text_span: Range<usize> },
+    TextDefiningIngredients { text_span: Span },
 
     #[error("Text value in reference prevents calculating total amount")]
-    TextValueInReference { quantity_span: Range<usize> },
+    TextValueInReference { quantity_span: Span },
 
     #[error("Incompatible units in reference prevents calculating total amount")]
     IncompatibleUnits {
-        a: Range<usize>,
-        b: Range<usize>,
+        a: Span,
+        b: Span,
 
         #[source]
         source: crate::quantity::IncompatibleUnits,
@@ -73,11 +74,8 @@ pub enum AnalysisWarning {
 
     #[error("Invalid value for key: {key}. Treating it as a regular metadata key.")]
     InvalidMetadataValue {
-        key: String,
-        value: String,
-
-        key_span: Range<usize>,
-        value_span: Range<usize>,
+        key: Located<String>,
+        value: Located<String>,
 
         #[source]
         source: MetadataError,
@@ -97,7 +95,7 @@ pub enum AnalysisWarning {
 }
 
 impl RichError for AnalysisError {
-    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+    fn labels(&self) -> Vec<(Span, Option<Cow<'static, str>>)> {
         use crate::error::label;
         match self {
             AnalysisError::InvalidSpecialMetadataValue { key, value, .. } => vec![
@@ -145,23 +143,19 @@ impl RichError for AnalysisError {
 }
 
 impl RichError for AnalysisWarning {
-    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+    fn labels(&self) -> Vec<(Span, Option<Cow<'static, str>>)> {
         use crate::error::label;
         match self {
-            AnalysisWarning::UnknownSpecialMetadataKey { key_span, .. } => vec![label!(key_span)],
+            AnalysisWarning::UnknownSpecialMetadataKey { key } => vec![label!(key)],
             AnalysisWarning::TextDefiningIngredients { text_span } => vec![label!(text_span)],
             AnalysisWarning::TextValueInReference { quantity_span } => vec![label!(quantity_span)],
             AnalysisWarning::IncompatibleUnits { a, b, .. } => {
                 println!("{a:?} -- {b:?}");
                 vec![label!(a), label!(b)]
             }
-            AnalysisWarning::InvalidMetadataValue {
-                key_span,
-                value_span,
-                ..
-            } => vec![
-                label!(key_span, "this key"),
-                label!(value_span, "does not understand this value"),
+            AnalysisWarning::InvalidMetadataValue { key, value, .. } => vec![
+                label!(key, "this key"),
+                label!(value, "does not understand this value"),
             ],
             AnalysisWarning::ComponentInTextMode { component_span } => {
                 vec![label!(component_span, "this will be ignored")]

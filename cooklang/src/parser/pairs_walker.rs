@@ -1,14 +1,12 @@
-use std::{
-    borrow::Cow,
-    ops::{Range, RangeInclusive},
-};
+use std::{borrow::Cow, ops::RangeInclusive};
 
 use crate::{
     context::{Context, Recover},
     error::PassResult,
     located::Located,
-    parser::pest_ext::{PairExt, Span},
+    parser::pest_ext::PairExt,
     quantity::Value,
+    span::Span,
     Extensions,
 };
 
@@ -157,7 +155,7 @@ impl Walker {
                         items.push(Item::Text(t));
                     }
                 }
-                Rule::text => items.push(Item::Text(Located::new(pair.text(), pair.span()))),
+                Rule::text => items.push(Item::Text(Located::new(pair.text(), pair))),
                 _ => unexpected_ignore!(pair),
             }
         }
@@ -170,7 +168,7 @@ impl Walker {
 
         if !self.extensions.contains(Extensions::SECTIONS) {
             self.error(ParserError::ExtensionNotEnabled {
-                span: pair.span(),
+                span: pair.into(),
                 extension_name: "sections",
             });
             return None;
@@ -195,7 +193,7 @@ impl Walker {
         let mut quantity = None;
         let mut note = None;
 
-        let span = pair.span();
+        let span = Span::from(pair.as_span());
 
         for pair in pair.into_inner() {
             match pair.as_rule() {
@@ -216,7 +214,7 @@ impl Walker {
         }
 
         let mut c = GenericComponent {
-            span: span.clone(),
+            span,
             name,
             alias,
             modifiers,
@@ -228,7 +226,7 @@ impl Walker {
         if !self.extensions.contains(Extensions::INGREDIENT_MODIFIERS) {
             if let Some(modifiers) = c.modifiers {
                 self.error(ParserError::ExtensionNotEnabled {
-                    span: modifiers.span(),
+                    span: modifiers.into(),
                     extension_name: "ingredient modifiers",
                 });
             }
@@ -241,7 +239,7 @@ impl Walker {
                 let name = c.name.as_mut().expect("Alias but no name");
                 *name = Located::new(
                     format!("{name}|{alias}").into(),
-                    name.span().start..alias.span().end,
+                    name.range().start..alias.range().end,
                 );
             }
             c.alias = None;
@@ -288,7 +286,7 @@ impl Walker {
                 self.error(ParserError::ComponentPartNotAllowed {
                     container: INGREDIENT,
                     what: "empty alias",
-                    to_remove: alias.offset() - 1..alias.offset(),
+                    to_remove: Span::new(alias.offset() - 1, alias.offset()),
                     help: Some("Add an alias or remove the '|'"),
                 });
             }
@@ -348,7 +346,7 @@ impl Walker {
                 self.error(ParserError::ComponentPartNotAllowed {
                     container: COOKWARE,
                     what: "unit in quantity",
-                    to_remove: quantity.value.span().end..unit.span().end,
+                    to_remove: Span::new(quantity.value.span().end, unit.range().end),
                     help: Some("Cookware quantity can't have an unit"),
                 });
             }
@@ -358,7 +356,7 @@ impl Walker {
             self.error(ParserError::ComponentPartNotAllowed {
                 container: COOKWARE,
                 what: "auto scale marker",
-                to_remove: value.span().end..value.span().end + 1,
+                to_remove: Span::new(value.span().end, value.span().end + 1),
                 help: Some("Cookware quantity can't be auto scaled"),
             });
         }
@@ -399,7 +397,7 @@ impl Walker {
             self.error(ParserError::ComponentPartMissing {
                 container: TIMER,
                 what: "quantity",
-                component_span: component.span.clone(),
+                component_span: component.span,
             });
             Recover::recover()
         });
@@ -408,7 +406,7 @@ impl Walker {
             self.error(ParserError::ComponentPartNotAllowed {
                 container: COOKWARE,
                 what: "auto scale marker",
-                to_remove: value.span().end..value.span().end + 1,
+                to_remove: Span::new(value.span().end, value.span().end + 1),
                 help: Some("Timer quantity can't be auto scaled"),
             });
         }
@@ -438,7 +436,7 @@ impl Walker {
             };
             if modifiers.contains(m) {
                 self.context.errors.push(ParserError::InvalidModifiers {
-                    modifiers_span: pair.span(),
+                    modifiers_span: pair.into(),
                     reason: format!("duplicate modifier '{c}'").into(),
                     help: Some("Modifier order does not matter, but duplicates are not allowed"),
                 });
@@ -452,7 +450,7 @@ impl Walker {
             && modifiers.intersects(Modifiers::NEW | Modifiers::HIDDEN | Modifiers::OPT)
         {
             self.context.errors.push(ParserError::InvalidModifiers {
-                modifiers_span: pair.span(),
+                modifiers_span: pair.into(),
                 reason: "unsuported combination with reference".into(),
                 help: Some("Reference ('&') modifier can only be combined with recipe ('@')"),
             });
@@ -512,7 +510,7 @@ impl Walker {
             _ => {
                 if auto_scale {
                     self.error(ParserError::QuantityScalingConflict {
-                        bad_bit: pair.span(),
+                        bad_bit: pair.into(),
                     });
                 }
                 QuantityValue::Many(values)
@@ -522,7 +520,7 @@ impl Walker {
         if let Some(u) = &unit {
             if u.is_empty() {
                 if let Some(separator) = separator {
-                    let to_remove = separator.span().start..u.span().end;
+                    let to_remove = Span::new(separator.as_span().start(), u.range().end);
                     self.error(ParserError::ComponentPartNotAllowed {
                         container: "quantity",
                         what: "empty unit",
@@ -577,7 +575,7 @@ fn integer(pair: Pair) -> Result<f64, ParserError> {
         .parse::<i32>()
         .map(|n| n as f64)
         .map_err(|e| ParserError::ParseInt {
-            bad_bit: pair.span(),
+            bad_bit: pair.into(),
             source: e,
         })
 }
@@ -586,7 +584,7 @@ fn float(pair: Pair) -> Result<f64, ParserError> {
     pair.as_str()
         .parse::<f64>()
         .map_err(|e| ParserError::ParseFloat {
-            bad_bit: pair.span(),
+            bad_bit: pair.into(),
             source: e,
         })
 }
@@ -607,7 +605,7 @@ fn fraction(pair: Pair) -> Result<f64, ParserError> {
             let den = integer(den_pair.clone())?;
             if den == 0.0 {
                 return Err(ParserError::DivisionByZero {
-                    bad_bit: den_pair.span(),
+                    bad_bit: den_pair.into(),
                 });
             }
 
@@ -658,7 +656,7 @@ fn mixed_number(pair: Pair) -> Result<f64, ParserError> {
 }
 
 struct GenericComponent<'a> {
-    span: Range<usize>,
+    span: Span,
     modifiers: Option<Located<Pair<'a>>>,
     name: Option<Located<Cow<'a, str>>>,
     alias: Option<Located<Cow<'a, str>>>,

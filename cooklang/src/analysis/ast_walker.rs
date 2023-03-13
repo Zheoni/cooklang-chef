@@ -164,16 +164,13 @@ impl<'a, 'r> Walker<'a, 'r> {
                     _ => self.error(invalid_value(vec!["true", "false"])),
                 },
                 _ => self.warn(AnalysisWarning::UnknownSpecialMetadataKey {
-                    key: key.to_string(),
-                    key_span: key.span(),
+                    key: key.map_inner(str::to_string),
                 }),
             }
         } else if let Err(warn) = self.content.metadata.insert(key.get(), value.get()) {
             self.warn(AnalysisWarning::InvalidMetadataValue {
-                key: key.to_string(),
-                value: value.to_string(),
-                key_span: key.span(),
-                value_span: value.span(),
+                key: key.map_inner(str::to_string),
+                value: value.map_inner(str::to_string),
                 source: warn,
             });
         }
@@ -220,7 +217,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                 ast::Item::Component(c) => {
                     if self.define_mode == DefineMode::Text {
                         self.warn(AnalysisWarning::ComponentInTextMode {
-                            component_span: c.span(),
+                            component_span: c.range(),
                         });
                         continue; // ignore component
                     }
@@ -323,8 +320,8 @@ impl<'a, 'r> Walker<'a, 'r> {
                             });
                         for (index, q) in all_quantities {
                             if let Err(e) = q.is_compatible(new_quantity, self.converter) {
-                                let a = self.ingredient_locations[index].clone();
-                                let b = location.clone();
+                                let a = self.ingredient_locations[index].clone().into();
+                                let b = location.clone().into();
                                 self.context.warn(AnalysisWarning::IncompatibleUnits {
                                     a,
                                     b,

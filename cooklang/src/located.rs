@@ -3,27 +3,23 @@ use std::{
     ops::{Deref, DerefMut, Range},
 };
 
-use crate::context::Recover;
+use crate::{context::Recover, span::Span};
 
 #[derive(Debug)]
-pub struct Located<T> {
+pub struct Located<T, Id = ()> {
     pub(crate) inner: T,
-    span: Range<usize>,
+    span: Span<Id>,
 }
 
-impl<T> Located<T> {
-    pub fn new(inner: T, span: Range<usize>) -> Self {
-        Self { inner, span }
-    }
-
-    pub fn new_span(inner: T, span: pest::Span) -> Self {
+impl<T, Id: Clone> Located<T, Id> {
+    pub fn new(inner: T, span: impl Into<Span<Id>>) -> Self {
         Self {
             inner,
-            span: span.start()..span.end(),
+            span: span.into(),
         }
     }
 
-    pub fn map_inner<F, O>(self, f: F) -> Located<O>
+    pub fn map_inner<F, O>(self, f: F) -> Located<O, Id>
     where
         F: FnOnce(T) -> O,
     {
@@ -33,30 +29,34 @@ impl<T> Located<T> {
         }
     }
 
-    pub fn map<F, O>(self, f: F) -> Located<O>
+    pub fn map<F, O>(self, f: F) -> Located<O, Id>
     where
-        F: FnOnce(Located<T>) -> Located<O>,
+        F: FnOnce(Self) -> Located<O, Id>,
     {
         f(self)
     }
 
     pub fn offset(&self) -> usize {
-        self.span.start
+        self.span.start()
     }
 
     pub fn take(self) -> T {
         self.inner
     }
 
-    pub fn span(&self) -> Range<usize> {
+    pub fn range(&self) -> Range<usize> {
+        self.span.range()
+    }
+
+    pub fn span(&self) -> Span<Id> {
         self.span.clone()
     }
 
     pub fn take_pair(self) -> (T, Range<usize>) {
-        (self.inner, self.span)
+        (self.inner, self.span.range())
     }
 
-    pub fn replace<O>(self, new_inner: O) -> Located<O> {
+    pub fn replace<O>(self, new_inner: O) -> Located<O, Id> {
         Located {
             inner: new_inner,
             span: self.span,
@@ -77,7 +77,7 @@ where
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
-            span: self.span.clone(),
+            span: self.span,
         }
     }
 }
@@ -105,9 +105,9 @@ impl<T> DerefMut for Located<T> {
     }
 }
 
-impl<T> From<Located<T>> for Range<usize> {
-    fn from(value: Located<T>) -> Self {
-        value.span
+impl<T, Id> From<Located<T, Id>> for Range<usize> {
+    fn from(value: Located<T, Id>) -> Self {
+        value.span.range()
     }
 }
 
@@ -118,7 +118,7 @@ where
     fn recover() -> Self {
         Self {
             inner: T::recover(),
-            span: 0..0,
+            span: Recover::recover(),
         }
     }
 }

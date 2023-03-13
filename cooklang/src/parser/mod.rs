@@ -1,25 +1,24 @@
 use std::borrow::Cow;
-use std::ops::Range;
 
 use pest::Parser;
 use pest_derive::Parser;
 use thiserror::Error;
 
-use self::pest_ext::Span;
 use crate::error::{PassResult, RichError};
+use crate::span::Span;
 use crate::Extensions;
 
 pub(crate) mod ast;
 mod pairs_walker;
 mod pest_ext;
 
-#[tracing::instrument(skip_all, fields(len = input.len()))]
+// #[tracing::instrument(skip_all, fields(len = input.len()))]
 pub fn parse(input: &str, extensions: Extensions) -> ParserResult {
     let pairs = match CooklangParser::parse(Rule::cooklang, input) {
         Ok(pairs) => pairs,
         Err(e) => {
             return ParserError::Parse {
-                span: e.location.span(),
+                span: e.location.into(),
                 message: e.variant.message().to_string(),
             }
             .into()
@@ -41,53 +40,53 @@ pub type ParserResult<'a> = PassResult<ast::Ast<'a>, ParserError, ParserWarning>
 #[derive(Debug, Error)]
 pub enum ParserError {
     #[error("Error parsing input: {message}")]
-    Parse { span: Range<usize>, message: String },
+    Parse { span: Span, message: String },
 
     #[error("A {container} is missing: {what}")]
     ComponentPartMissing {
         container: &'static str,
         what: &'static str,
-        component_span: Range<usize>,
+        component_span: Span,
     },
 
     #[error("A {container} cannot have: {what}")]
     ComponentPartNotAllowed {
         container: &'static str,
         what: &'static str,
-        to_remove: Range<usize>,
+        to_remove: Span,
         help: Option<&'static str>,
     },
 
     #[error("Tried to use a disabled extension: {extension_name}")]
     ExtensionNotEnabled {
-        span: Range<usize>,
+        span: Span,
         extension_name: &'static str,
     },
 
     #[error("Invalid ingredient modifiers: {reason}")]
     InvalidModifiers {
-        modifiers_span: Range<usize>,
+        modifiers_span: Span,
         reason: Cow<'static, str>,
         help: Option<&'static str>,
     },
 
     #[error("Error parsing integer number")]
     ParseInt {
-        bad_bit: Range<usize>,
+        bad_bit: Span,
         source: std::num::ParseIntError,
     },
 
     #[error("Error parsing decimal number")]
     ParseFloat {
-        bad_bit: Range<usize>,
+        bad_bit: Span,
         source: std::num::ParseFloatError,
     },
 
     #[error("Division by zero")]
-    DivisionByZero { bad_bit: Range<usize> },
+    DivisionByZero { bad_bit: Span },
 
     #[error("Quantity scaling conflict")]
-    QuantityScalingConflict { bad_bit: Range<usize> },
+    QuantityScalingConflict { bad_bit: Span },
 }
 
 #[derive(Debug, Error)]
@@ -97,7 +96,7 @@ pub enum ParserWarning {
 }
 
 impl RichError for ParserError {
-    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+    fn labels(&self) -> Vec<(Span, Option<Cow<'static, str>>)> {
         use crate::error::label;
         match self {
             ParserError::Parse { span, .. } => vec![label!(span)],
@@ -142,11 +141,11 @@ impl RichError for ParserError {
 }
 
 impl RichError for ParserWarning {
-    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+    fn labels(&self) -> Vec<(Span, Option<Cow<'static, str>>)> {
         use crate::error::label;
         match self {
             ParserWarning::EmptyMetadataValue { position, .. } => {
-                vec![label!(*position..*position + 1)]
+                vec![label!(Span::from(*position..*position + 1))]
             }
         }
     }

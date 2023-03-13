@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ops::Range};
+use std::borrow::Cow;
 
 use super::Pair;
 use crate::located::Located;
@@ -30,7 +30,7 @@ impl<'a> PairExt<'a> for Pair<'a> {
     }
 
     fn as_located_str(&self) -> Located<&'a str> {
-        Located::new(self.as_str(), self.span())
+        Located::new(self.as_str(), self.as_span())
     }
 
     fn text(&self) -> Cow<'a, str> {
@@ -84,37 +84,17 @@ impl<'a> PairExt<'a> for Pair<'a> {
     }
 
     fn located_text(&self) -> Located<Cow<'a, str>> {
-        Located::new(self.text(), self.span())
+        Located::new(self.text(), self.as_span())
     }
 
     fn located_text_trimmed(&self) -> Located<Cow<'a, str>> {
-        Located::new(self.text_trimmed(), self.span())
-    }
-}
-
-pub trait Span {
-    fn span(&self) -> Range<usize>;
-}
-
-impl Span for Pair<'_> {
-    fn span(&self) -> Range<usize> {
-        let span = self.as_span();
-        span.start()..span.end()
-    }
-}
-
-impl Span for pest::error::InputLocation {
-    fn span(&self) -> Range<usize> {
-        match self.clone() {
-            pest::error::InputLocation::Pos(p) => p..p,
-            pest::error::InputLocation::Span((start, end)) => start..end,
-        }
+        Located::new(self.text_trimmed(), self.as_span())
     }
 }
 
 impl<'a> From<Pair<'a>> for Located<Pair<'a>> {
     fn from(value: Pair<'a>) -> Self {
-        let span = value.span();
+        let span = value.as_span();
         Self::new(value, span)
     }
 }

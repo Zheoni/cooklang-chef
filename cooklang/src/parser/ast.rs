@@ -74,8 +74,10 @@ pub enum QuantityValue<'a> {
 impl QuantityValue<'_> {
     pub fn span(&self) -> Range<usize> {
         match self {
-            QuantityValue::Single { value, .. } => value.span(),
-            QuantityValue::Many(v) => v.first().unwrap().span().start..v.last().unwrap().span().end, // unwrap as the vec should not be empty
+            QuantityValue::Single { value, .. } => value.range(),
+            QuantityValue::Many(v) => {
+                v.first().unwrap().range().start..v.last().unwrap().range().end
+            } // unwrap as the vec should not be empty
         }
     }
 }

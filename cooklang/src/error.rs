@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ops::Range};
+use std::borrow::Cow;
 
 use thiserror::Error;
 
@@ -41,24 +41,24 @@ where
 
     pub fn write(
         &self,
-        cache: &mut impl ariadne::Cache<()>,
+        file_name: &str,
+        source_code: &str,
         w: &mut impl std::io::Write,
     ) -> std::io::Result<()> {
+        let mut cache = DummyCache::new(file_name, source_code);
         for warn in &self.warnings {
-            warn.write(cache, w)?;
+            build_report(warn, source_code).write(&mut cache, &mut *w)?;
         }
         for err in &self.errors {
-            err.write(cache, w)?;
+            build_report(err, source_code).write(&mut cache, &mut *w)?;
         }
         Ok(())
     }
     pub fn print(&self, file_name: &str, source_code: &str) -> std::io::Result<()> {
-        let mut cache = DummyCache::new(file_name, source_code);
-        self.write(&mut cache, &mut std::io::stdout())
+        self.write(file_name, source_code, &mut std::io::stdout())
     }
     pub fn eprint(&self, file_name: &str, source_code: &str) -> std::io::Result<()> {
-        let mut cache = DummyCache::new(file_name, source_code);
-        self.write(&mut cache, &mut std::io::stderr())
+        self.write(file_name, source_code, &mut std::io::stderr())
     }
 }
 
@@ -230,8 +230,8 @@ impl<T, E, W> From<E> for PassResult<T, E, W> {
     }
 }
 
-pub trait RichError: std::error::Error {
-    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+pub trait RichError<Id = ()>: std::error::Error {
+    fn labels(&self) -> Vec<(Span<Id>, Option<Cow<'static, str>>)> {
         vec![]
     }
     fn help(&self) -> Option<Cow<'static, str>> {
@@ -246,11 +246,14 @@ pub trait RichError: std::error::Error {
     fn offset(&self) -> Option<usize> {
         None
     }
+    fn source_id(&self) -> Option<Id> {
+        None
+    }
 }
 
 macro_rules! label {
     ($span:expr) => {
-        ($span.to_owned(), None)
+        ($span.to_owned().into(), None)
     };
     ($span:expr, $message:expr) => {
         ($span.to_owned().into(), Some($message.into()))
@@ -271,13 +274,19 @@ macro_rules! help {
 }
 pub(crate) use help;
 
-fn build_report(err: &dyn RichError) -> ariadne::Report {
+use crate::span::Span;
+
+fn build_report<'a>(err: &'a dyn RichError, all_source: &str) -> ariadne::Report<'a> {
     use ariadne::{Color, ColorGenerator, Fmt, Label, Report};
 
-    let labels = err.labels();
+    let mut labels = err
+        .labels()
+        .into_iter()
+        .map(|(s, t)| (s.to_chars_span(all_source).range(), t))
+        .peekable();
     let offset = err
         .offset()
-        .or_else(|| err.labels().first().map(|l| l.0.start))
+        .or_else(|| labels.peek().map(|l| l.0.start))
         .unwrap_or_default();
 
     let mut r = Report::build(err.kind(), (), offset);
@@ -296,7 +305,7 @@ fn build_report(err: &dyn RichError) -> ariadne::Report {
     }
 
     let mut c = ColorGenerator::new();
-    r.add_labels(labels.into_iter().map(|(span, text)| {
+    r.add_labels(labels.map(|(span, text)| {
         let mut l = Label::new(span).with_color(c.next());
         if let Some(text) = text {
             l = l.with_message(text);
@@ -327,26 +336,6 @@ impl ariadne::Cache<()> for DummyCache {
     }
 }
 
-pub trait WriteRichError<C: ariadne::Cache<()> = DummyCache> {
-    fn write(&self, cache: &mut C, w: &mut impl std::io::Write) -> std::io::Result<()>;
-    fn print(&self, cache: &mut C) -> std::io::Result<()> {
-        self.write(cache, &mut std::io::stdout())
-    }
-    fn eprint(&self, cache: &mut C) -> std::io::Result<()> {
-        self.write(cache, &mut std::io::stderr())
-    }
-}
-
-impl<C, E> WriteRichError<C> for E
-where
-    E: RichError,
-    C: ariadne::Cache<()>,
-{
-    fn write(&self, cache: &mut C, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        build_report(self).write(cache, w)
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum CooklangError {
     #[error(transparent)]
@@ -367,7 +356,7 @@ pub enum CooklangWarning {
 }
 
 impl RichError for CooklangError {
-    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+    fn labels(&self) -> Vec<(Span, Option<Cow<'static, str>>)> {
         match self {
             CooklangError::Parser(e) => e.labels(),
             CooklangError::Analysis(e) => e.labels(),
@@ -398,7 +387,7 @@ impl RichError for CooklangError {
 }
 
 impl RichError for CooklangWarning {
-    fn labels(&self) -> Vec<(Range<usize>, Option<Cow<'static, str>>)> {
+    fn labels(&self) -> Vec<(Span, Option<Cow<'static, str>>)> {
         match self {
             CooklangWarning::Parser(e) => e.labels(),
             CooklangWarning::Analysis(e) => e.labels(),
