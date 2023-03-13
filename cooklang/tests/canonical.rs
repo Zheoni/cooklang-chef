@@ -1,3 +1,5 @@
+//! Cooklang canonical tests https://github.com/cooklang/spec/blob/main/tests/canonical.yaml
+
 use cooklang::{
     model::ComponentKind,
     quantity::{QuantityValue, Value},

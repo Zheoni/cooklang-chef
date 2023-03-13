@@ -9,6 +9,7 @@ pub mod model;
 pub mod parser;
 pub mod quantity;
 pub mod scale;
+pub mod shopping_list;
 mod span;
 
 use bitflags::bitflags;

@@ -12,7 +12,7 @@ pub(crate) mod ast;
 mod pairs_walker;
 mod pest_ext;
 
-// #[tracing::instrument(skip_all, fields(len = input.len()))]
+#[tracing::instrument(skip_all, fields(len = input.len()))]
 pub fn parse(input: &str, extensions: Extensions) -> ParserResult {
     let pairs = match CooklangParser::parse(Rule::cooklang, input) {
         Ok(pairs) => pairs,

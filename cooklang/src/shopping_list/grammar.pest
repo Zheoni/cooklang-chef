@@ -1,0 +1,6 @@
+shopping_list = _{ SOI ~ NEWLINE* ~ category+ ~ EOI }
+category = { "[" ~ name ~ "]" ~ NEWLINE+ ~ (ingredient ~ NEWLINE+)* ~ ingredient? }
+ingredient = { name ~ ("|" ~ name)* }
+name = @{ (!("|" | "[" | "]" | NEWLINE | COMMENT) ~ ANY)+ }
+WHITESPACE = _{ " " }
+COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* }

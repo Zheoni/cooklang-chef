@@ -1,6 +1,6 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use cooklang::{
     convert::{builder::ConverterBuilder, units_file::UnitsFile},
@@ -16,7 +16,7 @@ mod units;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 #[clap(color = concolor_clap::color_choice())]
-struct Args {
+struct CliArgs {
     #[command(subcommand)]
     command: Command,
 
@@ -31,7 +31,7 @@ enum Command {
     /// Run a web server that serves of your recipes
     Serve,
     /// Creates a shopping list from a given list of recipes
-    ShoppingList,
+    ShoppingList(shopping_list::ShoppingListArgs),
     /// Manage unit files
     Units(units::UnitsArgs),
     /// Convert values and units
@@ -64,8 +64,27 @@ struct GlobalArgs {
     debug_trace: bool,
 }
 
+fn write_to_output<F>(output: Option<&Path>, f: F) -> Result<()>
+where
+    F: FnOnce(Box<dyn std::io::Write>) -> Result<()>,
+{
+    if let Some(path) = output {
+        let file = std::fs::File::create(path).context("Failed to create output file")?;
+        let colors = yansi::Paint::is_enabled();
+        yansi::Paint::disable();
+        f(Box::new(file))?;
+        if colors {
+            yansi::Paint::enable();
+        }
+        Ok(())
+    } else {
+        f(Box::new(std::io::stdout()))?;
+        Ok(())
+    }
+}
+
 pub fn main() -> Result<()> {
-    let args = Args::parse();
+    let args = CliArgs::parse();
 
     init_color(args.global_args.color);
 
@@ -83,7 +102,7 @@ pub fn main() -> Result<()> {
     match args.command {
         Command::Recipe(args) => recipe::run(&parser, *args),
         Command::Serve => serve::run(&parser),
-        Command::ShoppingList => shopping_list::run(&parser),
+        Command::ShoppingList(args) => shopping_list::run(&parser, args),
         Command::Units(args) => units::run(parser.converter(), args),
         Command::Convert(args) => convert::run(parser.converter(), args),
     }

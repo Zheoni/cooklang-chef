@@ -1,4 +1,5 @@
 target/
 *.cook
+*.conf
 thoughts.md
 .vscode/launch.json

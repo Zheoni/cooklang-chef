@@ -21,3 +21,4 @@ anyhow = "1"
 concolor-clap = { version = "0.1", features = ["api"] }
 concolor = "0.1"
 yansi = "0.5"
+serde = "1"

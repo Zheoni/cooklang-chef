@@ -276,13 +276,28 @@ pub(crate) use help;
 
 use crate::span::Span;
 
-fn build_report<'a>(err: &'a dyn RichError, all_source: &str) -> ariadne::Report<'a> {
+/// Writes a rich error report
+///
+/// This function should not be used in a loop as each call will
+/// perform a light parse of the whole source code.
+pub fn write_rich_error(
+    error: &dyn RichError,
+    file_name: &str,
+    source_code: &str,
+    w: impl std::io::Write,
+) -> std::io::Result<()> {
+    let cache = DummyCache::new(file_name, source_code);
+    let report = build_report(error, source_code);
+    report.write(cache, w)
+}
+
+fn build_report<'a>(err: &'a dyn RichError, src_code: &str) -> ariadne::Report<'a> {
     use ariadne::{Color, ColorGenerator, Fmt, Label, Report};
 
     let mut labels = err
         .labels()
         .into_iter()
-        .map(|(s, t)| (s.to_chars_span(all_source).range(), t))
+        .map(|(s, t)| (s.to_chars_span(src_code).range(), t))
         .peekable();
     let offset = err
         .offset()

@@ -185,6 +185,7 @@ dependencies = [
  "concolor-clap",
  "cooklang",
  "humantime",
+ "serde",
  "serde_json",
  "strum",
  "tabular",

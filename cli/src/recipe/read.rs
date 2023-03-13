@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use clap::{Args, ValueEnum};
 use cooklang::{
     convert::Converter,
@@ -10,6 +10,8 @@ use cooklang::{
     CooklangParser,
 };
 use yansi::Paint;
+
+use crate::write_to_output;
 
 use super::RecipeInput;
 
@@ -23,10 +25,10 @@ pub struct ReadArgs {
     output: Option<PathBuf>,
 
     /// Output format
-    #[arg(short, long, value_enum, default_value_t)]
-    format: Output,
+    #[arg(short, long, value_enum)]
+    format: Option<OutputFormat>,
 
-    /// Pretty output format if available
+    /// Pretty output format, if available
     #[arg(long)]
     pretty: bool,
 
@@ -38,11 +40,11 @@ pub struct ReadArgs {
     scale: Option<u32>,
 }
 
-#[derive(Debug, Default, Clone, Copy, ValueEnum)]
-enum Output {
-    #[default]
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum OutputFormat {
     Human,
     Json,
+    Cooklang,
 }
 
 pub fn run(parser: &CooklangParser, args: ReadArgs) -> Result<()> {
@@ -70,42 +72,33 @@ pub fn run(parser: &CooklangParser, args: ReadArgs) -> Result<()> {
     } else {
         recipe.skip_scaling()
     };
-    args.to_output(&scaled_recipe, parser.converter())?;
 
-    Ok(())
-}
+    let format = args.format.unwrap_or_else(|| match &args.output {
+        Some(p) => match p.extension().and_then(|s| s.to_str()) {
+            Some("json") => OutputFormat::Json,
+            Some("cook") => OutputFormat::Cooklang,
+            _ => OutputFormat::Human,
+        },
+        None => OutputFormat::Human,
+    });
 
-impl ReadArgs {
-    fn to_output(&self, recipe: &cooklang::ScaledRecipe, converter: &Converter) -> Result<()> {
-        if let Some(path) = &self.output {
-            let file = std::fs::File::create(path).context("Failed to create output file")?;
-            self.write(recipe, converter, file)?;
-        } else {
-            self.write(recipe, converter, std::io::stdout())?;
-        };
-        Ok(())
-    }
-
-    fn write(
-        &self,
-        recipe: &cooklang::ScaledRecipe,
-        converter: &Converter,
-        writer: impl std::io::Write,
-    ) -> Result<()> {
-        match self.format {
-            Output::Human => {
-                print_human(recipe, converter, writer)?;
-            }
-            Output::Json => {
-                if self.pretty {
-                    serde_json::to_writer_pretty(writer, recipe)?;
+    write_to_output(args.output.as_deref(), |writer| {
+        match format {
+            OutputFormat::Human => print_human(&scaled_recipe, parser.converter(), writer)?,
+            OutputFormat::Json => {
+                if args.pretty {
+                    serde_json::to_writer_pretty(writer, &scaled_recipe)?;
                 } else {
-                    serde_json::to_writer(writer, recipe)?;
+                    serde_json::to_writer(writer, &scaled_recipe)?;
                 }
             }
-        };
+            OutputFormat::Cooklang => {}
+        }
+
         Ok(())
-    }
+    })?;
+
+    Ok(())
 }
 
 fn print_human(
@@ -340,7 +333,6 @@ fn print_human(
             } else {
                 let list = igr
                     .all_quantities(&recipe.ingredients)
-                    .into_iter()
                     .map(|q| quantity_fmt(q))
                     .reduce(|s, q| format!("{s}, {q}"));
                 if let Some(list) = list {
