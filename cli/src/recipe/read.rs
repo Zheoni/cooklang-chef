@@ -59,12 +59,8 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
             ScaleTarget::new(1, scale, &[])
         };
         recipe.scale(target, ctx.parser.converter())
-    } else if let Some(servings) = &recipe.metadata.servings {
-        let Some(base) = servings.first().copied() else { bail!("Empty servings list") };
-        let target = ScaleTarget::new(base, base, servings);
-        recipe.scale(target, ctx.parser.converter())
     } else {
-        recipe.skip_scaling()
+        recipe.default_scaling()
     };
 
     let format = args.format.unwrap_or_else(|| match &args.output {
@@ -230,7 +226,10 @@ fn print_human(
             }
         }
         if let Some(servings) = &recipe.metadata.servings {
-            let index = recipe.scaled_data().and_then(|d| d.target.index());
+            let index = recipe
+                .scaled_data()
+                .and_then(|d| d.target.index())
+                .or_else(|| recipe.is_default_scaled().then_some(0));
             let mut text = servings
                 .iter()
                 .enumerate()
@@ -293,19 +292,19 @@ fn print_human(
             let mut is_err = false;
             let s = recipe
                 .scaled_data()
-                .map(|d| {
-                    let mut o = &d.ingredients[index];
-                    if matches!(o, ScaleOutcome::Error(_)) {
-                        return o;
-                    }
-                    for &r in igr.referenced_from() {
-                        match (&o, &d.ingredients[r]) {
-                            (_, e @ ScaleOutcome::Error(_)) => return e,
-                            (_, e @ ScaleOutcome::Fixed) => o = e,
+                .map(|data| {
+                    // Color in list depends on outcome of definition and all references
+                    let mut outcome = &data.ingredients[index]; // temp value
+                    let all_indices =
+                        std::iter::once(index).chain(igr.referenced_from().iter().copied());
+                    for index in all_indices {
+                        match &data.ingredients[index] {
+                            e @ ScaleOutcome::Error(_) => return e, // if err, return
+                            e @ ScaleOutcome::Fixed => outcome = e, // if fixed, store
                             _ => {}
                         }
                     }
-                    o
+                    outcome
                 })
                 .map(|outcome| match outcome {
                     ScaleOutcome::Fixed => {
@@ -330,7 +329,7 @@ fn print_human(
                     .map(|q| quantity_fmt(q))
                     .reduce(|s, q| format!("{s}, {q}"));
                 if let Some(list) = list {
-                    row.add_ansi_cell(s.paint(list));
+                    row.add_ansi_cell(s.wrap().paint(list));
                 } else {
                     row.add_cell("");
                 }

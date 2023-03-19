@@ -37,6 +37,7 @@ impl ScaleTarget {
 
 #[derive(Debug)]
 pub enum Scaled {
+    DefaultScaling,
     SkippedSacaling,
     Scaled(ScaledData),
 }
@@ -79,6 +80,9 @@ pub enum ScaleError {
 
 impl<'a> Recipe<'a> {
     pub fn scale(mut self, target: ScaleTarget, converter: &Converter) -> ScaledRecipe<'a> {
+        if target.index() == Some(0) {
+            return self.default_scaling();
+        }
         let ingredients = scale_many(target, &mut self.ingredients, |igr| {
             igr.quantity.as_mut().map(|q| &mut q.value)
         });
@@ -120,6 +124,24 @@ impl<'a> Recipe<'a> {
             data: Scaled::SkippedSacaling,
         }
     }
+
+    pub fn default_scaling(mut self) -> ScaledRecipe<'a> {
+        default_scale_many(&mut self.ingredients, |igr| {
+            igr.quantity.as_mut().map(|q| &mut q.value)
+        });
+        default_scale_many(&mut self.cookware, |ck| ck.quantity.as_mut());
+        default_scale_many(&mut self.timers, |tm| Some(&mut tm.quantity.value));
+
+        ScaledRecipe {
+            name: self.name,
+            metadata: self.metadata,
+            sections: self.sections,
+            ingredients: self.ingredients,
+            cookware: self.cookware,
+            timers: self.timers,
+            data: Scaled::DefaultScaling,
+        }
+    }
 }
 
 impl ScaledRecipe<'_> {
@@ -129,6 +151,10 @@ impl ScaledRecipe<'_> {
         } else {
             None
         }
+    }
+
+    pub fn is_default_scaled(&self) -> bool {
+        matches!(self.data, Scaled::DefaultScaling)
     }
 }
 
@@ -155,6 +181,17 @@ fn scale_many<'a, T: 'a>(
     outcomes
 }
 
+fn default_scale_many<'a, T: 'a>(
+    components: &mut [T],
+    extract: impl Fn(&mut T) -> Option<&mut QuantityValue<'a>>,
+) {
+    for c in components {
+        if let Some(value) = extract(c) {
+            *value = value.clone().default_scale();
+        }
+    }
+}
+
 impl<'a> QuantityValue<'a> {
     fn scale(self, target: ScaleTarget) -> Result<(QuantityValue<'a>, ScaleOutcome), ScaleError> {
         match self {
@@ -162,6 +199,13 @@ impl<'a> QuantityValue<'a> {
             QuantityValue::Scalable(v) => {
                 v.scale(target).map(|(v, o)| (QuantityValue::Fixed(v), o))
             }
+        }
+    }
+
+    fn default_scale(self) -> Self {
+        match self {
+            v @ QuantityValue::Fixed(_) => v,
+            QuantityValue::Scalable(v) => QuantityValue::Fixed(v.default_scale()),
         }
     }
 }
@@ -183,6 +227,16 @@ impl<'a> ScalableValue<'a> {
                     });
                 }
             }
+        }
+    }
+
+    fn default_scale(self) -> Value<'a> {
+        match self {
+            ScalableValue::Linear(v) => v,
+            ScalableValue::ByServings(v) => v
+                .first()
+                .expect("scalable value servings list empty")
+                .clone(),
         }
     }
 }
