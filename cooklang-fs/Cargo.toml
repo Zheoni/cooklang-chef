@@ -1,0 +1,13 @@
+[package]
+name = "cooklang-fs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+camino = "1"
+cooklang = { path = "../cooklang" }
+thiserror = "1"
+tracing = "0.1"
+walkdir = "2"

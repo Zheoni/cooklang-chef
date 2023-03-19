@@ -1,2 +1,2 @@
 [workspace]
-members = ["cooklang", "cli"]
+members = ["cooklang", "cli", "cooklang-fs"]
