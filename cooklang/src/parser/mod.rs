@@ -8,7 +8,7 @@ use crate::error::{PassResult, RichError};
 use crate::span::Span;
 use crate::Extensions;
 
-pub(crate) mod ast;
+pub mod ast;
 mod pairs_walker;
 mod pest_ext;
 

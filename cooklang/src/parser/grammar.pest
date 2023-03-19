@@ -22,7 +22,7 @@ metadata_key = @{ (!":" ~ text_item)+ }
 metadata_value = @{ (!COMMENT ~ text_item)* }
 
 step = { (component | text)+ }
-text = { ((!component_token ~ text_item)+) | text_item }
+text = { ((!("\\" | component_token) ~ text_item)+) | escaped | text_item }
 
 component = { component_token ~ modifiers? ~ component_body ~ note? }
 component_token = { "@" | "#" | "~" }
@@ -49,7 +49,7 @@ value = _{ numeric_value ~ &(ws+ | "|" | "%" | "*" | "}") | value_text  }
 numeric_value = { mixed_number | fraction | range | number }
 unit = @{ (!"}" ~ text_item)* }
 
-value_text = @{ (!("%" | "}" | "|") ~ text_item)+ }
+value_text = ${ (escaped | (!("%" | "}" | "|" | "\\") ~ text_item))+ }
 integer = @{ (!"0" ~ ASCII_DIGIT+) | ASCII_DIGIT ~ !ASCII_DIGIT }
 fraction = ${ regular_fraction | unicode_fraction }
 regular_fraction = ${ integer ~ ws* ~ "/" ~ ws* ~ integer }
@@ -80,4 +80,7 @@ unicode_fraction = {
 }
 
 text_item = @{ !NEWLINE ~ ANY }
+escaped = _{ esc ~ esc_item }
+esc_item = { ANY }
+esc = _{ "\\" }
 ws = _{ SPACE_SEPARATOR | "\t" }
