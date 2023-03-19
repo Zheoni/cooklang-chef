@@ -52,8 +52,8 @@ impl<T, Id: Clone> Located<T, Id> {
         self.span.clone()
     }
 
-    pub fn take_pair(self) -> (T, Range<usize>) {
-        (self.inner, self.span.range())
+    pub fn take_pair(self) -> (T, Span<Id>) {
+        (self.inner, self.span)
     }
 
     pub fn replace<O>(self, new_inner: O) -> Located<O, Id> {

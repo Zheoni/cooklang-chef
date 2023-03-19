@@ -1,6 +1,6 @@
-use std::{borrow::Cow, ops::Range};
+use std::borrow::Cow;
 
-use crate::{context::Recover, located::Located, quantity::Value};
+use crate::{context::Recover, located::Located, quantity::Value, span::Span};
 
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
@@ -72,12 +72,13 @@ pub enum QuantityValue<'a> {
 }
 
 impl QuantityValue<'_> {
-    pub fn span(&self) -> Range<usize> {
+    pub fn span(&self) -> Span {
         match self {
-            QuantityValue::Single { value, .. } => value.range(),
-            QuantityValue::Many(v) => {
-                v.first().unwrap().range().start..v.last().unwrap().range().end
-            } // unwrap as the vec should not be empty
+            QuantityValue::Single { value, .. } => value.span(),
+            QuantityValue::Many(v) => Span::new(
+                v.first().unwrap().span().start(),
+                v.last().unwrap().span().end(),
+            ), // unwrap as the vec should not be empty
         }
     }
 }
@@ -107,7 +108,7 @@ impl Recover for Value<'_> {
 }
 
 bitflags! {
-    #[derive(Default, Serialize, Deserialize)]
+    #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Modifiers: u32 {
         /// refers to a recipe with the same name
         const RECIPE = 0b00001;

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ops::Range};
+use std::borrow::Cow;
 
 use thiserror::Error;
 
@@ -22,33 +22,27 @@ pub enum AnalysisError {
         possible_values: Vec<&'static str>,
     },
     #[error("Reference not found: {name}")]
-    ReferenceNotFound {
-        name: String,
-        reference_span: Range<usize>,
-    },
+    ReferenceNotFound { name: String, reference_span: Span },
     #[error("Conflicting ingredient reference quantities: {ingredient_name}")]
     ConflictingReferenceQuantities {
         ingredient_name: String,
-        definition_span: Range<usize>,
-        reference_span: Range<usize>,
+        definition_span: Span,
+        reference_span: Span,
     },
 
     #[error("Unknown timer unit: {unit}")]
-    UnknownTimerUnit {
-        unit: String,
-        timer_span: Range<usize>,
-    },
+    UnknownTimerUnit { unit: String, timer_span: Span },
 
     #[error("Bad timer unit. Expecting time, got: {}", .unit.physical_quantity)]
     BadTimerUnit {
         unit: crate::convert::Unit,
-        timer_span: Range<usize>,
+        timer_span: Span,
     },
 
     #[error("Quantity scaling error: {reason}")]
     SacalingConflict {
         reason: Cow<'static, str>,
-        value_span: Range<usize>,
+        value_span: Span,
     },
 }
 
@@ -82,7 +76,7 @@ pub enum AnalysisWarning {
     },
 
     #[error("Component found in text mode")]
-    ComponentInTextMode { component_span: Range<usize> },
+    ComponentInTextMode { component_span: Span },
 
     #[error("An error ocurred searching temperature values")]
     TemperatureRegexCompile {
@@ -91,7 +85,22 @@ pub enum AnalysisWarning {
     },
 
     #[error("Redundant auto scale marker")]
-    RedundantAutoScaleMarker { quantity_span: Range<usize> },
+    RedundantAutoScaleMarker { quantity_span: Span },
+
+    #[error("Redundant reference (&) modifier")]
+    RedundantReferenceModifier {
+        modifiers: Located<crate::parser::ast::Modifiers>,
+    },
+
+    #[error("Referenced recipe not found: '{name}'")]
+    RecipeNotFound { ref_span: Span, name: String },
+
+    #[error("Reference ingredient to a referenced recipe is missing recipe modifier")]
+    ReferenceToRecipeMissing {
+        ingredient_span: Span,
+        referenced_span: Span,
+        modifiers: Located<crate::parser::ast::Modifiers>,
+    },
 }
 
 impl RichError for AnalysisError {
@@ -164,6 +173,21 @@ impl RichError for AnalysisWarning {
             AnalysisWarning::RedundantAutoScaleMarker { quantity_span } => {
                 vec![label!(quantity_span)]
             }
+            AnalysisWarning::RedundantReferenceModifier { modifiers } => {
+                vec![label!(modifiers)]
+            }
+            AnalysisWarning::RecipeNotFound { ref_span, .. } => vec![label!(ref_span)],
+            AnalysisWarning::ReferenceToRecipeMissing {
+                ingredient_span,
+                referenced_span,
+                modifiers,
+            } => {
+                vec![
+                    label!(referenced_span, "this ingredient recipe"),
+                    label!(ingredient_span, "referenced here"),
+                    label!(modifiers, "add '@' here"),
+                ]
+            }
         }
     }
 
@@ -181,6 +205,16 @@ impl RichError for AnalysisWarning {
             }
             AnalysisWarning::RedundantAutoScaleMarker { .. } => {
                 help!("Be careful as every ingredient is already marked to auto scale")
+            }
+            AnalysisWarning::RedundantReferenceModifier { .. } => {
+                help!("Be careful as every ingredient is already marked to be a reference in case of a duplicate")
+            }
+            AnalysisWarning::RecipeNotFound { name, .. } => {
+                if name.chars().any(std::path::is_separator) {
+                    help!("This is treated as a path relative to the base directory")
+                } else {
+                    help!("Names must match exactly except for upper and lower case")
+                }
             }
             _ => None,
         }

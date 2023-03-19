@@ -268,7 +268,12 @@ impl Walker {
         let modifiers = component
             .modifiers
             .map(|p| p.map_inner(|p| self.modifiers(p)))
-            .unwrap_or_else(Recover::recover);
+            .unwrap_or_else(|| {
+                Located::new(
+                    Modifiers::empty(),
+                    component.span.start() + 1..component.span.start() + 1,
+                )
+            });
 
         let name = component.name.unwrap_or_else(Recover::recover);
 
@@ -346,7 +351,7 @@ impl Walker {
                 self.error(ParserError::ComponentPartNotAllowed {
                     container: COOKWARE,
                     what: "unit in quantity",
-                    to_remove: Span::new(quantity.value.span().end, unit.range().end),
+                    to_remove: Span::new(quantity.value.span().end(), unit.span().end()),
                     help: Some("Cookware quantity can't have an unit"),
                 });
             }
@@ -356,7 +361,10 @@ impl Walker {
             self.error(ParserError::ComponentPartNotAllowed {
                 container: COOKWARE,
                 what: "auto scale marker",
-                to_remove: Span::new(value.span().end, value.span().end + 1),
+                to_remove: {
+                    let span = value.span();
+                    Span::new(span.end(), span.end() + 1)
+                },
                 help: Some("Cookware quantity can't be auto scaled"),
             });
         }
@@ -406,7 +414,10 @@ impl Walker {
             self.error(ParserError::ComponentPartNotAllowed {
                 container: COOKWARE,
                 what: "auto scale marker",
-                to_remove: Span::new(value.span().end, value.span().end + 1),
+                to_remove: {
+                    let span = value.span();
+                    Span::new(span.end(), span.end() + 1)
+                },
                 help: Some("Timer quantity can't be auto scaled"),
             });
         }

@@ -1,24 +1,24 @@
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::{bail, Result};
+use camino::Utf8PathBuf as PathBuf;
 use clap::{Args, ValueEnum};
 use cooklang::{
     convert::Converter,
     model::{Component, ComponentKind, Ingredient},
     quantity::Quantity,
     scale::{ScaleOutcome, ScaleTarget},
-    CooklangParser,
 };
 use yansi::Paint;
 
-use crate::write_to_output;
+use crate::{write_to_output, Context};
 
-use super::RecipeInput;
+use super::RecipeInputArgs;
 
 #[derive(Debug, Args)]
 pub struct ReadArgs {
     #[command(flatten)]
-    input: RecipeInput,
+    input: RecipeInputArgs,
 
     /// Output file, none for stdout.
     #[arg(short, long)]
@@ -47,15 +47,9 @@ enum OutputFormat {
     Cooklang,
 }
 
-pub fn run(parser: &CooklangParser, args: ReadArgs) -> Result<()> {
-    let (input, file_name, recipe_name) = args.input.read()?;
-
-    let r = parser.parse(&input, &recipe_name);
-    if r.should_return(!args.ignore_warnings) {
-        r.into_report().eprint(&file_name, &input)?;
-        bail!("Error parsing recipe");
-    }
-    let recipe = r.into_output().unwrap();
+pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
+    let input = args.input.read()?;
+    let recipe = input.parse(ctx)?;
 
     let scaled_recipe = if let Some(scale) = args.scale {
         let target = if let Some(servings) = recipe.metadata.servings.as_ref() {
@@ -64,17 +58,17 @@ pub fn run(parser: &CooklangParser, args: ReadArgs) -> Result<()> {
         } else {
             ScaleTarget::new(1, scale, &[])
         };
-        recipe.scale(target, parser.converter())
+        recipe.scale(target, ctx.parser.converter())
     } else if let Some(servings) = &recipe.metadata.servings {
         let Some(base) = servings.first().copied() else { bail!("Empty servings list") };
         let target = ScaleTarget::new(base, base, servings);
-        recipe.scale(target, parser.converter())
+        recipe.scale(target, ctx.parser.converter())
     } else {
         recipe.skip_scaling()
     };
 
     let format = args.format.unwrap_or_else(|| match &args.output {
-        Some(p) => match p.extension().and_then(|s| s.to_str()) {
+        Some(p) => match p.extension() {
             Some("json") => OutputFormat::Json,
             Some("cook") => OutputFormat::Cooklang,
             _ => OutputFormat::Human,
@@ -84,7 +78,7 @@ pub fn run(parser: &CooklangParser, args: ReadArgs) -> Result<()> {
 
     write_to_output(args.output.as_deref(), |writer| {
         match format {
-            OutputFormat::Human => print_human(&scaled_recipe, parser.converter(), writer)?,
+            OutputFormat::Human => print_human(&scaled_recipe, ctx.parser.converter(), writer)?,
             OutputFormat::Json => {
                 if args.pretty {
                     serde_json::to_writer_pretty(writer, &scaled_recipe)?;
@@ -327,7 +321,7 @@ fn print_human(
                     ScaleOutcome::Scaled | ScaleOutcome::NoQuantity => yansi::Style::default(),
                 })
                 .unwrap_or_default();
-            let mut row = Row::new().with_cell(&igr.name);
+            let mut row = Row::new().with_cell(igr.display_name());
             if let Some(quantity) = total_quantity {
                 row.add_ansi_cell(s.paint(quantity_fmt(&quantity)));
             } else {
@@ -415,7 +409,8 @@ fn print_human(
                             Item::Component(c) => match c.kind {
                                 ComponentKind::Ingredient => {
                                     let igr = &recipe.ingredients[c.index];
-                                    write!(&mut step_text, "{}", Paint::green(&igr.name)).unwrap();
+                                    write!(&mut step_text, "{}", Paint::green(igr.display_name()))
+                                        .unwrap();
                                     let pos = write_igr_count(
                                         &mut step_text,
                                         &step_igrs_duplicates,
@@ -455,7 +450,7 @@ fn print_human(
                     } else {
                         let mut igrs_text = String::from("    [");
                         for (i, (igr, pos)) in step_igrs.iter().enumerate() {
-                            write!(&mut igrs_text, "{}", igr.name).unwrap();
+                            write!(&mut igrs_text, "{}", igr.display_name()).unwrap();
                             if let Some(pos) = pos {
                                 write_subscript(&mut igrs_text, &pos.to_string());
                             }

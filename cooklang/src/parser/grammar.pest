@@ -6,17 +6,20 @@ COMMENT = _{
 }
 
 cooklang = { SOI ~ NEWLINE* ~ (line ~ line_end)* ~ line? ~ EOI }
+cooklang_metadata = { SOI ~ NEWLINE* ~ (only_metadata ~ NEWLINE+)* ~ only_metadata? ~ EOI }
 
 line = _{ metadata | section | step }
 line_end = _{ soft_break | NEWLINE+ }
+only_metadata = _{ metadata | (!NEWLINE ~ ANY)* }
 soft_break = { NEWLINE ~ !NEWLINE }
 
 section = { ("==" ~ section_name ~ "==") | "="{2,} }
 section_name = { (!"=" ~ text_item)+ }
 
-metadata = ${ ">>" ~ ws* ~ metadata_key ~ ":" ~ metadata_value }
+// only line comments or block comments at the end will be accepted in metadata
+metadata = ${ ">>" ~ ws* ~ metadata_key ~ ":" ~ metadata_value ~ COMMENT? }
 metadata_key = @{ (!":" ~ text_item)+ }
-metadata_value = @{ text_item* }
+metadata_value = @{ (!COMMENT ~ text_item)* }
 
 step = { (component | text)+ }
 text = { ((!component_token ~ text_item)+) | text_item }

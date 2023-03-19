@@ -82,6 +82,16 @@ pub struct Ingredient<'a> {
 }
 
 impl Ingredient<'_> {
+    pub fn display_name(&self) -> Cow<str> {
+        let mut name = self.name.clone();
+        if self.modifiers.contains(Modifiers::RECIPE) {
+            if let Some(idx) = self.name.rfind(std::path::is_separator) {
+                name = self.name.split_at(idx + 1).1.into();
+            }
+        }
+        self.alias.as_ref().cloned().unwrap_or(name)
+    }
+
     pub fn is_hidden(&self) -> bool {
         self.modifiers.contains(Modifiers::HIDDEN)
     }

@@ -3,3 +3,4 @@ target/
 *.conf
 thoughts.md
 .vscode/launch.json
+seed/

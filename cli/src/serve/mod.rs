@@ -1,6 +1,6 @@
+use crate::Context;
 use anyhow::Result;
-use cooklang::CooklangParser;
 
-pub fn run(_parser: &CooklangParser) -> Result<()> {
+pub fn run(_ctx: &Context) -> Result<()> {
     todo!()
 }

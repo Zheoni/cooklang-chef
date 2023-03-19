@@ -1,6 +1,5 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
+use camino::Utf8PathBuf as PathBuf;
 use clap::{Args, ValueEnum};
 use cooklang::shopping_list::ShoppingListConf;
 use yansi::Paint;
@@ -46,7 +45,7 @@ pub fn run(mut aile: ShoppingListConf, args: ConfArgs) -> Result<()> {
     }
 
     let format = args.format.unwrap_or_else(|| match &args.output {
-        Some(p) => match p.extension().and_then(|s| s.to_str()) {
+        Some(p) => match p.extension() {
             Some("json") => OutputFormat::Json,
             _ => OutputFormat::Conf,
         },

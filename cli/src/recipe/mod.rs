@@ -1,14 +1,17 @@
-use std::{io::Read, path::PathBuf};
+use std::io::Read;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Context as _, Result};
+use camino::Utf8PathBuf as PathBuf;
 use clap::{Args, Subcommand};
-use cooklang::CooklangParser;
+
+use crate::Context;
 
 use self::read::ReadArgs;
 
 mod check;
 mod format;
 mod image;
+mod list;
 mod read;
 
 #[derive(Debug, Args)]
@@ -21,8 +24,38 @@ pub struct RecipeArgs {
     read_args: ReadArgs,
 }
 
+#[derive(Debug, Subcommand)]
+enum RecipeCommand {
+    /// Reads a recipe file
+    #[command(alias = "r")]
+    Read(ReadArgs),
+    /// Checks a recipe file for errors or warnings
+    #[command(alias = "c")]
+    Check(check::CheckArgs),
+    /// List all the recipes
+    #[command(alias = "l")]
+    List(list::ListArgs),
+    /// Formats a recipe file with a consistent format
+    #[command(aliases = ["f", "fmt"])]
+    Format,
+    /// Automatically downloads an image for the recipe based on it's name
+    Image,
+}
+
+pub fn run(ctx: &Context, args: RecipeArgs) -> Result<()> {
+    let command = args.command.unwrap_or(RecipeCommand::Read(args.read_args));
+
+    match command {
+        RecipeCommand::Read(args) => read::run(ctx, args),
+        RecipeCommand::Check(args) => check::run(ctx, args),
+        RecipeCommand::List(args) => list::run(ctx, args),
+        RecipeCommand::Format => format::run(ctx),
+        RecipeCommand::Image => image::run(ctx),
+    }
+}
+
 #[derive(Debug, Args)]
-struct RecipeInput {
+struct RecipeInputArgs {
     /// Input file path, none for stdin
     file: Option<PathBuf>,
 
@@ -33,48 +66,66 @@ struct RecipeInput {
     name: Option<String>,
 }
 
-#[derive(Debug, Subcommand)]
-enum RecipeCommand {
-    /// Reads a recipe file
-    Read(ReadArgs),
-    /// Checks a recipe file for errors or warnings
-    Check,
-    /// Formats a recipe file with a consistent format
-    Format,
-    /// Automatically downloads an image for the recipe based on it's name
-    Image,
-}
-
-pub fn run(parser: &CooklangParser, args: RecipeArgs) -> Result<()> {
-    let command = args.command.unwrap_or(RecipeCommand::Read(args.read_args));
-
-    match command {
-        RecipeCommand::Read(args) => read::run(parser, args),
-        RecipeCommand::Check => check::run(parser),
-        RecipeCommand::Format => format::run(parser),
-        RecipeCommand::Image => image::run(parser),
-    }
-}
-
-impl RecipeInput {
-    pub fn read(&self) -> Result<(String, String, String)> {
-        let (text, filename) = if let Some(path) = &self.file {
-            let filename = path.file_name().map(|s| s.to_string_lossy().to_string());
+impl RecipeInputArgs {
+    pub fn read(&self) -> Result<Input> {
+        let (text, recipe_name, file_name) = if let Some(path) = &self.file {
+            if !path.is_file() {
+                bail!("Input is not a file");
+            }
+            let recipe_name = path.file_stem().expect("file without filename").to_string();
+            let file_name = path.file_name().expect("file without filename").to_string();
             let text = std::fs::read_to_string(path).context("Failed to read input file")?;
-            (text, filename)
+            (text, Some(recipe_name), Some(file_name))
         } else {
             let mut buf = String::new();
             std::io::stdin()
                 .read_to_string(&mut buf)
                 .context("Failed to read stdin")?;
-            (buf, None)
+            (buf, None, None)
         };
 
-        if let Some(name) = self.name.as_ref().or(filename.as_ref()) {
-            let recipe_name = name.strip_suffix(".cook").unwrap_or(name);
-            Ok((text, name.to_owned(), recipe_name.to_owned()))
+        if let Some(name) = self.name.as_ref().or(recipe_name.as_ref()) {
+            Ok(Input {
+                text,
+                recipe_name: name.to_owned(), // ? Unnecesary alloc
+                file_name: file_name.unwrap_or_else(|| name.to_owned()),
+                path: self.file.clone(),
+            })
         } else {
             bail!("No name for the recipe")
+        }
+    }
+}
+
+struct Input {
+    text: String,
+    recipe_name: String,
+    file_name: String,
+    path: Option<PathBuf>,
+}
+
+impl Input {
+    fn parse<'a>(&'a self, ctx: &Context) -> Result<cooklang::Recipe<'a>> {
+        let checker = if ctx.global_args.no_recipe_ref_check {
+            None
+        } else {
+            Some(Box::new(|name: &str| ctx.recipe_index.contains(name))
+                as cooklang::RecipeRefChecker)
+        };
+        let r = ctx
+            .parser
+            .parse_with_recipe_ref_checker(&self.text, &self.recipe_name, checker);
+
+        if r.invalid() || ctx.global_args.warnings_as_errors && r.has_warnings() {
+            r.into_report()
+                .eprint(&self.file_name, &self.text, ctx.global_args.ignore_warnings)?;
+            bail!("Error parsing recipe");
+        } else {
+            let (recipe, warnings) = r.into_result().unwrap();
+            if !ctx.global_args.ignore_warnings && warnings.has_warnings() {
+                warnings.eprint(&self.file_name, &self.text, false)?;
+            }
+            Ok(recipe)
         }
     }
 }

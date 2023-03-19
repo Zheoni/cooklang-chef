@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::ops::Range;
 
 use regex::Regex;
 
@@ -9,7 +8,8 @@ use crate::located::{Located, OptTake};
 use crate::metadata::Metadata;
 use crate::parser::ast::{self, Modifiers};
 use crate::quantity::{Quantity, QuantityValue, ScalableValue, UnitInfo, Value};
-use crate::{model::*, Extensions};
+use crate::span::Span;
+use crate::{model::*, Extensions, RecipeRefChecker};
 
 use super::{AnalysisError, AnalysisResult, AnalysisWarning};
 
@@ -22,11 +22,12 @@ pub struct RecipeContent<'a> {
     pub timers: Vec<Timer<'a>>,
 }
 
-#[tracing::instrument(skip_all, fields(ast_lines = ast.lines.len()))]
+#[tracing::instrument(skip_all, target = "cooklang::analysis", fields(ast_lines = ast.lines.len()))]
 pub fn parse_ast<'a>(
     ast: ast::Ast<'a>,
     extensions: Extensions,
     converter: &Converter,
+    recipe_ref_checker: Option<RecipeRefChecker>,
 ) -> AnalysisResult<'a> {
     let mut context = Context::default();
     let temperature_regex = extensions
@@ -44,6 +45,7 @@ pub fn parse_ast<'a>(
         extensions,
         temperature_regex,
         converter,
+        recipe_ref_checker,
 
         content: Default::default(),
 
@@ -64,6 +66,7 @@ struct Walker<'a, 'c> {
     extensions: Extensions,
     temperature_regex: Option<&'c Regex>,
     converter: &'c Converter,
+    recipe_ref_checker: Option<RecipeRefChecker<'c>>,
 
     content: RecipeContent<'a>,
 
@@ -72,7 +75,7 @@ struct Walker<'a, 'c> {
     auto_scale_ingredients: bool,
     context: Context<AnalysisError, AnalysisWarning>,
 
-    ingredient_locations: Vec<Range<usize>>,
+    ingredient_locations: Vec<Span>,
 }
 
 #[derive(PartialEq)]
@@ -217,7 +220,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                 ast::Item::Component(c) => {
                     if self.define_mode == DefineMode::Text {
                         self.warn(AnalysisWarning::ComponentInTextMode {
-                            component_span: c.range(),
+                            component_span: c.span(),
                         });
                         continue; // ignore component
                     }
@@ -254,6 +257,7 @@ impl<'a, 'r> Walker<'a, 'r> {
 
     fn ingredient(&mut self, ingredient: Located<ast::Ingredient<'a>>) -> usize {
         let (ingredient, location) = ingredient.take_pair();
+        let location = Span::from(location);
 
         let same_name = self
             .content
@@ -261,7 +265,8 @@ impl<'a, 'r> Walker<'a, 'r> {
             .iter()
             // find the LAST ingredient with the same name
             .rposition(|igr| {
-                !igr.modifiers.contains(Modifiers::REF) && igr.name == ingredient.name.as_ref()
+                !igr.modifiers.contains(Modifiers::REF)
+                    && igr.name.to_lowercase() == ingredient.name.as_ref().to_lowercase()
             });
 
         let mut new_igr = Ingredient {
@@ -269,11 +274,30 @@ impl<'a, 'r> Walker<'a, 'r> {
             alias: ingredient.alias.opt_take(),
             quantity: ingredient.quantity.clone().map(|q| self.quantity(q, true)),
             note: ingredient.note.opt_take(),
-            modifiers: ingredient.modifiers.take(),
+            modifiers: ingredient.modifiers.clone().take(),
             references_to: None,
             referenced_from: Default::default(),
             defined_in_step: self.define_mode != DefineMode::Components,
         };
+
+        if new_igr.modifiers.contains(Modifiers::RECIPE) {
+            if let Some(checker) = &self.recipe_ref_checker {
+                if !(*checker)(&new_igr.name) {
+                    self.warn(AnalysisWarning::RecipeNotFound {
+                        ref_span: location,
+                        name: new_igr.name.to_string(),
+                    })
+                }
+            }
+        }
+
+        if self.duplicate_mode == DuplicateMode::Reference
+            && new_igr.modifiers.contains(Modifiers::REF)
+        {
+            self.warn(AnalysisWarning::RedundantReferenceModifier {
+                modifiers: ingredient.modifiers.clone(),
+            });
+        }
 
         let treat_as_reference = (new_igr.modifiers.contains(Modifiers::REF)
             || self.define_mode == DefineMode::Steps
@@ -304,7 +328,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                         .error(AnalysisError::ConflictingReferenceQuantities {
                             ingredient_name: new_igr.name.to_string(),
                             definition_span,
-                            reference_span: location.clone(),
+                            reference_span: location,
                         });
                 }
 
@@ -330,6 +354,19 @@ impl<'a, 'r> Walker<'a, 'r> {
                             }
                         }
                     }
+                }
+
+                if referenced.modifiers.contains(Modifiers::RECIPE)
+                    && !new_igr.modifiers.contains(Modifiers::RECIPE)
+                {
+                    self.context
+                        .warn(AnalysisWarning::ReferenceToRecipeMissing {
+                            modifiers: ingredient.modifiers,
+                            ingredient_span: location.into(),
+                            referenced_span: self.ingredient_locations[referenced_index]
+                                .clone()
+                                .into(),
+                        })
                 }
 
                 new_igr.references_to = Some(referenced_index);
@@ -446,7 +483,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                 QuantityValue::Fixed(v) => QuantityValue::Scalable(ScalableValue::Linear(v)),
                 v @ QuantityValue::Scalable(ScalableValue::Linear(_)) => {
                     self.warn(AnalysisWarning::RedundantAutoScaleMarker {
-                        quantity_span: value_span.end..value_span.end + 1,
+                        quantity_span: Span::new(value_span.end(), value_span.end() + 1),
                     });
                     v
                 }

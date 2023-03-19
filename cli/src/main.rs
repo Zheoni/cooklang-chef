@@ -1,11 +1,12 @@
-use std::path::{Path, PathBuf};
-
-use anyhow::{Context, Result};
+use anyhow::{bail, Context as _, Result};
+use camino::{Utf8Path as Path, Utf8PathBuf as PathBuf};
 use clap::{Parser, Subcommand};
 use cooklang::{
     convert::{builder::ConverterBuilder, units_file::UnitsFile},
     CooklangParser, Extensions,
 };
+use cooklang_fs::FsIndex;
+use tracing::warn;
 
 mod convert;
 mod recipe;
@@ -27,14 +28,18 @@ struct CliArgs {
 #[derive(Debug, Subcommand, strum::Display)]
 enum Command {
     /// Manage recipe files
+    #[command(alias = "r")]
     Recipe(Box<recipe::RecipeArgs>),
     /// Run a web server that serves of your recipes
     Serve,
     /// Creates a shopping list from a given list of recipes
+    #[command(alias = "list")]
     ShoppingList(shopping_list::ShoppingListArgs),
     /// Manage unit files
+    #[command(alias = "u")]
     Units(units::UnitsArgs),
     /// Convert values and units
+    #[command(alias = "c")]
     Convert(convert::ConvertArgs),
 }
 
@@ -45,7 +50,7 @@ struct GlobalArgs {
     units: Vec<PathBuf>,
 
     /// Do not use the bundled units
-    #[arg(long, global = true)]
+    #[arg(long, hide_short_help = true, global = true)]
     no_default_units: bool,
 
     /// Disable all extensions to the cooklang
@@ -57,30 +62,32 @@ struct GlobalArgs {
     #[arg(long, global = true)]
     warnings_as_errors: bool,
 
+    /// Do not display warnings generated from parsing recipes
+    #[arg(long, conflicts_with = "warnings_as_errors", global = true)]
+    ignore_warnings: bool,
+
     #[command(flatten)]
     color: concolor_clap::Color,
 
-    #[arg(long, global = true)]
-    debug_trace: bool,
-}
+    /// Change the base path. By default uses the current working directory.
+    ///
+    /// This path is used to load configuration files, search for images and
+    /// recipe references.
+    #[arg(long, value_name = "PATH", global = true)]
+    base: Option<PathBuf>,
 
-fn write_to_output<F>(output: Option<&Path>, f: F) -> Result<()>
-where
-    F: FnOnce(Box<dyn std::io::Write>) -> Result<()>,
-{
-    if let Some(path) = output {
-        let file = std::fs::File::create(path).context("Failed to create output file")?;
-        let colors = yansi::Paint::is_enabled();
-        yansi::Paint::disable();
-        f(Box::new(file))?;
-        if colors {
-            yansi::Paint::enable();
-        }
-        Ok(())
-    } else {
-        f(Box::new(std::io::stdout()))?;
-        Ok(())
-    }
+    /// Skip checking if referenced recipes exist
+    #[arg(long, hide_short_help = true, global = true)]
+    no_recipe_ref_check: bool,
+
+    /// Recipe indexing depth
+    ///
+    /// This is used to search for referenced recipes.
+    #[arg(long, global = true)]
+    max_depth: Option<usize>,
+
+    #[arg(long, hide_short_help = true, global = true)]
+    debug_trace: bool,
 }
 
 pub fn main() -> Result<()> {
@@ -96,15 +103,15 @@ pub fn main() -> Result<()> {
             .init();
     }
 
-    let parser = configure_parser(args.global_args)?;
+    let ctx = configure_context(args.global_args)?;
 
-    let _enter = tracing::info_span!("run", command = %args.command).entered();
+    let _enter = tracing::info_span!("run", cmd = %args.command).entered();
     match args.command {
-        Command::Recipe(args) => recipe::run(&parser, *args),
-        Command::Serve => serve::run(&parser),
-        Command::ShoppingList(args) => shopping_list::run(&parser, args),
-        Command::Units(args) => units::run(parser.converter(), args),
-        Command::Convert(args) => convert::run(parser.converter(), args),
+        Command::Recipe(args) => recipe::run(&ctx, *args),
+        Command::Serve => serve::run(&ctx),
+        Command::ShoppingList(args) => shopping_list::run(&ctx, args),
+        Command::Units(args) => units::run(ctx.parser.converter(), args),
+        Command::Convert(args) => convert::run(ctx.parser.converter(), args),
     }
 }
 
@@ -124,15 +131,65 @@ fn init_color(color: concolor_clap::Color) {
     }
 }
 
+pub struct Context {
+    parser: CooklangParser,
+    recipe_index: FsIndex,
+    global_args: GlobalArgs,
+    base_dir: PathBuf,
+    max_depth: usize,
+    config_dir: Option<PathBuf>,
+}
+
+const CONFIG_DIR: &str = ".cooklang";
+
 #[tracing::instrument(skip_all)]
-fn configure_parser(args: GlobalArgs) -> Result<CooklangParser> {
-    let mut parser = CooklangParser::builder()
-        .warnings_as_errors(args.warnings_as_errors)
-        .with_extensions(if args.no_extensions {
-            Extensions::empty()
+fn configure_context(args: GlobalArgs) -> Result<Context> {
+    let parser = configure_parser(&args)?;
+    let base_dir = args
+        .base
+        .as_deref()
+        .unwrap_or(Path::new("."))
+        .canonicalize_utf8()
+        .context("Invalid base path")?;
+    if !base_dir.is_dir() {
+        bail!("Base path '{base_dir}' is not a directory");
+    }
+    let config_dir = {
+        let dir = base_dir.join(CONFIG_DIR);
+        if dir.is_dir() {
+            Some(dir)
         } else {
-            Extensions::all()
-        });
+            warn!(
+                "Config directory '{}' not found. Some functionality may be limited.",
+                CONFIG_DIR
+            );
+            None
+        }
+    };
+
+    // If we are not in a known cooklang dir (with a config dir) limit the indexing
+    let depth = args.max_depth.unwrap_or_else(|| match config_dir {
+        Some(_) => usize::MAX,
+        None => 2,
+    });
+    let index = FsIndex::new(&base_dir, depth)?;
+
+    Ok(Context {
+        parser,
+        recipe_index: index,
+        global_args: args,
+        base_dir,
+        config_dir,
+        max_depth: depth,
+    })
+}
+
+fn configure_parser(args: &GlobalArgs) -> Result<CooklangParser> {
+    let mut parser = CooklangParser::builder().with_extensions(if args.no_extensions {
+        Extensions::empty()
+    } else {
+        Extensions::all()
+    });
     if !args.no_default_units || !args.units.is_empty() {
         let mut builder = ConverterBuilder::new();
         if !args.no_default_units {
@@ -148,4 +205,23 @@ fn configure_parser(args: GlobalArgs) -> Result<CooklangParser> {
         parser.set_converter(builder.finish()?);
     }
     Ok(parser.finish())
+}
+
+fn write_to_output<F>(output: Option<&Path>, f: F) -> Result<()>
+where
+    F: FnOnce(Box<dyn std::io::Write>) -> Result<()>,
+{
+    if let Some(path) = output {
+        let file = std::fs::File::create(path).context("Failed to create output file")?;
+        let colors = yansi::Paint::is_enabled();
+        yansi::Paint::disable();
+        f(Box::new(file))?;
+        if colors {
+            yansi::Paint::enable();
+        }
+        Ok(())
+    } else {
+        f(Box::new(std::io::stdout()))?;
+        Ok(())
+    }
 }

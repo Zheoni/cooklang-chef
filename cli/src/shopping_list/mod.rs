@@ -1,9 +1,9 @@
-use std::path::{Path, PathBuf};
-
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Context as _, Result};
+use camino::{Utf8Path as Path, Utf8PathBuf as PathBuf};
 use clap::{Args, Subcommand};
-use cooklang::CooklangParser;
 use tracing::warn;
+
+use crate::Context;
 
 mod conf;
 mod create;
@@ -33,7 +33,9 @@ struct ShoppingListGlobalArgs {
     aile: Option<PathBuf>,
 }
 
-pub fn run(parser: &CooklangParser, args: ShoppingListArgs) -> Result<()> {
+const DEFAULT_AILE_FILE: &str = "aile.conf";
+
+pub fn run(ctx: &Context, args: ShoppingListArgs) -> Result<()> {
     let command = args
         .command
         .unwrap_or(ShoppingListCommands::Create(args.create_args));
@@ -42,7 +44,11 @@ pub fn run(parser: &CooklangParser, args: ShoppingListArgs) -> Result<()> {
         .global_args
         .aile
         .or_else(|| {
-            let in_current_dir = Path::new("./aile.conf");
+            let in_config_dir = ctx.config_dir.as_ref().map(|c| c.join(DEFAULT_AILE_FILE))?;
+            in_config_dir.is_file().then_some(in_config_dir)
+        })
+        .or_else(|| {
+            let in_current_dir = Path::new("aile.conf");
             in_current_dir
                 .is_file()
                 .then(|| in_current_dir.to_path_buf())
@@ -57,12 +63,7 @@ pub fn run(parser: &CooklangParser, args: ShoppingListArgs) -> Result<()> {
         match cooklang::shopping_list::parse(content) {
             Ok(conf) => conf,
             Err(e) => {
-                cooklang::error::write_rich_error(
-                    &e,
-                    path.to_string_lossy().as_ref(),
-                    content,
-                    std::io::stderr(),
-                )?;
+                cooklang::error::write_rich_error(&e, path.as_str(), content, std::io::stderr())?;
                 bail!("Error parsing aile file")
             }
         }
@@ -72,7 +73,7 @@ pub fn run(parser: &CooklangParser, args: ShoppingListArgs) -> Result<()> {
     };
 
     match command {
-        ShoppingListCommands::Create(args) => create::run(parser, args),
+        ShoppingListCommands::Create(args) => create::run(ctx, args),
         ShoppingListCommands::Conf(args) => conf::run(aile, args),
     }
 }

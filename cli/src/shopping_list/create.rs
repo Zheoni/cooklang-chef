@@ -1,10 +1,11 @@
 use anyhow::Result;
 use clap::Args;
-use cooklang::CooklangParser;
+
+use crate::Context;
 
 #[derive(Debug, Args)]
 pub struct CreateArgs {}
 
-pub fn run(_parser: &CooklangParser, _args: CreateArgs) -> Result<()> {
+pub fn run(_ctx: &Context, _args: CreateArgs) -> Result<()> {
     todo!()
 }

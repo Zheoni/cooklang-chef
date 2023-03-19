@@ -39,26 +39,59 @@ where
         }
     }
 
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+    pub fn has_warnings(&self) -> bool {
+        !self.warnings.is_empty()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.errors.is_empty() && self.warnings.is_empty()
+    }
+
     pub fn write(
         &self,
         file_name: &str,
         source_code: &str,
+        hide_warnings: bool,
         w: &mut impl std::io::Write,
     ) -> std::io::Result<()> {
         let mut cache = DummyCache::new(file_name, source_code);
-        for warn in &self.warnings {
-            build_report(warn, source_code).write(&mut cache, &mut *w)?;
+        if !hide_warnings {
+            for warn in &self.warnings {
+                build_report(warn, source_code).write(&mut cache, &mut *w)?;
+            }
         }
         for err in &self.errors {
             build_report(err, source_code).write(&mut cache, &mut *w)?;
         }
         Ok(())
     }
-    pub fn print(&self, file_name: &str, source_code: &str) -> std::io::Result<()> {
-        self.write(file_name, source_code, &mut std::io::stdout())
+    pub fn print(
+        &self,
+        file_name: &str,
+        source_code: &str,
+        hide_warnings: bool,
+    ) -> std::io::Result<()> {
+        self.write(
+            file_name,
+            source_code,
+            hide_warnings,
+            &mut std::io::stdout(),
+        )
     }
-    pub fn eprint(&self, file_name: &str, source_code: &str) -> std::io::Result<()> {
-        self.write(file_name, source_code, &mut std::io::stderr())
+    pub fn eprint(
+        &self,
+        file_name: &str,
+        source_code: &str,
+        hide_warnings: bool,
+    ) -> std::io::Result<()> {
+        self.write(
+            file_name,
+            source_code,
+            hide_warnings,
+            &mut std::io::stderr(),
+        )
     }
 }
 
@@ -97,6 +130,7 @@ where
 {
 }
 
+#[derive(Debug)]
 pub struct PassResult<T, E, W> {
     output: Option<T>,
     warnings: Vec<W>,
@@ -132,8 +166,8 @@ impl<T, E, W> PassResult<T, E, W> {
         !self.warnings.is_empty()
     }
 
-    pub fn should_return(&self, warnings_as_errors: bool) -> bool {
-        self.has_errors() || warnings_as_errors && self.has_warnings() || !self.has_output()
+    pub fn invalid(&self) -> bool {
+        self.has_errors() || !self.has_output()
     }
 
     pub fn output(&self) -> Option<&T> {
@@ -148,10 +182,10 @@ impl<T, E, W> PassResult<T, E, W> {
         &self.errors
     }
 
-    pub fn into_result(mut self) -> Result<(T, Vec<W>), Report<E, W>> {
+    pub fn into_result(mut self) -> Result<(T, Report<E, W>), Report<E, W>> {
         if let Some(o) = self.output.take() {
             if self.errors.is_empty() {
-                return Ok((o, self.warnings));
+                return Ok((o, self.into_report()));
             }
         }
         Err(self.into_report())
@@ -320,8 +354,10 @@ fn build_report<'a>(err: &'a dyn RichError, src_code: &str) -> ariadne::Report<'
     }
 
     let mut c = ColorGenerator::new();
-    r.add_labels(labels.map(|(span, text)| {
-        let mut l = Label::new(span).with_color(c.next());
+    r.add_labels(labels.enumerate().map(|(order, (span, text))| {
+        let mut l = Label::new(span)
+            .with_order(order as i32)
+            .with_color(c.next());
         if let Some(text) = text {
             l = l.with_message(text);
         }

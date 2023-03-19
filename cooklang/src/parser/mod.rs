@@ -14,7 +14,16 @@ mod pest_ext;
 
 #[tracing::instrument(skip_all, fields(len = input.len()))]
 pub fn parse(input: &str, extensions: Extensions) -> ParserResult {
-    let pairs = match CooklangParser::parse(Rule::cooklang, input) {
+    parse_impl(input, extensions, Rule::cooklang)
+}
+
+#[tracing::instrument(skip_all, fields(len = input.len()))]
+pub fn parse_metadata(input: &str, extensions: Extensions) -> ParserResult {
+    parse_impl(input, extensions, Rule::cooklang_metadata)
+}
+
+fn parse_impl(input: &str, extensions: Extensions, rule: Rule) -> ParserResult {
+    let pairs = match CooklangParser::parse(rule, input) {
         Ok(pairs) => pairs,
         Err(e) => {
             return ParserError::Parse {

@@ -15,10 +15,12 @@ mod span;
 use bitflags::bitflags;
 use convert::Converter;
 use error::{CooklangError, CooklangWarning, PassResult};
+use metadata::Metadata;
 pub use model::Recipe;
 pub use scale::ScaledRecipe;
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
     pub struct Extensions: u32 {
         const MULTINE_STEPS        = 0b00000001;
         const INGREDIENT_MODIFIERS = 0b00000010;
@@ -29,9 +31,9 @@ bitflags! {
         const MODES                = 0b01000000;
         const TEMPERATURE          = 0b10000000;
 
-        const INGREDIENT_ALL = Self::INGREDIENT_MODIFIERS.bits
-                             | Self::INGREDIENT_ALIAS.bits
-                             | Self::INGREDIENT_NOTE.bits;
+        const INGREDIENT_ALL = Self::INGREDIENT_MODIFIERS.bits()
+                             | Self::INGREDIENT_ALIAS.bits()
+                             | Self::INGREDIENT_NOTE.bits();
     }
 }
 
@@ -41,17 +43,15 @@ impl Default for Extensions {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CooklangParser {
     extensions: Extensions,
-    warnings_as_errors: bool,
     converter: Converter,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct CooklangParserBuilder {
     extensions: Extensions,
-    warnings_as_errors: bool,
     converter: Option<Converter>,
 }
 
@@ -76,25 +76,19 @@ impl CooklangParserBuilder {
         self
     }
 
-    pub fn warnings_as_errors(mut self, as_err: bool) -> Self {
-        self.set_warnings_as_errors(as_err);
-        self
-    }
-
-    pub fn set_warnings_as_errors(&mut self, as_err: bool) -> &mut Self {
-        self.warnings_as_errors = as_err;
-        self
-    }
-
     pub fn finish(self) -> CooklangParser {
         let converter = self.converter.unwrap_or_default();
         CooklangParser {
             extensions: self.extensions,
-            warnings_as_errors: self.warnings_as_errors,
             converter,
         }
     }
 }
+
+pub type RecipeResult<'a> = PassResult<Recipe<'a>, CooklangError, CooklangWarning>;
+pub type MetadataResult<'a> = PassResult<Metadata<'a>, CooklangError, CooklangWarning>;
+
+pub type RecipeRefChecker<'a> = Box<dyn Fn(&str) -> bool + 'a>;
 
 impl CooklangParser {
     pub fn builder() -> CooklangParserBuilder {
@@ -109,21 +103,39 @@ impl CooklangParser {
         self.extensions
     }
 
-    #[tracing::instrument(skip_all, fields(len = input.len()))]
-    pub fn parse<'a>(
+    pub fn parse<'a>(&self, input: &'a str, recipe_name: &str) -> RecipeResult<'a> {
+        self.parse_with_recipe_ref_checker(input, recipe_name, None)
+    }
+
+    #[tracing::instrument(name = "parse", skip_all, fields(len = input.len()))]
+    pub fn parse_with_recipe_ref_checker<'a>(
         &self,
         input: &'a str,
         recipe_name: &str,
-    ) -> PassResult<Recipe<'a>, CooklangError, CooklangWarning> {
+        recipe_ref_checker: Option<RecipeRefChecker>,
+    ) -> RecipeResult<'a> {
         let mut r = parser::parse(input, self.extensions).into_context_result();
-        if r.should_return(self.warnings_as_errors) {
+        if r.invalid() {
             return r.discard_output();
         }
         let ast = r.take_output().unwrap();
-        analysis::parse_ast(ast, self.extensions, &self.converter)
+        analysis::parse_ast(ast, self.extensions, &self.converter, recipe_ref_checker)
             .into_context_result()
             .merge(r)
             .map(|c| Recipe::from_content(recipe_name.to_string(), c))
+    }
+
+    #[tracing::instrument(name = "metadata", skip_all, fields(len = input.len()))]
+    pub fn parse_metadata<'a>(&self, input: &'a str) -> MetadataResult<'a> {
+        let mut r = parser::parse(input, self.extensions).into_context_result();
+        if r.invalid() {
+            return r.discard_output();
+        }
+        let ast = r.take_output().unwrap();
+        analysis::parse_ast(ast, self.extensions, &self.converter, None)
+            .into_context_result()
+            .merge(r)
+            .map(|c| c.metadata)
     }
 }
 
