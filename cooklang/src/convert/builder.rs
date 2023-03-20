@@ -131,12 +131,13 @@ impl ConverterBuilder {
 
             for (k, aliases) in aliases {
                 let id = self.unit_index.get_unit_id(k.as_str())?;
-                self.unit_index.add_aliases(id, aliases.iter().cloned())?;
+                self.unit_index.add_unit_keys(id, aliases.iter().cloned())?;
                 join_alias_vec(&mut self.all_units[id].aliases, aliases, precedence);
             }
 
             for (k, names) in names {
                 let id = self.unit_index.get_unit_id(k.as_str())?;
+                self.unit_index.add_unit_keys(id, names.iter().cloned())?;
                 join_alias_vec(&mut self.all_units[id].names, names, precedence);
                 if self.all_units[id].expand_si {
                     to_update.insert(id);
@@ -384,15 +385,15 @@ impl UnitIndex {
         self.remove_unit(unit);
     }
 
-    fn add_aliases(
+    fn add_unit_keys(
         &mut self,
         unit_id: usize,
-        aliases: impl IntoIterator<Item = Arc<str>>,
+        keys: impl IntoIterator<Item = Arc<str>>,
     ) -> Result<(), ConverterBuilderError> {
-        for alias in aliases {
-            if self.0.insert(Arc::clone(&alias), unit_id).is_some() {
+        for key in keys {
+            if self.0.insert(Arc::clone(&key), unit_id).is_some() {
                 return Err(ConverterBuilderError::DuplicateUnit {
-                    name: alias.to_string(),
+                    name: key.to_string(),
                 });
             }
         }
