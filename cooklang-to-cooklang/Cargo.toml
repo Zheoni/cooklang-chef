@@ -1,0 +1,10 @@
+[package]
+name = "cooklang-to-cooklang"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cooklang = { path = "../cooklang" }
+textwrap = { version = "0.16", features = ["terminal_size"] }

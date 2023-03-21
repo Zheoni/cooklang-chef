@@ -88,8 +88,7 @@ impl<'a> Recipe<'a> {
         });
         self.ingredients.iter_mut().for_each(|i| {
             if let Some(q) = &mut i.quantity {
-                // TODO handle this, at least notify
-                let _ = q.fit(converter);
+                q.fit(converter);
             }
         });
         let cookware = scale_many(target, &mut self.cookware, |ck| ck.quantity.as_mut());

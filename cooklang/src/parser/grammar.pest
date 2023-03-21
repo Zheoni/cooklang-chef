@@ -21,8 +21,10 @@ metadata = ${ ">>" ~ ws* ~ metadata_key ~ ":" ~ metadata_value ~ COMMENT? }
 metadata_key = @{ (!":" ~ text_item)+ }
 metadata_value = @{ (!COMMENT ~ text_item)* }
 
-step = { (component | text)+ }
+step = { only_text_marker? ~ (component | text)+ }
 text = { ((!("\\" | component_token) ~ text_item)+) | escaped | text_item }
+
+only_text_marker = { ">" ~ ws* }
 
 component = { component_token ~ modifiers? ~ component_body ~ note? }
 component_token = { "@" | "#" | "~" }

@@ -92,6 +92,10 @@ impl Ingredient<'_> {
         self.alias.as_ref().cloned().unwrap_or(name)
     }
 
+    pub fn modifiers(&self) -> Modifiers {
+        self.modifiers
+    }
+
     pub fn is_hidden(&self) -> bool {
         self.modifiers.contains(Modifiers::HIDDEN)
     }
@@ -124,6 +128,7 @@ impl Ingredient<'_> {
         for q in quantities {
             total = total.try_add(q, converter)?;
         }
+        total.fit(converter);
 
         Ok(Some(total))
     }
@@ -161,9 +166,19 @@ pub struct Component {
     pub index: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
 pub enum ComponentKind {
     Ingredient,
     Cookware,
     Timer,
+}
+
+impl ComponentKind {
+    pub fn as_char(self) -> char {
+        match self {
+            ComponentKind::Ingredient => '@',
+            ComponentKind::Cookware => '#',
+            ComponentKind::Timer => '~',
+        }
+    }
 }

@@ -14,6 +14,9 @@ strum = { version = "0.24", features = ["derive"] }
 toml = "0.7"
 cooklang = { path = "../cooklang" }
 cooklang-fs = { path = "../cooklang-fs" }
+cooklang-to-human = { path = "../cooklang-to-human" }
+cooklang-to-cooklang = { path = "../cooklang-to-cooklang" }
+cooklang-to-md = { path = "../cooklang-to-md" }
 textwrap = { version = "0.16", features = ["terminal_size"] }
 humantime = "2.1"
 tracing = "0.1"

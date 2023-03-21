@@ -103,7 +103,10 @@ impl Walker {
                     let (key, value) = self.metadata(pair);
                     lines.push(Line::Metadata { key, value });
                 }
-                Rule::step => lines.push(Line::Step(self.step(pair))),
+                Rule::step => {
+                    let (is_text, items) = self.step(pair);
+                    lines.push(Line::Step { is_text, items });
+                }
                 Rule::section => lines.push(Line::Section {
                     name: self.section(pair),
                 }),
@@ -142,12 +145,14 @@ impl Walker {
         (key, value)
     }
 
-    fn step<'a>(&mut self, pair: Pair<'a>) -> Vec<Item<'a>> {
+    fn step<'a>(&mut self, pair: Pair<'a>) -> (bool, Vec<Item<'a>>) {
         is_rule!(pair, Rule::step);
         let mut items = Vec::new();
+        let mut is_text = false;
 
         for pair in pair.into_inner() {
             match pair.as_rule() {
+                Rule::only_text_marker => is_text = true,
                 Rule::component => {
                     let (component, extra_text) = self.component(pair);
                     items.push(Item::Component(Box::new(component)));
@@ -160,7 +165,7 @@ impl Walker {
             }
         }
 
-        items
+        (is_text, items)
     }
 
     fn section<'a>(&mut self, pair: Pair<'a>) -> Option<Cow<'a, str>> {

@@ -1,6 +1,6 @@
 use std::{borrow::Cow, ops::RangeInclusive};
 
-use indexmap::IndexMap;
+pub use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::Url;
@@ -50,7 +50,7 @@ pub enum RecipeTime {
 }
 
 impl<'a> Metadata<'a> {
-    pub fn insert(&mut self, key: &'a str, value: &'a str) -> Result<(), MetadataError> {
+    pub(crate) fn insert(&mut self, key: &'a str, value: &'a str) -> Result<(), MetadataError> {
         self.map.insert(key, value);
         match key {
             "slug" => self.slug = Some(slugify(value)),
@@ -109,6 +109,29 @@ impl<'a> Metadata<'a> {
         }
 
         Ok(())
+    }
+
+    /// Returns a copy of [Self::map] but with all "special" metadata values
+    /// removed
+    pub fn map_filtered(&self) -> IndexMap<&str, &str> {
+        const ALL_KNOWN_KEYS: &[&str] = &[
+            "slug",
+            "description",
+            "tag",
+            "tags",
+            "emoji",
+            "author",
+            "source",
+            "time",
+            "prep_time",
+            "prep time",
+            "cook_time",
+            "cook time",
+            "servings",
+        ];
+        let mut new_map = self.map.clone();
+        new_map.retain(|key, _| !ALL_KNOWN_KEYS.contains(key));
+        new_map
     }
 }
 

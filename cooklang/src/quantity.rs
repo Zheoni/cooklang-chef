@@ -225,7 +225,7 @@ impl Display for QuantityValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             QuantityValue::Fixed(v) => v.fmt(f),
-            QuantityValue::Scalable(v) => v.fmt(f), // TODO revise this, maybe a marker is needed
+            QuantityValue::Scalable(v) => v.fmt(f),
         }
     }
 }
@@ -384,14 +384,15 @@ impl Quantity<'_> {
         Ok(qty.into_owned())
     }
 
-    pub fn fit(&mut self, converter: &Converter) -> Result<(), ConvertError> {
+    pub fn fit(&mut self, converter: &Converter) {
         use crate::convert::ConvertTo;
 
         // if the unit is known, convert to the best match in the same system
         if matches!(self.unit_info(), Some(UnitInfo::Known(_))) {
-            *self = converter.convert(&*self, ConvertTo::SameSystem)?;
+            *self = converter
+                .convert(&*self, ConvertTo::SameSystem)
+                .expect("convert to same system failed");
         }
-        Ok(())
     }
 }
 

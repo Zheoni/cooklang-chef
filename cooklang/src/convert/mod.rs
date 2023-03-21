@@ -189,9 +189,9 @@ impl Converter {
                 let to = self.get_unit(&target_unit)?;
                 self.convert_to_unit(value, unit, to)
             }
-            ConvertTo::Best(system) => self.convert_to_best(value, unit, system),
+            ConvertTo::Best(system) => Ok(self.convert_to_best(value, unit, system)),
             ConvertTo::SameSystem => {
-                self.convert_to_best(value, unit, unit.system.unwrap_or(self.default_system))
+                Ok(self.convert_to_best(value, unit, unit.system.unwrap_or(self.default_system)))
             }
         }
     }
@@ -216,7 +216,7 @@ impl Converter {
         value: ConvertValue,
         unit: &Arc<Unit>,
         system: System,
-    ) -> Result<(ConvertValue, &'a Arc<Unit>), ConvertError> {
+    ) -> (ConvertValue, &'a Arc<Unit>) {
         let conversions = match &self.best[unit.physical_quantity] {
             BestConversionsStore::Unified(u) => u,
             BestConversionsStore::BySystem { metric, imperial } => match system {
@@ -228,7 +228,7 @@ impl Converter {
         let best_unit = conversions.best_unit(self, &value, unit);
         let converted = self.convert_value(value, unit, best_unit);
 
-        Ok((converted, best_unit))
+        (converted, best_unit)
     }
 
     fn convert_value(&self, value: ConvertValue, from: &Arc<Unit>, to: &Arc<Unit>) -> ConvertValue {
@@ -506,7 +506,7 @@ impl Converter {
                 .collect::<Vec<_>>()
                 .join("|");
             let float = r"[+-]?\d+([.,]\d+)?";
-            RegexBuilder::new(&format!("({float})({symbols})"))
+            RegexBuilder::new(&format!(r"({float})\s*({symbols})"))
                 .size_limit(500_000)
                 .build()
         })

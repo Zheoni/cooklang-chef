@@ -102,8 +102,8 @@ impl<'a, 'r> Walker<'a, 'r> {
         for line in ast.lines {
             match line {
                 ast::Line::Metadata { key, value } => self.metadata(key, value),
-                ast::Line::Step(items) => {
-                    let new_step = self.step(items);
+                ast::Line::Step { is_text, items } => {
+                    let new_step = self.step(is_text, items);
 
                     // If define mode is ingredients, don't add the
                     // step to the section. The components should have been
@@ -179,8 +179,10 @@ impl<'a, 'r> Walker<'a, 'r> {
         }
     }
 
-    fn step(&mut self, items: Vec<ast::Item<'a>>) -> Step<'a> {
+    fn step(&mut self, is_text: bool, items: Vec<ast::Item<'a>>) -> Step<'a> {
         let mut new_items = Vec::new();
+
+        let is_text = is_text || self.define_mode == DefineMode::Text;
 
         for item in items {
             match item {
@@ -218,7 +220,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                     new_items.push(Item::Text(text.clone()));
                 }
                 ast::Item::Component(c) => {
-                    if self.define_mode == DefineMode::Text {
+                    if is_text {
                         self.warn(AnalysisWarning::ComponentInTextMode {
                             component_span: c.span(),
                         });
@@ -232,7 +234,7 @@ impl<'a, 'r> Walker<'a, 'r> {
 
         Step {
             items: new_items,
-            is_text: self.define_mode == DefineMode::Text,
+            is_text,
         }
     }
 

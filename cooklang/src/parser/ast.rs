@@ -16,7 +16,10 @@ pub enum Line<'a> {
         key: Located<&'a str>,
         value: Located<&'a str>,
     },
-    Step(Vec<Item<'a>>),
+    Step {
+        is_text: bool,
+        items: Vec<Item<'a>>,
+    },
     Section {
         name: Option<Cow<'a, str>>,
     },
@@ -112,13 +115,27 @@ bitflags! {
     pub struct Modifiers: u32 {
         /// refers to a recipe with the same name
         const RECIPE = 0b00001;
-        /// not shown in the ingredient list, only inline
-        const HIDDEN = 0b00010;
-        /// mark as optional
-        const OPT    = 0b00100;
         /// references another igr with the same name, if amount given will sum
-        const REF    = 0b01000;
+        const REF    = 0b00010;
+        /// not shown in the ingredient list, only inline
+        const HIDDEN = 0b00100;
+        /// mark as optional
+        const OPT    = 0b01000;
         /// forces to create a new ingredient
         const NEW    = 0b10000;
+    }
+}
+
+impl Modifiers {
+    pub fn as_char(self) -> char {
+        assert_eq!(self.bits().count_ones(), 1);
+        match self {
+            Self::RECIPE => '@',
+            Self::HIDDEN => '-',
+            Self::OPT => '?',
+            Self::REF => '&',
+            Self::NEW => '+',
+            _ => panic!("Unknown modifier: {:?}", self),
+        }
     }
 }
