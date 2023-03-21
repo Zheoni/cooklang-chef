@@ -152,7 +152,13 @@ impl Walker {
 
         for pair in pair.into_inner() {
             match pair.as_rule() {
-                Rule::only_text_marker => is_text = true,
+                Rule::only_text_marker => {
+                    if self.extensions.contains(Extensions::TEXT_STEPS) {
+                        is_text = true;
+                    } else {
+                        items.push(Item::Text(Located::new(pair.text(), pair)));
+                    }
+                }
                 Rule::component => {
                     let (component, extra_text) = self.component(pair);
                     items.push(Item::Component(Box::new(component)));

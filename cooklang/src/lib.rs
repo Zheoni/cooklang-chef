@@ -22,14 +22,15 @@ pub use scale::ScaledRecipe;
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
     pub struct Extensions: u32 {
-        const MULTINE_STEPS        = 0b00000001;
-        const INGREDIENT_MODIFIERS = 0b00000010;
-        const INGREDIENT_NOTE      = 0b00000100;
-        const INGREDIENT_ALIAS     = 0b00001000;
-        const SECTIONS             = 0b00010000;
-        const ADVANCED_UNITS       = 0b00100000;
-        const MODES                = 0b01000000;
-        const TEMPERATURE          = 0b10000000;
+        const MULTINE_STEPS        = 0b000000001;
+        const INGREDIENT_MODIFIERS = 0b000000010;
+        const INGREDIENT_NOTE      = 0b000000100;
+        const INGREDIENT_ALIAS     = 0b000001000;
+        const SECTIONS             = 0b000010000;
+        const ADVANCED_UNITS       = 0b000100000;
+        const MODES                = 0b001000000;
+        const TEMPERATURE          = 0b010000000;
+        const TEXT_STEPS           = 0b100000000;
 
         const INGREDIENT_ALL = Self::INGREDIENT_MODIFIERS.bits()
                              | Self::INGREDIENT_ALIAS.bits()
