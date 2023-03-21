@@ -293,7 +293,8 @@ impl<'a, 'r> Walker<'a, 'r> {
             }
         }
 
-        if self.duplicate_mode == DuplicateMode::Reference
+        if (self.duplicate_mode == DuplicateMode::Reference
+            || self.define_mode == DefineMode::Steps)
             && new_igr.modifiers.contains(Modifiers::REF)
         {
             self.warn(AnalysisWarning::RedundantReferenceModifier {
@@ -301,10 +302,10 @@ impl<'a, 'r> Walker<'a, 'r> {
             });
         }
 
-        let treat_as_reference = (new_igr.modifiers.contains(Modifiers::REF)
-            || self.define_mode == DefineMode::Steps
-            || same_name.is_some() && self.duplicate_mode == DuplicateMode::Reference)
-            && !new_igr.modifiers.contains(Modifiers::NEW);
+        let treat_as_reference = !new_igr.modifiers.contains(Modifiers::NEW)
+            && (new_igr.modifiers.contains(Modifiers::REF)
+                || self.define_mode == DefineMode::Steps
+                || same_name.is_some() && self.duplicate_mode == DuplicateMode::Reference);
 
         if treat_as_reference {
             new_igr.modifiers |= Modifiers::REF; // mark as ref if not marked before

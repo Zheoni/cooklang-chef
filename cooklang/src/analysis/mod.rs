@@ -206,7 +206,7 @@ impl RichError for AnalysisWarning {
                 help!("Be careful as every ingredient is already marked to auto scale")
             }
             AnalysisWarning::RedundantReferenceModifier { .. } => {
-                help!("Be careful as every ingredient is already marked to be a reference in case of a duplicate")
+                help!("Be careful as every ingredient is already marked to be a reference")
             }
             AnalysisWarning::RecipeNotFound { name, .. } => {
                 if name.chars().any(std::path::is_separator) {
