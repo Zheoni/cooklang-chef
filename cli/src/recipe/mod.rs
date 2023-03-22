@@ -9,7 +9,6 @@ use crate::Context;
 use self::read::ReadArgs;
 
 mod check;
-mod image;
 mod list;
 mod read;
 
@@ -34,8 +33,6 @@ enum RecipeCommand {
     /// List all the recipes
     #[command(alias = "l")]
     List(list::ListArgs),
-    /// Automatically downloads an image for the recipe based on it's name
-    Image,
 }
 
 pub fn run(ctx: &Context, args: RecipeArgs) -> Result<()> {
@@ -45,7 +42,6 @@ pub fn run(ctx: &Context, args: RecipeArgs) -> Result<()> {
         RecipeCommand::Read(args) => read::run(ctx, args),
         RecipeCommand::Check(args) => check::run(ctx, args),
         RecipeCommand::List(args) => list::run(ctx, args),
-        RecipeCommand::Image => image::run(ctx),
     }
 }
 
