@@ -20,6 +20,7 @@ pub struct RecipeContent<'a> {
     pub ingredients: Vec<Ingredient<'a>>,
     pub cookware: Vec<Cookware<'a>>,
     pub timers: Vec<Timer<'a>>,
+    pub inline_quantities: Vec<Quantity<'a>>,
 }
 
 #[tracing::instrument(skip_all, target = "cooklang::analysis", fields(ast_lines = ast.lines.len()))]
@@ -209,7 +210,9 @@ impl<'a, 'r> Walker<'a, 'r> {
                             if !before.is_empty() {
                                 new_items.push(Item::Text(before));
                             }
-                            new_items.push(Item::InlineQuantity(temperature));
+                            new_items
+                                .push(Item::InlineQuantity(self.content.inline_quantities.len()));
+                            self.content.inline_quantities.push(temperature);
                             if !after.is_empty() {
                                 new_items.push(Item::Text(after));
                             }

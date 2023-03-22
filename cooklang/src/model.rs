@@ -18,6 +18,7 @@ pub struct Recipe<'a, D = ()> {
     pub ingredients: Vec<Ingredient<'a>>,
     pub cookware: Vec<Cookware<'a>>,
     pub timers: Vec<Timer<'a>>,
+    pub inline_quantities: Vec<Quantity<'a>>,
     #[serde(skip)]
     pub(crate) data: D,
 }
@@ -31,6 +32,8 @@ impl<'a> Recipe<'a> {
             ingredients: content.ingredients,
             cookware: content.cookware,
             timers: content.timers,
+            inline_quantities: content.inline_quantities,
+
             data: (),
         }
     }
@@ -65,7 +68,7 @@ pub struct Step<'a> {
 pub enum Item<'a> {
     Text(Cow<'a, str>),
     Component(Component),
-    InlineQuantity(Quantity<'a>),
+    InlineQuantity(usize),
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]

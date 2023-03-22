@@ -30,6 +30,9 @@ pub struct ReadArgs {
 
     #[arg(short, long, alias = "servings")]
     scale: Option<u32>,
+
+    #[arg(short, long, alias = "system")]
+    convert: Option<System>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -42,11 +45,18 @@ enum OutputFormat {
     Markdown,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum System {
+    Metric,
+    #[value(alias("freedom"))]
+    Imperial,
+}
+
 pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
     let input = args.input.read()?;
     let recipe = input.parse(ctx)?;
 
-    let scaled_recipe = if let Some(scale) = args.scale {
+    let mut scaled_recipe = if let Some(scale) = args.scale {
         let target = if let Some(servings) = recipe.metadata.servings.as_ref() {
             let Some(base) = servings.first().copied() else { bail!("Empty servings list") };
             ScaleTarget::new(base, scale, servings)
@@ -57,6 +67,14 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
     } else {
         recipe.default_scaling()
     };
+
+    if let Some(system) = args.convert {
+        let to = match system {
+            System::Metric => cooklang::convert::System::Metric,
+            System::Imperial => cooklang::convert::System::Imperial,
+        };
+        let _ = scaled_recipe.convert(to, ctx.parser.converter());
+    }
 
     let format = args.format.unwrap_or_else(|| match &args.output {
         Some(p) => match p.extension() {

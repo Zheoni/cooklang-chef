@@ -108,6 +108,7 @@ impl<'a> Recipe<'a> {
             ingredients: self.ingredients,
             cookware: self.cookware,
             timers: self.timers,
+            inline_quantities: self.inline_quantities,
             data: Scaled::Scaled(data),
         }
     }
@@ -120,6 +121,7 @@ impl<'a> Recipe<'a> {
             ingredients: self.ingredients,
             cookware: self.cookware,
             timers: self.timers,
+            inline_quantities: self.inline_quantities,
             data: Scaled::SkippedSacaling,
         }
     }
@@ -138,6 +140,7 @@ impl<'a> Recipe<'a> {
             ingredients: self.ingredients,
             cookware: self.cookware,
             timers: self.timers,
+            inline_quantities: self.inline_quantities,
             data: Scaled::DefaultScaling,
         }
     }

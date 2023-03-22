@@ -28,7 +28,6 @@ fn metadata(w: &mut impl io::Write, metadata: &Metadata) -> io::Result<()> {
 fn sections(w: &mut impl io::Write, recipe: &ScaledRecipe) -> io::Result<()> {
     for (index, section) in recipe.sections.iter().enumerate() {
         w_section(w, section, recipe, index)?;
-        writeln!(w)?;
     }
     Ok(())
 }
@@ -99,7 +98,8 @@ fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> io::Res
                     }
                 };
             }
-            Item::InlineQuantity(q) => {
+            Item::InlineQuantity(index) => {
+                let q = &recipe.inline_quantities[*index];
                 write!(&mut step_str, "{}", q.value).unwrap();
                 if let Some(u) = q.unit_text() {
                     step_str.push_str(u);

@@ -337,7 +337,8 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
                                 .unwrap();
                             }
                         },
-                        Item::InlineQuantity(q) => {
+                        Item::InlineQuantity(index) => {
+                            let q = &recipe.inline_quantities[*index];
                             write!(&mut step_text, "{}", Paint::red(quantity_fmt(&q))).unwrap()
                         }
                     }

@@ -201,7 +201,8 @@ fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> Result 
                     }
                 };
             }
-            Item::InlineQuantity(q) => {
+            Item::InlineQuantity(index) => {
+                let q = &recipe.inline_quantities[*index];
                 write!(&mut step_str, "{}", q.value).unwrap();
                 if let Some(u) = q.unit_text() {
                     step_str.push_str(u);

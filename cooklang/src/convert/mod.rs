@@ -316,12 +316,14 @@ pub enum ConvertValue {
     Range(RangeInclusive<f64>),
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum ConvertUnit<'a> {
     Unit(&'a Arc<Unit>),
     UnitId(usize),
     Key(&'a str),
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum ConvertTo<'a> {
     SameSystem,
     Best(System),
@@ -536,5 +538,27 @@ impl UnitCount {
                 q => converter.quantity_index[q].len()
             },
         }
+    }
+}
+
+impl crate::ScaledRecipe<'_> {
+    pub fn convert<'t>(&mut self, to: System, converter: &Converter) -> Result<(), ConvertError> {
+        for igr in &mut self.ingredients {
+            if let Some(q) = &mut igr.quantity {
+                *q = converter.convert(&*q, to)?;
+            }
+        }
+
+        // cookware can't have units
+
+        for timer in &mut self.timers {
+            timer.quantity = converter.convert(&timer.quantity, to)?;
+        }
+
+        for q in &mut self.inline_quantities {
+            *q = converter.convert(&*q, to)?;
+        }
+
+        Ok(())
     }
 }
