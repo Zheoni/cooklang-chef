@@ -28,7 +28,7 @@ pub struct ReadArgs {
     #[arg(long)]
     ignore_warnings: bool,
 
-    #[arg(long, alias = "servings")]
+    #[arg(short, long, alias = "servings")]
     scale: Option<u32>,
 }
 
