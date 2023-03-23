@@ -31,7 +31,7 @@ note = { "(" ~ (!("("|")") ~ text_item)* ~ ")" }
 
 component_body = _{ no_name_component | multi_word_component | one_word_component }
 no_name_component = _{ close_component }
-one_word_component = @{ LETTER ~ (LETTER | NUMBER)* ~ !"{" }
+one_word_component = @{ (!("-" | "{" | ws | PUNCTUATION) ~ text_item)+ ~ !"{" }
 multi_word_component = _{ name ~ ("|" ~ alias)? ~ close_component }
 name = { (!(component_token | "{" | "|") ~ text_item)* }
 alias = { (!(component_token | "{") ~ text_item)* }
