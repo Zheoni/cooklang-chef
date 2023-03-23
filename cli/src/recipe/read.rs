@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use camino::Utf8PathBuf as PathBuf;
+use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
 use cooklang::scale::ScaleTarget;
 
@@ -14,7 +14,7 @@ pub struct ReadArgs {
 
     /// Output file, none for stdout.
     #[arg(short, long)]
-    output: Option<PathBuf>,
+    output: Option<Utf8PathBuf>,
 
     /// Output format
     #[arg(short, long, value_enum)]
@@ -63,7 +63,7 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
         } else {
             ScaleTarget::new(1, scale, &[])
         };
-        recipe.scale(target, ctx.parser.converter())
+        recipe.scale(target, ctx.parser()?.converter())
     } else {
         recipe.default_scaling()
     };
@@ -73,7 +73,7 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
             System::Metric => cooklang::convert::System::Metric,
             System::Imperial => cooklang::convert::System::Imperial,
         };
-        let _ = scaled_recipe.convert(to, ctx.parser.converter());
+        let _ = scaled_recipe.convert(to, ctx.parser()?.converter());
     }
 
     let format = args.format.unwrap_or_else(|| match &args.output {
@@ -89,7 +89,7 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
     write_to_output(args.output.as_deref(), |writer| {
         match format {
             OutputFormat::Human => {
-                cooklang_to_human::print_human(&scaled_recipe, ctx.parser.converter(), writer)?
+                cooklang_to_human::print_human(&scaled_recipe, ctx.parser()?.converter(), writer)?
             }
             OutputFormat::Json => {
                 if args.pretty {
@@ -100,7 +100,7 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
             }
             OutputFormat::Cooklang => cooklang_to_cooklang::print_cooklang(&scaled_recipe, writer)?,
             OutputFormat::Markdown => {
-                cooklang_to_md::print_md(&scaled_recipe, ctx.parser.converter(), writer)?
+                cooklang_to_md::print_md(&scaled_recipe, ctx.parser()?.converter(), writer)?
             }
         }
 

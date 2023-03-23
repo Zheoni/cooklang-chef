@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use enum_map::{enum_map, EnumMap};
 use thiserror::Error;
@@ -427,6 +427,21 @@ impl UnitIndex {
 
 #[derive(Debug, Error)]
 pub enum ConverterBuilderError {
+    #[error("File has already been included: {path}")]
+    DuplicateInclude { path: String },
+
+    #[error("Error reading included file: '{path}'")]
+    ReadInlcude {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[error("Error parsing included file: '{path}'")]
+    ParseInclude {
+        path: PathBuf,
+        source: toml::de::Error,
+    },
+
     #[error("Duplicate unit: {name}")]
     DuplicateUnit { name: String },
 

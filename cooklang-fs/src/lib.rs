@@ -4,18 +4,18 @@ use std::{
     fs::FileType,
 };
 
-use camino::{Utf8Path as Path, Utf8PathBuf as PathBuf};
+use camino::{Utf8Path, Utf8PathBuf};
 
 #[derive(Debug)]
 pub struct FsIndex {
-    base_path: PathBuf,
+    base_path: Utf8PathBuf,
     cache: RefCell<Cache>,
     walker: RefCell<walkdir::IntoIter>,
 }
 
 #[derive(Debug, Default)]
 struct Cache {
-    recipes: HashMap<String, Vec<PathBuf>>,
+    recipes: HashMap<String, Vec<Utf8PathBuf>>,
     non_existent: HashSet<String>,
 }
 
@@ -37,11 +37,11 @@ pub enum Error {
     NonUtf8(#[from] NonUtf8),
 }
 
-pub struct RecipeEntry(PathBuf);
+pub struct RecipeEntry(Utf8PathBuf);
 
 #[derive(Debug, Clone)]
 pub struct DirEntry {
-    path: PathBuf,
+    path: Utf8PathBuf,
     depth: usize,
     file_type: FileType,
 }
@@ -56,7 +56,7 @@ impl DirEntry {
     pub fn depth(&self) -> usize {
         self.depth
     }
-    pub fn path(&self) -> &Path {
+    pub fn path(&self) -> &Utf8Path {
         &self.path
     }
     pub fn file_type(&self) -> FileType {
@@ -88,7 +88,7 @@ impl TryFrom<walkdir::DirEntry> for DirEntry {
     fn try_from(value: walkdir::DirEntry) -> Result<Self, Self::Error> {
         let depth = value.depth();
         let file_type = value.file_type();
-        let path = PathBuf::from_path_buf(value.into_path()).map_err(|p| NonUtf8(p))?;
+        let path = Utf8PathBuf::from_path_buf(value.into_path()).map_err(|p| NonUtf8(p))?;
         Ok(Self {
             path,
             depth,
@@ -99,7 +99,7 @@ impl TryFrom<walkdir::DirEntry> for DirEntry {
 
 impl FsIndex {
     pub fn new(base_path: impl AsRef<std::path::Path>, max_depth: usize) -> Result<Self, Error> {
-        let base_path = Path::from_path(base_path.as_ref())
+        let base_path = Utf8Path::from_path(base_path.as_ref())
             .ok_or_else(|| Error::NonUtf8(NonUtf8(base_path.as_ref().into())))?;
         let walker = walkdir::WalkDir::new(&base_path)
             .max_depth(max_depth)
@@ -138,7 +138,7 @@ impl FsIndex {
 
     #[tracing::instrument(name = "fs_index_get", skip(self))]
     pub fn get(&self, recipe: &str) -> Result<RecipeEntry, Error> {
-        let path = Path::new(recipe);
+        let path = Utf8Path::new(recipe);
         let name = path
             .file_stem()
             .ok_or_else(|| Error::InvalidName(recipe.into()))?;
@@ -188,7 +188,7 @@ fn is_cooklang_file(dir_entry: &DirEntry) -> bool {
             .unwrap_or(false)
 }
 
-fn process_entry(dir_entry: &DirEntry) -> Option<(&str, &Path)> {
+fn process_entry(dir_entry: &DirEntry) -> Option<(&str, &Utf8Path)> {
     // Ignore non files or not .cook files
     if !is_cooklang_file(dir_entry) {
         return None;
@@ -200,12 +200,12 @@ fn process_entry(dir_entry: &DirEntry) -> Option<(&str, &Path)> {
 }
 
 impl Cache {
-    fn get(&self, name: &str, path: &Path) -> Option<PathBuf> {
+    fn get(&self, name: &str, path: &Utf8Path) -> Option<Utf8PathBuf> {
         let v = self.recipes.get(name)?;
         v.iter().find(|&p| p == path).cloned()
     }
 
-    fn insert(&mut self, name: &str, path: &Path) {
+    fn insert(&mut self, name: &str, path: &Utf8Path) {
         self.recipes
             .entry(name.to_string())
             .or_default()
@@ -218,7 +218,7 @@ impl Cache {
 }
 
 impl RecipeEntry {
-    pub fn path(&self) -> &Path {
+    pub fn path(&self) -> &Utf8Path {
         &self.0
     }
 
@@ -237,7 +237,7 @@ impl RecipeEntry {
 
 pub struct RecipeContent {
     content: String,
-    path: PathBuf,
+    path: Utf8PathBuf,
 }
 
 impl RecipeContent {
@@ -256,16 +256,16 @@ impl RecipeContent {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Image {
     pub indexes: Option<(usize, usize)>,
-    pub path: PathBuf,
+    pub path: Utf8PathBuf,
 }
 
-pub fn recipe_images(path: &Path) -> Vec<Image> {
+pub fn recipe_images(path: &Utf8Path) -> Vec<Image> {
     let Some(dir) = path.parent() else { return vec![]; };
     let mut images = walkdir::WalkDir::new(dir)
         .max_depth(1)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter_map(|e| PathBuf::from_path_buf(e.path().to_path_buf()).ok())
+        .filter_map(|e| Utf8PathBuf::from_path_buf(e.path().to_path_buf()).ok())
         .filter(|e| !e.is_dir())
         .filter_map(|image_path| {
             const EXTENSIONS: &[&str] = &["jpeg", "jpg", "png", "heic", "gif", "webp"];
@@ -319,12 +319,12 @@ pub fn recipe_images(path: &Path) -> Vec<Image> {
 #[derive(Debug, thiserror::Error)]
 pub enum RecipeImageError {
     #[error("No section {section} in recipe, referenced from {image}")]
-    MissingSection { section: usize, image: PathBuf },
+    MissingSection { section: usize, image: Utf8PathBuf },
     #[error("No step {step} in section {section}, referenced from {image}")]
     MissingStep {
         section: usize,
         step: usize,
-        image: PathBuf,
+        image: Utf8PathBuf,
     },
 }
 

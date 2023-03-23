@@ -1,5 +1,5 @@
 use anyhow::{bail, Context as _, Result};
-use camino::{Utf8Path as Path, Utf8PathBuf as PathBuf};
+use camino::Utf8PathBuf;
 use clap::{Args, Subcommand};
 use tracing::warn;
 
@@ -30,10 +30,8 @@ enum ShoppingListCommands {
 #[derive(Debug, Args)]
 struct ShoppingListGlobalArgs {
     #[arg(short, long, global = true)]
-    aile: Option<PathBuf>,
+    aile: Option<Utf8PathBuf>,
 }
-
-const DEFAULT_AILE_FILE: &str = "aile.conf";
 
 pub fn run(ctx: &Context, args: ShoppingListArgs) -> Result<()> {
     let command = args
@@ -43,16 +41,8 @@ pub fn run(ctx: &Context, args: ShoppingListArgs) -> Result<()> {
     let aile_path = args
         .global_args
         .aile
-        .or_else(|| {
-            let in_config_dir = ctx.config_dir.as_ref().map(|c| c.join(DEFAULT_AILE_FILE))?;
-            in_config_dir.is_file().then_some(in_config_dir)
-        })
-        .or_else(|| {
-            let in_current_dir = Path::new("aile.conf");
-            in_current_dir
-                .is_file()
-                .then(|| in_current_dir.to_path_buf())
-        })
+        .map(|a| a.into_std_path_buf())
+        .or_else(|| ctx.config.aile(ctx))
         .map(|path| -> Result<(_, _)> {
             let content = std::fs::read_to_string(&path).context("Failed to read aile file")?;
             Ok((path, content))
@@ -63,7 +53,12 @@ pub fn run(ctx: &Context, args: ShoppingListArgs) -> Result<()> {
         match cooklang::shopping_list::parse(content) {
             Ok(conf) => conf,
             Err(e) => {
-                cooklang::error::write_rich_error(&e, path.as_str(), content, std::io::stderr())?;
+                cooklang::error::write_rich_error(
+                    &e,
+                    path.to_str().unwrap_or("<aile>"),
+                    content,
+                    std::io::stderr(),
+                )?;
                 bail!("Error parsing aile file")
             }
         }

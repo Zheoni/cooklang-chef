@@ -91,11 +91,10 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
         writeln!(w)?;
     }
 
-    let mut some_meta = false;
+    let some_meta = !recipe.metadata.map.is_empty();
     let mut meta_fmt =
         |name: &str, value: &str| writeln!(w, "{}: {}", Paint::green(name).bold(), value);
     if let Some(author) = &recipe.metadata.author {
-        some_meta = true;
         let text = author
             .name
             .as_deref()
@@ -104,7 +103,6 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
         meta_fmt("author", text)?;
     }
     if let Some(source) = &recipe.metadata.source {
-        some_meta = true;
         let text = source
             .name
             .as_deref()
@@ -113,7 +111,6 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
         meta_fmt("source", text)?;
     }
     if let Some(time) = &recipe.metadata.time {
-        some_meta = true;
         let time_fmt = |t: u32| {
             format!(
                 "{}",
@@ -164,6 +161,9 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             }
         }
         meta_fmt("servings", &text)?;
+    }
+    for (key, value) in recipe.metadata.map_filtered() {
+        meta_fmt(key, value)?;
     }
     if some_meta {
         writeln!(w)?;

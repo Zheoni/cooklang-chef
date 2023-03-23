@@ -1,16 +1,12 @@
-// WHITESPACE = _{ " " | "\t" }
-
-COMMENT = _{
-    "--" ~ (!NEWLINE ~ ANY)* ~ (!NEWLINE)?   // line comment
-    | "[-" ~ (!"-]" ~ ANY)* ~ "-]"?       // block comment
-}
-
+/* Entry points */
 cooklang = { SOI ~ NEWLINE* ~ (line ~ line_end)* ~ line? ~ EOI }
 cooklang_metadata = { SOI ~ NEWLINE* ~ (only_metadata ~ NEWLINE+)* ~ only_metadata? ~ EOI }
+/* ------------ */
 
 line = _{ metadata | section | step }
-line_end = _{ soft_break | NEWLINE+ }
 only_metadata = _{ metadata | (!NEWLINE ~ ANY)* }
+
+line_end = _{ soft_break | NEWLINE+ }
 soft_break = { NEWLINE ~ !NEWLINE }
 
 section = { ("==" ~ section_name ~ "==") | "="{2,} }
@@ -26,16 +22,16 @@ text = { ((!("\\" | component_token) ~ text_item)+) | escaped | text_item }
 
 only_text_marker = { ">" ~ ws* }
 
+// component parsing is generic so nice error messages can be formed later
 component = { component_token ~ modifiers? ~ component_body ~ note? }
 component_token = { "@" | "#" | "~" }
 modifiers = ${ modifier+ }
 modifier = { "@" | "+" | "-" | "&" | "?" }
 note = { "(" ~ (!("("|")") ~ text_item)* ~ ")" }
 
-
 component_body = _{ no_name_component | multi_word_component | one_word_component }
 no_name_component = _{ close_component }
-one_word_component = @{ (!("-" | "{" | SPACE_SEPARATOR | "\t" | PUNCTUATION) ~ text_item)+ ~ !"{" }
+one_word_component = @{ LETTER ~ (LETTER | NUMBER)* ~ !"{" }
 multi_word_component = _{ name ~ ("|" ~ alias)? ~ close_component }
 name = { (!(component_token | "{" | "|") ~ text_item)* }
 alias = { (!(component_token | "{") ~ text_item)* }
@@ -43,10 +39,11 @@ close_component = _{ (("{" ~ ws* ~ "}") | ("{" ~ quantity ~ "}")) }
 
 quantity = { ws* ~ (
     numeric_value ~ &ws+ ~ !unit_separator ~ unit
-    | value ~ (ws* ~ "|" ~ ws* ~ value)* ~ auto_scale? ~ (unit_separator ~ unit)?
+    | value ~ (value_separator ~ value)* ~ auto_scale? ~ (unit_separator ~ unit)?
 ) ~ ws* }
 auto_scale = { ws* ~ "*" ~ ws* }
 unit_separator = { ws* ~ "%" ~ ws* }
+value_separator = _{ ws* ~ "|" ~ ws* }
 value = _{ numeric_value ~ &(ws+ | "|" | "%" | "*" | "}") | value_text  }
 numeric_value = { mixed_number | fraction | range | number }
 unit = @{ (!"}" ~ text_item)* }
@@ -86,3 +83,7 @@ escaped = _{ esc ~ esc_item }
 esc_item = { ANY }
 esc = _{ "\\" }
 ws = _{ SPACE_SEPARATOR | "\t" }
+COMMENT = _{
+    "--" ~ (!NEWLINE ~ ANY)*          // line comment
+    | "[-" ~ (!"-]" ~ ANY)* ~ "-]"?   // block comment
+}

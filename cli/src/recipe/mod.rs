@@ -1,7 +1,7 @@
 use std::io::Read;
 
 use anyhow::{bail, Context as _, Result};
-use camino::Utf8PathBuf as PathBuf;
+use camino::Utf8PathBuf;
 use clap::{Args, Subcommand};
 
 use crate::Context;
@@ -48,7 +48,7 @@ pub fn run(ctx: &Context, args: RecipeArgs) -> Result<()> {
 #[derive(Debug, Args)]
 struct RecipeInputArgs {
     /// Input file path, none for stdin
-    file: Option<PathBuf>,
+    file: Option<Utf8PathBuf>,
 
     /// Give or override a name for the recipe
     ///
@@ -92,7 +92,7 @@ struct Input {
     text: String,
     recipe_name: String,
     file_name: String,
-    path: Option<PathBuf>,
+    path: Option<Utf8PathBuf>,
 }
 
 impl Input {
@@ -104,7 +104,7 @@ impl Input {
                 as cooklang::RecipeRefChecker)
         };
         let r = ctx
-            .parser
+            .parser()?
             .parse_with_recipe_ref_checker(&self.text, &self.recipe_name, checker);
 
         if r.invalid() || ctx.global_args.warnings_as_errors && r.has_warnings() {

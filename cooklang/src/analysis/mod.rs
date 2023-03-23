@@ -227,5 +227,3 @@ impl RichError for AnalysisWarning {
         ariadne::ReportKind::Warning
     }
 }
-
-pub type AnalysisReport = crate::error::Report<AnalysisError, AnalysisWarning>;

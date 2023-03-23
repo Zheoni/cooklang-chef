@@ -1,13 +1,18 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::{bail, Context as _, Result};
-use camino::{Utf8Path as Path, Utf8PathBuf as PathBuf};
+use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Parser, Subcommand};
+use config::Config;
 use cooklang::{
     convert::{builder::ConverterBuilder, units_file::UnitsFile},
-    CooklangParser, Extensions,
+    CooklangParser,
 };
 use cooklang_fs::FsIndex;
-use tracing::warn;
+use once_cell::sync::OnceCell;
+use tracing::{info, warn};
 
+mod config;
 mod convert;
 mod recipe;
 mod serve;
@@ -41,13 +46,15 @@ enum Command {
     /// Convert values and units
     #[command(alias = "c")]
     Convert(convert::ConvertArgs),
+    /// See loaded configuration
+    Config,
 }
 
 #[derive(Debug, Parser)]
-struct GlobalArgs {
+pub struct GlobalArgs {
     /// A units TOML file
     #[arg(long, action = clap::ArgAction::Append, global = true)]
-    units: Vec<PathBuf>,
+    units: Vec<Utf8PathBuf>,
 
     /// Do not use the bundled units
     #[arg(long, hide_short_help = true, global = true)]
@@ -74,13 +81,13 @@ struct GlobalArgs {
     /// This path is used to load configuration files, search for images and
     /// recipe references.
     #[arg(long, value_name = "PATH", global = true)]
-    base: Option<PathBuf>,
+    path: Option<Utf8PathBuf>,
 
     /// Skip checking if referenced recipes exist
     #[arg(long, hide_short_help = true, global = true)]
     no_recipe_ref_check: bool,
 
-    /// Recipe indexing depth
+    /// Override recipe indexing depth. Defaults to 3.
     ///
     /// This is used to search for referenced recipes.
     #[arg(long, global = true)]
@@ -110,8 +117,9 @@ pub fn main() -> Result<()> {
         Command::Recipe(args) => recipe::run(&ctx, *args),
         Command::Serve => serve::run(&ctx),
         Command::ShoppingList(args) => shopping_list::run(&ctx, args),
-        Command::Units(args) => units::run(ctx.parser.converter(), args),
-        Command::Convert(args) => convert::run(ctx.parser.converter(), args),
+        Command::Units(args) => units::run(ctx.parser()?.converter(), args),
+        Command::Convert(args) => convert::run(ctx.parser()?.converter(), args),
+        Command::Config => config::run(&ctx),
     }
 }
 
@@ -132,72 +140,69 @@ fn init_color(color: concolor_clap::Color) {
 }
 
 pub struct Context {
-    parser: CooklangParser,
+    parser: OnceCell<CooklangParser>,
     recipe_index: FsIndex,
     global_args: GlobalArgs,
-    base_dir: PathBuf,
-    max_depth: usize,
-    config_dir: Option<PathBuf>,
+    base_dir: Utf8PathBuf,
+    config: config::Config,
+    config_path: PathBuf,
 }
 
-const CONFIG_DIR: &str = ".cooklang";
+const COOK_DIR: &str = ".cooklang";
+const APP_NAME: &str = "cooklang-chef";
 
 #[tracing::instrument(skip_all)]
 fn configure_context(args: GlobalArgs) -> Result<Context> {
-    let parser = configure_parser(&args)?;
     let base_dir = args
-        .base
+        .path
         .as_deref()
-        .unwrap_or(Path::new("."))
-        .canonicalize_utf8()
-        .context("Invalid base path")?;
+        .unwrap_or(Utf8Path::new("."))
+        .to_path_buf();
+    let (mut config, config_path) = Config::read(&base_dir)?;
+    config.override_with_args(&args);
     if !base_dir.is_dir() {
         bail!("Base path '{base_dir}' is not a directory");
     }
-    let config_dir = {
-        let dir = base_dir.join(CONFIG_DIR);
-        if dir.is_dir() {
-            Some(dir)
-        } else {
-            warn!(
-                "Config directory '{}' not found. Some functionality may be limited.",
-                CONFIG_DIR
-            );
-            None
-        }
-    };
 
-    // If we are not in a known cooklang dir (with a config dir) limit the indexing
-    let depth = args.max_depth.unwrap_or_else(|| match config_dir {
-        Some(_) => usize::MAX,
-        None => 2,
-    });
-    let index = FsIndex::new(&base_dir, depth)?;
+    let index = FsIndex::new(&base_dir, config.max_depth)?;
 
     Ok(Context {
-        parser,
+        parser: OnceCell::new(),
         recipe_index: index,
+        config,
+        config_path,
         global_args: args,
         base_dir,
-        config_dir,
-        max_depth: depth,
     })
 }
 
-fn configure_parser(args: &GlobalArgs) -> Result<CooklangParser> {
-    let mut parser = CooklangParser::builder().with_extensions(if args.no_extensions {
-        Extensions::empty()
-    } else {
-        Extensions::all()
-    });
-    if !args.no_default_units || !args.units.is_empty() {
+impl Context {
+    fn parser(&self) -> Result<&CooklangParser> {
+        self.parser.get_or_try_init(|| {
+            configure_parser(&self.config, self.base_dir.as_std_path(), &self.config_path)
+        })
+    }
+}
+
+#[tracing::instrument(skip_all)]
+fn configure_parser(
+    config: &Config,
+    base_path: &Path,
+    config_path: &Path,
+) -> Result<CooklangParser> {
+    let mut parser = CooklangParser::builder().with_extensions(config.extensions);
+
+    let units = config.units(config_path, base_path);
+    if config.default_units || !units.is_empty() {
         let mut builder = ConverterBuilder::new();
-        if !args.no_default_units {
+
+        if config.default_units {
             builder
                 .add_units_file(UnitsFile::bundled())
                 .expect("Failed to add bundled units");
         }
-        for file in &args.units {
+        for file in units {
+            info!("Loading units {}", file.display());
             let text = std::fs::read_to_string(file)?;
             let units = toml::from_str(&text)?;
             builder.add_units_file(units)?;
@@ -207,7 +212,7 @@ fn configure_parser(args: &GlobalArgs) -> Result<CooklangParser> {
     Ok(parser.finish())
 }
 
-fn write_to_output<F>(output: Option<&Path>, f: F) -> Result<()>
+fn write_to_output<F>(output: Option<&Utf8Path>, f: F) -> Result<()>
 where
     F: FnOnce(Box<dyn std::io::Write>) -> Result<()>,
 {

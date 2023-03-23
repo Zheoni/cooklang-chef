@@ -1,5 +1,5 @@
 use anyhow::Result;
-use camino::Utf8PathBuf as PathBuf;
+use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
 use cooklang::shopping_list::ShoppingListConf;
 use yansi::Paint;
@@ -10,7 +10,7 @@ use crate::write_to_output;
 pub struct ConfArgs {
     /// Output file, none for stdout.
     #[arg(short, long)]
-    output: Option<PathBuf>,
+    output: Option<Utf8PathBuf>,
 
     /// Output format
     #[arg(short, long, value_enum)]

@@ -167,5 +167,3 @@ impl RichError for ParserWarning {
         ariadne::ReportKind::Warning
     }
 }
-
-pub type ParserReport = crate::error::Report<ParserError, ParserWarning>;

@@ -1,8 +1,17 @@
-pub mod analysis;
+//! # cooklang
+//!
+//! This crate is a [cooklang](https://cooklang.org/) parser written in rust
+//! with some extra opt-in extensions.
+//!
+//! The extensions form a superset of the original cooklang language and can be
+//! turned off. To see a detailed list go to [extensions](_extensions).
+//!
+//! The parser returns rich errors with annotated code spans. For example.
+
+mod analysis;
 mod context;
 pub mod convert;
 pub mod error;
-pub mod helper;
 mod located;
 pub mod metadata;
 pub mod model;
@@ -12,6 +21,11 @@ pub mod scale;
 pub mod shopping_list;
 mod span;
 
+#[cfg(doc)]
+pub mod _extensions {
+    #![doc = include_str!("../../docs/extensions.md")]
+}
+
 use bitflags::bitflags;
 use convert::Converter;
 use error::{CooklangError, CooklangWarning, PassResult};
@@ -20,6 +34,10 @@ pub use model::Recipe;
 pub use scale::ScaledRecipe;
 
 bitflags! {
+    /// Extensions bitflags
+    ///
+    /// This allows to enable or disable the extensions. See [extensions](_extensions)
+    /// for a detailed explanation of all of them.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
     pub struct Extensions: u32 {
         const MULTINE_STEPS        = 0b000000001;
@@ -32,6 +50,7 @@ bitflags! {
         const TEMPERATURE          = 0b010000000;
         const TEXT_STEPS           = 0b100000000;
 
+        /// Enables [Self::INGREDIENT_MODIFIERS], [Self::INGREDIENT_NOTE] and [Self::INGREDIENT_ALIAS]
         const INGREDIENT_ALL = Self::INGREDIENT_MODIFIERS.bits()
                              | Self::INGREDIENT_ALIAS.bits()
                              | Self::INGREDIENT_NOTE.bits();
