@@ -137,8 +137,7 @@ impl Walker {
         assert!(!key.is_empty(), "Key is empty");
         if value.trim().is_empty() {
             self.warn(ParserWarning::EmptyMetadataValue {
-                key: key.to_string(),
-                position: value.offset(),
+                key: key.clone().map_inner(str::to_string),
             });
         }
 
@@ -564,7 +563,13 @@ impl Walker {
         match pair.as_rule() {
             Rule::mixed_number => Value::Number(self.recover(mixed_number(pair))),
             Rule::fraction => Value::Number(self.recover(fraction(pair))),
-            Rule::range => Value::Range(self.recover_val(range(pair), 1.0..=1.0)),
+            Rule::range => {
+                if self.extensions.contains(Extensions::RANGE_VALUES) {
+                    Value::Range(self.recover_val(range(pair), 1.0..=1.0))
+                } else {
+                    Value::Text(pair.as_str().into())
+                }
+            }
             Rule::number => Value::Number(self.recover(number(pair))),
             _ => unexpected_panic!(pair, "numeric_value"),
         }

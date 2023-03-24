@@ -300,7 +300,9 @@ pub enum QuantityAddError {
 #[derive(Debug, Error)]
 pub enum IncompatibleUnits {
     #[error("Missing unit: one unit is '{found}' but the other quantity is missing an unit")]
-    MissingUnit { found: QuantityUnit<'static> },
+    MissingUnit {
+        found: either::Either<QuantityUnit<'static>, QuantityUnit<'static>>,
+    },
     #[error("Different physical quantity: '{a}' '{b}'")]
     DifferentPhysicalQuantities {
         a: PhysicalQuantity,
@@ -320,10 +322,15 @@ impl Quantity<'_> {
             // No units = ok
             (None, None) => None,
             // Mixed = error
-            (None, Some(u)) | (Some(u), None) => {
+            (None, Some(u)) => {
                 return Err(IncompatibleUnits::MissingUnit {
-                    found: u.clone().into_owned(),
-                })
+                    found: either::Either::Right(u.clone().into_owned()),
+                });
+            }
+            (Some(u), None) => {
+                return Err(IncompatibleUnits::MissingUnit {
+                    found: either::Either::Left(u.clone().into_owned()),
+                });
             }
             // Units -> check
             (Some(a), Some(b)) => {

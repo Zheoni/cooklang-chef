@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 use regex::Regex;
 
@@ -56,6 +57,7 @@ pub fn parse_ast<'a>(
         context,
 
         ingredient_locations: Default::default(),
+        metadata_locations: Default::default(),
     };
 
     walker.ast(ast);
@@ -76,7 +78,8 @@ struct Walker<'a, 'c> {
     auto_scale_ingredients: bool,
     context: Context<AnalysisError, AnalysisWarning>,
 
-    ingredient_locations: Vec<Span>,
+    ingredient_locations: Vec<Located<ast::Ingredient<'a>>>,
+    metadata_locations: HashMap<&'a str, (Located<&'a str>, Located<&'a str>)>,
 }
 
 #[derive(PartialEq)]
@@ -140,6 +143,9 @@ impl<'a, 'r> Walker<'a, 'r> {
     }
 
     fn metadata(&mut self, key: Located<&'a str>, value: Located<&'a str>) {
+        self.metadata_locations
+            .insert(&key, (key.clone(), value.clone()));
+
         let invalid_value = |possible_values| AnalysisError::InvalidSpecialMetadataValue {
             key: key.clone().map_inner(str::to_string),
             value: value.clone().map_inner(str::to_string),
@@ -261,6 +267,7 @@ impl<'a, 'r> Walker<'a, 'r> {
     }
 
     fn ingredient(&mut self, ingredient: Located<ast::Ingredient<'a>>) -> usize {
+        let located_ingredient = ingredient.clone();
         let (ingredient, location) = ingredient.take_pair();
         let location = Span::from(location);
 
@@ -329,7 +336,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                     && new_igr.quantity.is_some()
                     && !referenced.defined_in_step
                 {
-                    let definition_span = self.ingredient_locations[referenced_index].clone();
+                    let definition_span = self.ingredient_locations[referenced_index].span();
                     self.context
                         .error(AnalysisError::ConflictingReferenceQuantities {
                             ingredient_name: new_igr.name.to_string(),
@@ -350,8 +357,19 @@ impl<'a, 'r> Walker<'a, 'r> {
                             });
                         for (index, q) in all_quantities {
                             if let Err(e) = q.is_compatible(new_quantity, self.converter) {
-                                let a = self.ingredient_locations[index].clone().into();
-                                let b = location.clone().into();
+                                let old_q_loc =
+                                    self.ingredient_locations[index].quantity.as_ref().unwrap();
+                                let a = old_q_loc
+                                    .unit
+                                    .as_ref()
+                                    .map(|l| l.span())
+                                    .unwrap_or(old_q_loc.span());
+                                let new_q_loc = located_ingredient.quantity.as_ref().unwrap();
+                                let b = new_q_loc
+                                    .unit
+                                    .as_ref()
+                                    .map(|l| l.span())
+                                    .unwrap_or(new_q_loc.span());
                                 self.context.warn(AnalysisWarning::IncompatibleUnits {
                                     a,
                                     b,
@@ -394,7 +412,7 @@ impl<'a, 'r> Walker<'a, 'r> {
             }
         }
 
-        self.ingredient_locations.push(location);
+        self.ingredient_locations.push(located_ingredient);
         let new_index = self.content.ingredients.len();
         if let Some(referenced_index) = new_igr.references_to {
             self.content.ingredients[referenced_index]
@@ -419,6 +437,7 @@ impl<'a, 'r> Walker<'a, 'r> {
     }
 
     fn timer(&mut self, timer: Located<ast::Timer<'a>>) -> usize {
+        let located_timer = timer.clone();
         let (timer, span) = timer.take_pair();
 
         let quantity = self.quantity(timer.quantity, false);
@@ -429,7 +448,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                         if unit.physical_quantity != PhysicalQuantity::Time {
                             self.error(AnalysisError::BadTimerUnit {
                                 unit: unit.as_ref().clone(),
-                                timer_span: span,
+                                timer_span: located_timer.quantity.unit.as_ref().unwrap().span(),
                             })
                         }
                     }
@@ -462,22 +481,29 @@ impl<'a, 'r> Walker<'a, 'r> {
     fn value(&mut self, value: ast::QuantityValue<'a>, is_ingredient: bool) -> QuantityValue<'a> {
         if let ast::QuantityValue::Many(v) = &value {
             if let Some(s) = &self.content.metadata.servings {
+                let servings_meta_span = self
+                    .metadata_locations
+                    .get("servings")
+                    .map(|(_, value)| value.span());
                 if s.len() != v.len() {
-                    self.context.error(AnalysisError::SacalingConflict {
-                        reason: format!(
-                            "{} servings defined but {} values in the quantity",
-                            s.len(),
-                            v.len()
-                        )
-                        .into(),
-                        value_span: value.span(),
-                    });
+                    self.context
+                        .error(AnalysisError::ScalableValueManyConflict {
+                            reason: format!(
+                                "{} servings defined but {} values in the quantity",
+                                s.len(),
+                                v.len()
+                            )
+                            .into(),
+                            value_span: value.span(),
+                            servings_meta_span,
+                        });
                 }
             } else {
-                self.error(AnalysisError::SacalingConflict {
+                self.error(AnalysisError::ScalableValueManyConflict {
                     reason: format!("no servings defined but {} values in quantity", v.len())
                         .into(),
                     value_span: value.span(),
+                    servings_meta_span: None,
                 })
             }
         }

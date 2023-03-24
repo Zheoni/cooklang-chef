@@ -5,6 +5,7 @@ use pest_derive::Parser;
 use thiserror::Error;
 
 use crate::error::{PassResult, RichError};
+use crate::located::Located;
 use crate::span::Span;
 use crate::Extensions;
 
@@ -101,7 +102,7 @@ pub enum ParserError {
 #[derive(Debug, Error)]
 pub enum ParserWarning {
     #[error("Empty metadata value for key: {key}")]
-    EmptyMetadataValue { key: String, position: usize },
+    EmptyMetadataValue { key: Located<String> },
 }
 
 impl RichError for ParserError {
@@ -153,8 +154,8 @@ impl RichError for ParserWarning {
     fn labels(&self) -> Vec<(Span, Option<Cow<'static, str>>)> {
         use crate::error::label;
         match self {
-            ParserWarning::EmptyMetadataValue { position, .. } => {
-                vec![label!(Span::from(*position..*position + 1))]
+            ParserWarning::EmptyMetadataValue { key } => {
+                vec![label!(key)]
             }
         }
     }

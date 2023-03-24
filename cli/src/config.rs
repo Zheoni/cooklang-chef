@@ -234,12 +234,3 @@ pub fn run(ctx: &Context) -> Result<()> {
 
     Ok(())
 }
-
-#[test]
-fn default_config() {
-    std::fs::write(
-        "config.toml",
-        toml::to_string_pretty(&Config::default()).unwrap(),
-    )
-    .unwrap();
-}

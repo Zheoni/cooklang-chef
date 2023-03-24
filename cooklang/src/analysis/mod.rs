@@ -40,9 +40,10 @@ pub enum AnalysisError {
     },
 
     #[error("Quantity scaling error: {reason}")]
-    SacalingConflict {
+    ScalableValueManyConflict {
         reason: Cow<'static, str>,
         value_span: Span,
+        servings_meta_span: Option<Span>,
     },
 }
 
@@ -57,7 +58,7 @@ pub enum AnalysisWarning {
     #[error("Text value in reference prevents calculating total amount")]
     TextValueInReference { quantity_span: Span },
 
-    #[error("Incompatible units in reference prevents calculating total amount")]
+    #[error("Incompatible units in reference prevent calculating total amount")]
     IncompatibleUnits {
         a: Span,
         b: Span,
@@ -122,7 +123,20 @@ impl RichError for AnalysisError {
             ],
             AnalysisError::UnknownTimerUnit { timer_span, .. } => vec![label!(timer_span)],
             AnalysisError::BadTimerUnit { timer_span, .. } => vec![label!(timer_span)],
-            AnalysisError::SacalingConflict { value_span, .. } => vec![label!(value_span)],
+            AnalysisError::ScalableValueManyConflict {
+                value_span,
+                servings_meta_span,
+                ..
+            } => {
+                if let Some(servings) = servings_meta_span {
+                    vec![
+                        label!(servings, "servings defined here"),
+                        label!(value_span, "do not match number of values"),
+                    ]
+                } else {
+                    vec![label!(value_span)]
+                }
+            }
         }
     }
 
@@ -142,7 +156,7 @@ impl RichError for AnalysisError {
                 help!("With the ADVANCED_UNITS extensions, timers are required to have a time unit")
             }
             AnalysisError::BadTimerUnit { .. } => None,
-            AnalysisError::SacalingConflict { .. } => None,
+            AnalysisError::ScalableValueManyConflict { .. } => None,
         }
     }
 
@@ -158,8 +172,27 @@ impl RichError for AnalysisWarning {
             AnalysisWarning::UnknownSpecialMetadataKey { key } => vec![label!(key)],
             AnalysisWarning::TextDefiningIngredients { text_span } => vec![label!(text_span)],
             AnalysisWarning::TextValueInReference { quantity_span } => vec![label!(quantity_span)],
-            AnalysisWarning::IncompatibleUnits { a, b, .. } => {
-                vec![label!(a), label!(b)]
+            AnalysisWarning::IncompatibleUnits { a, b, source } => {
+                match source {
+                    crate::quantity::IncompatibleUnits::MissingUnit { found } => {
+                        let m = "this is missing a unit";
+                        let f = "matching this one";
+                        match found {
+                            either::Either::Left(_) => vec![label!(b, m), label!(a, f)],
+                            either::Either::Right(_) => vec![label!(a, m), label!(b, f)],
+                        }
+                    }
+                    crate::quantity::IncompatibleUnits::DifferentPhysicalQuantities {
+                        a: a_q,
+                        b: b_q,
+                    } => {
+                        vec![label!(b, b_q.to_string()), label!(a, a_q.to_string())]
+                    }
+                    crate::quantity::IncompatibleUnits::UnknownDifferentUnits { .. } => {
+                        vec![label!(a, "this unit"), label!(b, "differs from this")]
+                    }
+                }
+                // vec![label!(a), label!(b)]
             }
             AnalysisWarning::InvalidMetadataValue { key, value, .. } => vec![
                 label!(key, "this key"),

@@ -24,6 +24,8 @@ tracing = "0.1"
 # TODO change to regular dependency when ariadne updates concolor
 ariadne = { git = "https://github.com/Zheoni/ariadne", branch = "update-concolor", features = ["concolor"] }
 # ariadne = { version = "0.2", features = ["concolor"] }
+either = "1.8"
+
 [dev-dependencies]
 yaml-rust = "0.4"
 serde_json = "1"

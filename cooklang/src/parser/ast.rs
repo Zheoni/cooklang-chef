@@ -39,7 +39,7 @@ pub enum Component<'a> {
     Timer(Timer<'a>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Ingredient<'a> {
     pub modifiers: Located<Modifiers>,
     pub name: Located<Cow<'a, str>>,
@@ -53,7 +53,7 @@ pub struct Cookware<'a> {
     pub name: Located<Cow<'a, str>>,
     pub quantity: Option<QuantityValue<'a>>,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Timer<'a> {
     pub name: Option<Located<Cow<'a, str>>>,
     pub quantity: Located<Quantity<'a>>,

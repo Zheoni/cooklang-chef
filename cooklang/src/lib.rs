@@ -40,15 +40,16 @@ bitflags! {
     /// for a detailed explanation of all of them.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
     pub struct Extensions: u32 {
-        const MULTINE_STEPS        = 0b000000001;
-        const INGREDIENT_MODIFIERS = 0b000000010;
-        const INGREDIENT_NOTE      = 0b000000100;
-        const INGREDIENT_ALIAS     = 0b000001000;
-        const SECTIONS             = 0b000010000;
-        const ADVANCED_UNITS       = 0b000100000;
-        const MODES                = 0b001000000;
-        const TEMPERATURE          = 0b010000000;
-        const TEXT_STEPS           = 0b100000000;
+        const MULTINE_STEPS        = 0b0000000001;
+        const INGREDIENT_MODIFIERS = 0b0000000010;
+        const INGREDIENT_NOTE      = 0b0000000100;
+        const INGREDIENT_ALIAS     = 0b0000001000;
+        const SECTIONS             = 0b0000010000;
+        const ADVANCED_UNITS       = 0b0000100000;
+        const MODES                = 0b0001000000;
+        const TEMPERATURE          = 0b0010000000;
+        const TEXT_STEPS           = 0b0100000000;
+        const RANGE_VALUES         = 0b1000000000;
 
         /// Enables [Self::INGREDIENT_MODIFIERS], [Self::INGREDIENT_NOTE] and [Self::INGREDIENT_ALIAS]
         const INGREDIENT_ALL = Self::INGREDIENT_MODIFIERS.bits()
