@@ -70,6 +70,7 @@ pub enum QuantityValue<'a> {
     Single {
         value: Located<Value<'a>>,
         scalable: bool,
+        auto_scale_marker: Option<Span>,
     },
     Many(Vec<Located<Value<'a>>>),
 }
@@ -100,6 +101,7 @@ impl Recover for QuantityValue<'_> {
         Self::Single {
             value: Recover::recover(),
             scalable: false,
+            auto_scale_marker: None,
         }
     }
 }

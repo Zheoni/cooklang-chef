@@ -38,7 +38,7 @@ alias = { (!(component_token | "{") ~ text_item)* }
 close_component = _{ (("{" ~ ws* ~ "}") | ("{" ~ quantity ~ "}")) }
 
 quantity = { ws* ~ (
-    numeric_value ~ ws+ ~ !unit_separator ~ unit
+    numeric_value ~ ws+ ~ !(unit_separator | auto_scale) ~ unit
     | value ~ (value_separator ~ value)* ~ auto_scale? ~ (unit_separator ~ unit)?
 ) ~ ws* }
 auto_scale = { ws* ~ "*" ~ ws* }

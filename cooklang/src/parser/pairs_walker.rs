@@ -367,14 +367,16 @@ impl Walker {
             }
             quantity.take().value
         });
-        if let Some(value @ QuantityValue::Single { scalable: true, .. }) = &quantity {
+        if let Some(QuantityValue::Single {
+            scalable: true,
+            auto_scale_marker,
+            ..
+        }) = &quantity
+        {
             self.error(ParserError::ComponentPartNotAllowed {
                 container: COOKWARE,
                 what: "auto scale marker",
-                to_remove: {
-                    let span = value.span();
-                    Span::new(span.end(), span.end() + 1)
-                },
+                to_remove: auto_scale_marker.expect("auto scale marker span"),
                 help: Some("Cookware quantity can't be auto scaled"),
             });
         }
@@ -420,14 +422,16 @@ impl Walker {
             Recover::recover()
         });
 
-        if let value @ QuantityValue::Single { scalable: true, .. } = &quantity.value {
+        if let QuantityValue::Single {
+            scalable: true,
+            auto_scale_marker,
+            ..
+        } = &quantity.value
+        {
             self.error(ParserError::ComponentPartNotAllowed {
-                container: COOKWARE,
+                container: TIMER,
                 what: "auto scale marker",
-                to_remove: {
-                    let span = value.span();
-                    Span::new(span.end(), span.end() + 1)
-                },
+                to_remove: auto_scale_marker.clone().expect("auto scale marker span"),
                 help: Some("Timer quantity can't be auto scaled"),
             });
         }
@@ -487,6 +491,7 @@ impl Walker {
 
         let mut values = Vec::new();
         let mut auto_scale = false;
+        let mut auto_scale_marker = None;
         let mut separator = None;
         let mut unit = None;
         for pair in inner.by_ref() {
@@ -497,7 +502,10 @@ impl Walker {
                 Rule::value_text => {
                     values.push(pair.located().map_inner(|p| Value::Text(p.text_trimmed())))
                 }
-                Rule::auto_scale => auto_scale = true,
+                Rule::auto_scale => {
+                    auto_scale = true;
+                    auto_scale_marker = Some(pair.as_span().into())
+                }
                 Rule::unit_separator => separator = Some(pair),
                 Rule::unit => {
                     unit = Some(pair.located_text_trimmed());
@@ -527,6 +535,7 @@ impl Walker {
             1 => QuantityValue::Single {
                 value: values.pop().unwrap(),
                 scalable: auto_scale,
+                auto_scale_marker,
             },
             _ => {
                 if auto_scale {

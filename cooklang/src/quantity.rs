@@ -189,10 +189,12 @@ impl<'a> QuantityValue<'a> {
             ast::QuantityValue::Single {
                 value,
                 scalable: false,
+                ..
             } => Self::Fixed(value.take()),
             ast::QuantityValue::Single {
                 value,
                 scalable: true,
+                ..
             } => Self::Scalable(ScalableValue::Linear(value.take())),
             ast::QuantityValue::Many(v) => Self::Scalable(ScalableValue::ByServings(
                 v.into_iter().map(crate::located::Located::take).collect(),
