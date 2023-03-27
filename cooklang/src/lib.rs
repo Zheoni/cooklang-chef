@@ -13,6 +13,7 @@ pub mod ast;
 mod context;
 pub mod convert;
 pub mod error;
+pub mod lexer;
 mod located;
 pub mod metadata;
 pub mod model;

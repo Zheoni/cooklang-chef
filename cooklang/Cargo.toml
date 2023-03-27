@@ -25,10 +25,16 @@ tracing = "0.1"
 ariadne = { git = "https://github.com/Zheoni/ariadne", branch = "update-concolor", features = ["concolor"] }
 # ariadne = { version = "0.2", features = ["concolor"] }
 either = "1.8"
+finl_unicode = { version = "1.2", features = ["categories"], default-features = false }
 
 [dev-dependencies]
 yaml-rust = "0.4"
 serde_json = "1"
+criterion = "0.4"
+
+[[bench]]
+name = "special_chars_lookup"
+harness = false
 
 [features]
 default = ["bundled_units"]
