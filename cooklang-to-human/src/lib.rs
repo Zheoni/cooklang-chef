@@ -35,6 +35,7 @@ fn header(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             recipe
                 .metadata
                 .emoji
+                .as_ref()
                 .map(|s| format!("{s} "))
                 .unwrap_or_default()
         ),
@@ -163,7 +164,7 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
         meta_fmt("servings", &text)?;
     }
     for (key, value) in recipe.metadata.map_filtered() {
-        meta_fmt(key, value)?;
+        meta_fmt(&key, &value)?;
     }
     if some_meta {
         writeln!(w)?;

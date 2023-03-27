@@ -1,4 +1,4 @@
-use std::{fmt::Write, io};
+use std::{borrow::Cow, fmt::Write, io};
 
 use cooklang::{
     convert::Converter,
@@ -65,7 +65,7 @@ fn frontmatter(mut w: impl io::Write, metadata: &Metadata) -> Result<()> {
         #[serde(skip_serializing_if = "Option::is_none")]
         servings: Option<&'a [u32]>,
         #[serde(borrow, flatten)]
-        map: IndexMap<&'a str, &'a str>,
+        map: IndexMap<Cow<'a, str>, Cow<'a, str>>,
     }
 
     let map = CustomMetadata {

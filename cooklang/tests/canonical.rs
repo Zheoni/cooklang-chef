@@ -41,7 +41,7 @@ fn compare_metadata(expected: &Yaml, got: &cooklang::metadata::Metadata) {
         let e_key = e_key.as_str().unwrap();
         let e_value = e_value.as_str().unwrap();
 
-        let got_val = got.map[e_key];
+        let got_val = got.map[e_key].as_ref();
         assert_eq!(e_value, got_val);
     }
 }

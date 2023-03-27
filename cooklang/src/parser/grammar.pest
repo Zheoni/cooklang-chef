@@ -1,89 +1,114 @@
 /* Entry points */
-cooklang = { SOI ~ NEWLINE* ~ (line ~ line_end)* ~ line? ~ EOI }
+cooklang          = { SOI ~ NEWLINE* ~ (line ~ line_end)* ~ line? ~ EOI }
 cooklang_metadata = { SOI ~ NEWLINE* ~ (only_metadata ~ NEWLINE+)* ~ only_metadata? ~ EOI }
 /* ------------ */
 
-line = _{ metadata | section | step }
+line          = _{ metadata | section | step }
 only_metadata = _{ metadata | (!NEWLINE ~ ANY)* }
 
-line_end = _{ soft_break | NEWLINE+ }
-soft_break = { NEWLINE ~ !NEWLINE }
+line_end   = _{ soft_break | NEWLINE+ }
+soft_break =  { NEWLINE ~ !NEWLINE }
 
-section = { ("==" ~ section_name ~ "==") | "="{2,} }
+section      = { ("="{2, } ~ section_name ~ "="{2, }?) | "="{2, } }
 section_name = { (!"=" ~ text_item)+ }
 
-// only line comments or block comments at the end will be accepted in metadata
-metadata = ${ ">>" ~ ws* ~ metadata_key ~ ":" ~ ws* ~ metadata_value ~ COMMENT? }
-metadata_key = @{ (!":" ~ text_item)+ }
-metadata_value = @{ (!COMMENT ~ text_item)* }
+metadata       = { ">>" ~ metadata_key ~ ":" ~ metadata_value }
+metadata_key   = { (!":" ~ text_item)* }
+metadata_value = { (text_item)* }
 
-step = { only_text_marker? ~ (component | text)+ }
-text = { ((!("\\" | component_token) ~ text_item)+) | escaped | text_item }
+step       =  { only_text_marker? ~ (component | text)+ }
+text       = _{ plain_text | text_item }
+plain_text = @{ ((!(comment | component_token) ~ text_item)+) }
 
-only_text_marker = { ">" ~ ws* }
+only_text_marker = { ">" ~ !">" ~ ws* }
 
 // component parsing is generic so nice error messages can be formed later
-component = { component_token ~ modifiers? ~ component_body ~ note? }
-component_token = { "@" | "#" | "~" }
-modifiers = ${ modifier+ }
-modifier = { "@" | "+" | "-" | "&" | "?" }
-note = { "(" ~ (!("("|")") ~ text_item)* ~ ")" }
+component        =  { component_token ~ modifiers? ~ component_body ~ note? }
+component_token  =  { ingredient_token | cookware_token | timer_token }
+ingredient_token =  { "@" }
+cookware_token   =  { "#" }
+timer_token      =  { "~" }
+modifiers        =  { modifier+ }
+modifier         = _{ mod_recipe | mod_new | mod_hidden | mod_ref | mod_opt }
+mod_recipe       =  { "@" }
+mod_new          =  { "+" }
+mod_hidden       =  { "-" }
+mod_ref          =  { "&" }
+mod_opt          =  { "?" }
+note             =  { open_note ~ note_content ~ close_note }
+note_content     =  { (!(open_note | close_note) ~ text_item)* }
+open_note        =  { "(" }
+close_note       =  { ")" }
 
-component_body = _{ no_name_component | multi_word_component | one_word_component }
-no_name_component = _{ close_component }
-one_word_component = @{ (!("-" | "{" | ws | PUNCTUATION) ~ text_item)+ ~ !"{" }
-multi_word_component = _{ name ~ ("|" ~ alias)? ~ close_component }
-name = { (!(component_token | "{" | "|") ~ text_item)* }
-alias = { (!(component_token | "{") ~ text_item)* }
-close_component = _{ (("{" ~ ws* ~ "}") | ("{" ~ quantity ~ "}")) }
-
-quantity = { ws* ~ (
-    numeric_value ~ ws+ ~ !(unit_separator | auto_scale) ~ unit
-    | value ~ (value_separator ~ value)* ~ auto_scale? ~ (unit_separator ~ unit)?
-) ~ ws* }
-auto_scale = { ws* ~ "*" ~ ws* }
-unit_separator = { ws* ~ "%" ~ ws* }
-value_separator = _{ ws* ~ "|" ~ ws* }
-value = _{ numeric_value ~ &(ws+ | "|" | "%" | "*" | "}") | value_text  }
-numeric_value = { mixed_number | fraction | range | number }
-unit = @{ (!"}" ~ text_item)* }
-
-value_text = ${ (escaped | (!("%" | "}" | "|" | "\\") ~ text_item))+ }
-integer = @{ (!"0" ~ ASCII_DIGIT+) | ASCII_DIGIT ~ !ASCII_DIGIT }
-fraction = ${ regular_fraction | unicode_fraction }
-regular_fraction = ${ integer ~ ws* ~ "/" ~ ws* ~ integer }
-mixed_number = ${ integer ~ ws* ~ fraction }
-float = @{ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
-number = { float | integer }
-range = { number ~ ws* ~ "-" ~ ws* ~ number }
-unicode_fraction = {
-    "½" 
-    | "⅓" 
-    | "¼" 
-    | "⅕" 
-    | "⅙" 
-    | "⅐" 
-    | "⅛" 
-    | "⅑"
-    | "⅒" 
-    | "⅔" 
-    | "⅖" 
-    | "¾" 
-    | "⅗" 
-    | "⅜" 
-    | "⅘" 
-    | "⅚" 
-    | "⅝" 
-    | "⅞" 
-    | "↉" // just why?
+special_symbol = {
+    modifier
+  | component_token
+  | open_note
+  | close_note
+  | open_quantity
+  | close_quantity
+  | alias_sep
 }
 
-text_item = @{ !NEWLINE ~ ANY }
-escaped = _{ esc ~ esc_item }
-esc_item = { ANY }
-esc = _{ "\\" }
-ws = _{ SPACE_SEPARATOR | "\t" }
-COMMENT = _{
-    "--" ~ (!NEWLINE ~ ANY)*          // line comment
-    | "[-" ~ (!"-]" ~ ANY)* ~ "-]"?   // block comment
+component_body       = _{ no_name_component | multi_word_component | one_word_component }
+no_name_component    = _{ close_component }
+one_word_component   = @{ (!(special_symbol | ws | comment | PUNCTUATION) ~ text_item)+ ~ !"{" }
+multi_word_component = _{ name ~ (alias_sep ~ alias)? ~ close_component }
+name                 =  { (!(component_token | open_quantity | alias_sep) ~ text_item)* }
+alias                =  { (!(component_token | open_quantity) ~ text_item)* }
+alias_sep            = _{ "|" }
+close_component      =  {
+    open_quantity ~ ws* ~ quantity? ~ ws* ~ close_quantity
 }
+open_quantity        =  { "{" }
+close_quantity       =  { "}" }
+
+quantity        =  {
+    numeric_value ~ ws+ ~ !(unit_separator | auto_scale | value_separator) ~ unit
+  | value ~ (value_separator ~ value)* ~ auto_scale? ~ (unit_separator ~ unit)?
+}
+value_separator = @{ ws* ~ "|" ~ ws* }
+auto_scale      = @{ ws* ~ "*" ~ ws* }
+unit_separator  = @{ ws* ~ "%" ~ ws* }
+
+value         = _{ numeric_value ~ &(ws+ | "|" | "%" | "*" | "}") | value_text }
+numeric_value =  { mixed_number | fraction | range | number }
+unit          =  { (!"}" ~ text_item)* }
+
+value_text       =  { ((!("%" | "}" | "|") ~ text_item))+ }
+integer          = @{ (!"0" ~ ASCII_DIGIT+) | ASCII_DIGIT ~ !ASCII_DIGIT }
+fraction         =  { regular_fraction | unicode_fraction }
+regular_fraction =  { integer ~ ws* ~ "/" ~ ws* ~ integer }
+mixed_number     =  { integer ~ ws* ~ fraction }
+float            = @{ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
+number           =  { float | integer }
+range            =  { number ~ ws* ~ "-" ~ ws* ~ number }
+unicode_fraction =  {
+    "½"
+  | "⅓"
+  | "¼"
+  | "⅕"
+  | "⅙"
+  | "⅐"
+  | "⅛"
+  | "⅑"
+  | "⅒"
+  | "⅔"
+  | "⅖"
+  | "¾"
+  | "⅗"
+  | "⅜"
+  | "⅘"
+  | "⅚"
+  | "⅝"
+  | "⅞"
+  | "↉" // just why?
+}
+
+text_item     = _{ comment | "\\" ~ any | !NEWLINE ~ any }
+any           =  { ANY }
+esc           = _{ "\\" }
+ws            = _{ SPACE_SEPARATOR | "\t" }
+line_comment  = @{ "--" ~ (!NEWLINE ~ ANY)* }
+block_comment = @{ "[-" ~ (!"-]" ~ ANY)* ~ "-]"? }
+comment       = _{ line_comment | block_comment }

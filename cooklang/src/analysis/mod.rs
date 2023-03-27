@@ -90,7 +90,7 @@ pub enum AnalysisWarning {
 
     #[error("Redundant reference (&) modifier")]
     RedundantReferenceModifier {
-        modifiers: Located<crate::parser::ast::Modifiers>,
+        modifiers: Located<crate::ast::Modifiers>,
     },
 
     #[error("Referenced recipe not found: '{name}'")]
@@ -100,7 +100,7 @@ pub enum AnalysisWarning {
     ReferenceToRecipeMissing {
         ingredient_span: Span,
         referenced_span: Span,
-        modifiers: Located<crate::parser::ast::Modifiers>,
+        modifiers: Located<crate::ast::Modifiers>,
     },
 }
 

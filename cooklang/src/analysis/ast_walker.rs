@@ -3,11 +3,11 @@ use std::collections::HashMap;
 
 use regex::Regex;
 
+use crate::ast::{self, Modifiers, Text};
 use crate::context::Context;
 use crate::convert::{Converter, PhysicalQuantity};
-use crate::located::{Located, OptTake};
+use crate::located::Located;
 use crate::metadata::Metadata;
-use crate::parser::ast::{self, Modifiers};
 use crate::quantity::{Quantity, QuantityValue, ScalableValue, UnitInfo, Value};
 use crate::span::Span;
 use crate::{model::*, Extensions, RecipeRefChecker};
@@ -79,7 +79,7 @@ struct Walker<'a, 'c> {
     context: Context<AnalysisError, AnalysisWarning>,
 
     ingredient_locations: Vec<Located<ast::Ingredient<'a>>>,
-    metadata_locations: HashMap<&'a str, (Located<&'a str>, Located<&'a str>)>,
+    metadata_locations: HashMap<Cow<'a, str>, (Text<'a>, Text<'a>)>,
 }
 
 #[derive(PartialEq)]
@@ -126,7 +126,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                     if !current_section.is_empty() {
                         self.content.sections.push(current_section);
                     }
-                    current_section = Section::new(name);
+                    current_section = Section::new(name.map(|t| t.text_trimmed()));
                 }
                 ast::Line::SoftBreak => {
                     if self.extensions.contains(Extensions::MULTINE_STEPS) {
@@ -142,45 +142,49 @@ impl<'a, 'r> Walker<'a, 'r> {
         }
     }
 
-    fn metadata(&mut self, key: Located<&'a str>, value: Located<&'a str>) {
+    fn metadata(&mut self, key: Text<'a>, value: Text<'a>) {
         self.metadata_locations
-            .insert(&key, (key.clone(), value.clone()));
+            .insert(key.text_trimmed(), (key.clone(), value.clone()));
 
         let invalid_value = |possible_values| AnalysisError::InvalidSpecialMetadataValue {
-            key: key.clone().map_inner(str::to_string),
-            value: value.clone().map_inner(str::to_string),
+            key: key.located_string(),
+            value: value.located_string(),
             possible_values,
         };
 
-        if self.extensions.contains(Extensions::MODES) && key.starts_with('[') && key.ends_with(']')
+        let key_t = key.text_trimmed();
+        let value_t = value.text_trimmed();
+        if self.extensions.contains(Extensions::MODES)
+            && key_t.starts_with('[')
+            && key_t.ends_with(']')
         {
-            let special_key = &key[1..key.len() - 1];
+            let special_key = &key_t[1..key_t.len() - 1];
             match special_key {
-                "define" | "mode" => match value.as_ref() {
+                "define" | "mode" => match value_t.as_ref() {
                     "all" | "default" => self.define_mode = DefineMode::All,
                     "components" | "ingredients" => self.define_mode = DefineMode::Components,
                     "steps" => self.define_mode = DefineMode::Steps,
                     "text" => self.define_mode = DefineMode::Text,
                     _ => self.error(invalid_value(vec!["all", "components", "steps", "text"])),
                 },
-                "duplicate" => match value.as_ref() {
+                "duplicate" => match value_t.as_ref() {
                     "new" | "default" => self.duplicate_mode = DuplicateMode::New,
                     "reference" | "ref" => self.duplicate_mode = DuplicateMode::Reference,
                     _ => self.error(invalid_value(vec!["new", "reference"])),
                 },
-                "auto scale" | "auto_scale" => match value.as_ref() {
+                "auto scale" | "auto_scale" => match value_t.as_ref() {
                     "true" => self.auto_scale_ingredients = true,
                     "false" | "default" => self.auto_scale_ingredients = false,
                     _ => self.error(invalid_value(vec!["true", "false"])),
                 },
                 _ => self.warn(AnalysisWarning::UnknownSpecialMetadataKey {
-                    key: key.map_inner(str::to_string),
+                    key: key.located_string(),
                 }),
             }
-        } else if let Err(warn) = self.content.metadata.insert(key.get(), value.get()) {
+        } else if let Err(warn) = self.content.metadata.insert(key_t, value_t) {
             self.warn(AnalysisWarning::InvalidMetadataValue {
-                key: key.map_inner(str::to_string),
-                value: value.map_inner(str::to_string),
+                key: key.located_string(),
+                value: value.located_string(),
                 source: warn,
             });
         }
@@ -194,11 +198,12 @@ impl<'a, 'r> Walker<'a, 'r> {
         for item in items {
             match item {
                 ast::Item::Text(text) => {
+                    let t = text.text();
                     if self.define_mode == DefineMode::Components {
                         // only issue warnings for alphanumeric characters
                         // so that the user can format the text with spaces,
                         // hypens or whatever.
-                        if text.contains(|c: char| c.is_alphanumeric()) {
+                        if t.contains(|c: char| c.is_alphanumeric()) {
                             self.warn(AnalysisWarning::TextDefiningIngredients {
                                 text_span: text.span(),
                             });
@@ -207,11 +212,8 @@ impl<'a, 'r> Walker<'a, 'r> {
                         continue; // ignore text
                     }
 
-                    let text = text.take();
-
                     if let Some(re) = &self.temperature_regex {
-                        if let Some((before, temperature, after)) =
-                            find_temperature(text.clone(), re)
+                        if let Some((before, temperature, after)) = find_temperature(t.clone(), re)
                         {
                             if !before.is_empty() {
                                 new_items.push(Item::Text(before));
@@ -226,7 +228,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                         }
                     }
 
-                    new_items.push(Item::Text(text.clone()));
+                    new_items.push(Item::Text(t));
                 }
                 ast::Item::Component(c) => {
                     if is_text {
@@ -271,6 +273,8 @@ impl<'a, 'r> Walker<'a, 'r> {
         let (ingredient, location) = ingredient.take_pair();
         let location = Span::from(location);
 
+        let name = ingredient.name.text_trimmed();
+
         let same_name = self
             .content
             .ingredients
@@ -278,14 +282,17 @@ impl<'a, 'r> Walker<'a, 'r> {
             // find the LAST ingredient with the same name
             .rposition(|igr| {
                 !igr.modifiers.contains(Modifiers::REF)
-                    && igr.name.to_lowercase() == ingredient.name.as_ref().to_lowercase()
+                    && igr.name.to_lowercase() == name.to_lowercase()
             });
 
         let mut new_igr = Ingredient {
-            name: ingredient.name.take(),
-            alias: ingredient.alias.opt_take(),
-            quantity: ingredient.quantity.clone().map(|q| self.quantity(q, true)),
-            note: ingredient.note.opt_take(),
+            name,
+            alias: ingredient.alias.map(|t| t.text_trimmed()),
+            quantity: ingredient
+                .quantity
+                .clone()
+                .map(|q| self.quantity(q.into_located_inner(), true)),
+            note: ingredient.note.map(|n| n.text_trimmed()),
             modifiers: ingredient.modifiers.clone().take(),
             references_to: None,
             referenced_from: Default::default(),
@@ -428,8 +435,8 @@ impl<'a, 'r> Walker<'a, 'r> {
         let (cookware, _span) = cookware.take_pair();
 
         let new_cookware = Cookware {
-            name: cookware.name.take(),
-            quantity: cookware.quantity.map(|q| self.value(q, false)),
+            name: cookware.name.text_trimmed(),
+            quantity: cookware.quantity.map(|q| self.value(q.into_inner(), false)),
         };
 
         self.content.cookware.push(new_cookware);
@@ -440,7 +447,7 @@ impl<'a, 'r> Walker<'a, 'r> {
         let located_timer = timer.clone();
         let (timer, span) = timer.take_pair();
 
-        let quantity = self.quantity(timer.quantity, false);
+        let quantity = self.quantity(timer.quantity.into_located_inner(), false);
         if self.extensions.contains(Extensions::ADVANCED_UNITS) {
             if let Some(unit) = quantity.unit() {
                 match unit.unit_or_parse(self.converter) {
@@ -461,7 +468,7 @@ impl<'a, 'r> Walker<'a, 'r> {
         }
 
         let new_timer = Timer {
-            name: timer.name.opt_take(),
+            name: timer.name.map(|t| t.text_trimmed()),
             quantity,
         };
 
@@ -474,8 +481,11 @@ impl<'a, 'r> Walker<'a, 'r> {
         quantity: Located<ast::Quantity<'a>>,
         is_ingredient: bool,
     ) -> Quantity<'a> {
-        let ast::Quantity { value, unit } = quantity.take();
-        Quantity::new(self.value(value, is_ingredient), unit.opt_take())
+        let ast::Quantity { value, unit, .. } = quantity.take();
+        Quantity::new(
+            self.value(value, is_ingredient),
+            unit.map(|t| t.text_trimmed()),
+        )
     }
 
     fn value(&mut self, value: ast::QuantityValue<'a>, is_ingredient: bool) -> QuantityValue<'a> {
@@ -485,13 +495,13 @@ impl<'a, 'r> Walker<'a, 'r> {
                     .metadata_locations
                     .get("servings")
                     .map(|(_, value)| value.span());
-                if s.len() != v.len() {
+                if s.len() != v.items().len() {
                     self.context
                         .error(AnalysisError::ScalableValueManyConflict {
                             reason: format!(
                                 "{} servings defined but {} values in the quantity",
                                 s.len(),
-                                v.len()
+                                v.items().len()
                             )
                             .into(),
                             value_span: value.span(),
@@ -500,8 +510,11 @@ impl<'a, 'r> Walker<'a, 'r> {
                 }
             } else {
                 self.error(AnalysisError::ScalableValueManyConflict {
-                    reason: format!("no servings defined but {} values in quantity", v.len())
-                        .into(),
+                    reason: format!(
+                        "no servings defined but {} values in quantity",
+                        v.items().len()
+                    )
+                    .into(),
                     value_span: value.span(),
                     servings_meta_span: None,
                 })

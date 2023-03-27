@@ -4,7 +4,10 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::convert::{ConvertError, Converter, PhysicalQuantity, Unit};
+use crate::{
+    ast,
+    convert::{ConvertError, Converter, PhysicalQuantity, Unit},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Quantity<'a> {
@@ -183,8 +186,7 @@ impl<'a> Quantity<'a> {
 }
 
 impl<'a> QuantityValue<'a> {
-    pub(crate) fn from_ast(value: crate::parser::ast::QuantityValue<'a>) -> Self {
-        use crate::parser::ast;
+    pub(crate) fn from_ast(value: ast::QuantityValue<'a>) -> Self {
         match value {
             ast::QuantityValue::Single {
                 value,
@@ -197,7 +199,10 @@ impl<'a> QuantityValue<'a> {
                 ..
             } => Self::Scalable(ScalableValue::Linear(value.take())),
             ast::QuantityValue::Many(v) => Self::Scalable(ScalableValue::ByServings(
-                v.into_iter().map(crate::located::Located::take).collect(),
+                v.into_items()
+                    .into_iter()
+                    .map(crate::located::Located::take)
+                    .collect(),
             )),
         }
     }

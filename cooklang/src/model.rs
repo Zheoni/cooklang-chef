@@ -3,9 +3,9 @@ use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    ast::Modifiers,
     convert::Converter,
     metadata::Metadata,
-    parser::ast::Modifiers,
     quantity::{Quantity, QuantityAddError, QuantityValue},
 };
 

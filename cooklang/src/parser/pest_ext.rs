@@ -1,6 +1,9 @@
-use std::borrow::Cow;
+use std::iter::Peekable;
 
-use super::Pair;
+use super::{
+    ast::{Text, TextFragment},
+    Pair, Pairs, Rule,
+};
 use crate::located::Located;
 
 pub trait PairExt<'a> {
@@ -10,11 +13,7 @@ pub trait PairExt<'a> {
 
     fn first_inner(self) -> Self;
 
-    fn as_located_str(&self) -> Located<&'a str>;
-    fn text(&self) -> Cow<'a, str>;
-    fn text_trimmed(&self) -> Cow<'a, str>;
-    fn located_text(&self) -> Located<Cow<'a, str>>;
-    fn located_text_trimmed(&self) -> Located<Cow<'a, str>>;
+    fn text(&self) -> Text<'a>;
 }
 
 impl<'a> PairExt<'a> for Pair<'a> {
@@ -29,66 +28,55 @@ impl<'a> PairExt<'a> for Pair<'a> {
         pair
     }
 
-    fn as_located_str(&self) -> Located<&'a str> {
-        Located::new(self.as_str(), self.as_span())
+    fn text(&self) -> Text<'a> {
+        let mut it = self.clone().into_inner().peekable();
+        let mut text = Text::empty(self.as_span().start());
+        while let Some(fragment) = next_fragment(&mut it, self.as_str(), self.as_span().start()) {
+            text.push(fragment);
+        }
+        text
     }
+}
 
-    fn text(&self) -> Cow<'a, str> {
-        let mut it = self.clone().into_inner();
-
-        let Some((mut current_start, mut current_end)) = it.next().map(|r| {
-            let s = r.as_span();
-            (s.start(), s.end())
-        }) else {
-            return self.as_str().into();
-        };
-
-        // Group pairs into segments that are contiguous
-        let mut segments = Vec::with_capacity(4);
-        for pair in it {
-            let span = pair.as_span();
-
-            if current_end == span.start() {
-                // extend current segment if is in the same byte position
-                current_end = span.end();
-            } else {
-                // or create a new one
-                segments.push((current_start, current_end));
-                current_start = span.start();
-                current_end = span.end();
+fn next_fragment<'a>(
+    pairs: &mut Peekable<Pairs<'a>>,
+    source: &'a str,
+    offset: usize,
+) -> Option<TextFragment<'a>> {
+    let pair = pairs.next()?;
+    match pair.as_rule() {
+        Rule::any => {
+            let mut range = pair.as_span().start()..pair.as_span().end();
+            loop {
+                match pairs.peek() {
+                    Some(p) if p.as_rule() == Rule::any => {
+                        range.end = p.as_span().end();
+                    }
+                    _ => {
+                        range.start -= offset;
+                        range.end -= offset;
+                        return Some(TextFragment::text(
+                            &source[range.clone()],
+                            pair.as_span().start(),
+                        ));
+                    }
+                }
+                pairs.next();
             }
         }
-        segments.push((current_start, current_end));
-
-        let as_str = self.as_str();
-        let offset = self.as_span().start();
-
-        let mut s = Cow::Borrowed("");
-
-        // Collect the segments. If it's one, it will still be a Cow::Borrowed
-        // because the += impl in std checks if its empty before allocating
-        for (start, end) in segments {
-            s += &as_str[start - offset..end - offset];
+        Rule::line_comment => {
+            return Some(TextFragment::line_comment(
+                pair.as_str(),
+                pair.as_span().start(),
+            ))
         }
-
-        s
-    }
-
-    fn text_trimmed(&self) -> Cow<'a, str> {
-        let s = self.text();
-
-        match s {
-            Cow::Borrowed(s) => Cow::Borrowed(s.trim()),
-            Cow::Owned(s) => Cow::Owned(s.trim().to_string()),
+        Rule::block_comment => {
+            return Some(TextFragment::block_comment(
+                pair.as_str(),
+                pair.as_span().start(),
+            ))
         }
-    }
-
-    fn located_text(&self) -> Located<Cow<'a, str>> {
-        Located::new(self.text(), self.as_span())
-    }
-
-    fn located_text_trimmed(&self) -> Located<Cow<'a, str>> {
-        Located::new(self.text_trimmed(), self.as_span())
+        _ => panic!("unexpected text item rule: {:?}", pair.as_rule()),
     }
 }
 

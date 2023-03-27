@@ -9,6 +9,7 @@
 //! The parser returns rich errors with annotated code spans. For example.
 
 mod analysis;
+pub mod ast;
 mod context;
 pub mod convert;
 pub mod error;

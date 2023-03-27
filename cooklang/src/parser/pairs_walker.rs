@@ -1,10 +1,11 @@
-use std::{borrow::Cow, ops::RangeInclusive};
+use std::ops::RangeInclusive;
 
 use crate::{
+    ast::TextFragment,
     context::{Context, Recover},
     error::PassResult,
     located::Located,
-    parser::pest_ext::PairExt,
+    parser::{ast::Separated, pest_ext::PairExt},
     quantity::Value,
     span::Span,
     Extensions,
@@ -12,7 +13,8 @@ use crate::{
 
 use super::{
     ast::{
-        Ast, Component, Cookware, Ingredient, Item, Line, Modifiers, Quantity, QuantityValue, Timer,
+        Ast, Component, Cookware, Delimited, Ingredient, Item, Line, Modifiers, Quantity,
+        QuantityValue, Text, Timer,
     },
     Pair, Pairs, ParserError, ParserWarning, Rule,
 };
@@ -34,7 +36,7 @@ macro_rules! is_rule {
 }
 
 macro_rules! unexpected_ignore {
-    ($pair:ident) => {{
+    ($pair:expr) => {{
         #[cfg(debug_assertions)]
         {
             eprintln!(
@@ -46,7 +48,7 @@ macro_rules! unexpected_ignore {
             );
         }
     }};
-    ($pair:ident, $val:expr) => {{
+    ($pair:expr, $val:expr) => {{
         #[cfg(debug_assertions)]
         {
             eprintln!(
@@ -62,12 +64,13 @@ macro_rules! unexpected_ignore {
 }
 
 macro_rules! unexpected_panic {
-    ($pair:ident, $where:literal) => {{
+    ($pair:expr, $where:literal) => {{
         unexpected_ignore!($pair);
         panic!(concat!("unexpected rule inside ", $where));
     }};
 }
 
+#[tracing::instrument(skip_all)]
 pub fn build_ast(
     mut pairs: Pairs,
     extensions: Extensions,
@@ -119,25 +122,28 @@ impl Walker {
         Ast { lines }
     }
 
-    fn metadata<'a>(&mut self, pair: Pair<'a>) -> (Located<&'a str>, Located<&'a str>) {
+    fn metadata<'a>(&mut self, pair: Pair<'a>) -> (Text<'a>, Text<'a>) {
         is_rule!(pair, Rule::metadata);
 
         let mut pairs = pair.into_inner();
-        let key = pairs
-            .next()
-            .expect("No key in metadata")
-            .as_located_str()
-            .map_inner(str::trim);
-        let value = pairs
-            .next()
-            .expect("No value in metadata")
-            .as_located_str()
-            .map_inner(str::trim);
+        let key = pairs.next().expect("No key in metadata").text();
+        let value = pairs.next().expect("No value in metadata").text();
+        debug_assert!(pairs.next().is_none());
 
-        assert!(!key.is_empty(), "Key is empty");
-        if value.trim().is_empty() {
+        if key.is_text_empty() {
+            self.error(ParserError::ComponentPartInvalid {
+                container: "metadata entry",
+                what: "key",
+                reason: "is empty",
+                bad_bit: key.span(),
+                span_label: Some("this cannot be empty"),
+                help: None,
+            });
+        }
+
+        if value.is_text_empty() {
             self.warn(ParserWarning::EmptyMetadataValue {
-                key: key.clone().map_inner(str::to_string),
+                key: key.located_str().map_inner(|c| c.into_owned()),
             });
         }
 
@@ -155,7 +161,10 @@ impl Walker {
                     if self.extensions.contains(Extensions::TEXT_STEPS) {
                         is_text = true;
                     } else {
-                        items.push(Item::Text(Located::new(pair.text(), pair)));
+                        items.push(Item::Text(Text::from_str(
+                            pair.as_str(),
+                            pair.as_span().start(),
+                        )));
                     }
                 }
                 Rule::component => {
@@ -165,7 +174,24 @@ impl Walker {
                         items.push(Item::Text(t));
                     }
                 }
-                Rule::text => items.push(Item::Text(Located::new(pair.text(), pair))),
+                Rule::plain_text => items.push(Item::Text(Text::from_str(
+                    pair.as_str(),
+                    pair.as_span().start(),
+                ))),
+                Rule::line_comment => items.push(Item::Text(Text::new(
+                    pair.as_span().start(),
+                    vec![TextFragment::line_comment(
+                        pair.as_str(),
+                        pair.as_span().start(),
+                    )],
+                ))),
+                Rule::block_comment => items.push(Item::Text(Text::new(
+                    pair.as_span().start(),
+                    vec![TextFragment::block_comment(
+                        pair.as_str(),
+                        pair.as_span().start(),
+                    )],
+                ))),
                 _ => unexpected_ignore!(pair),
             }
         }
@@ -173,7 +199,7 @@ impl Walker {
         (is_text, items)
     }
 
-    fn section<'a>(&mut self, pair: Pair<'a>) -> Option<Cow<'a, str>> {
+    fn section<'a>(&mut self, pair: Pair<'a>) -> Option<Text<'a>> {
         is_rule!(pair, Rule::section);
 
         if !self.extensions.contains(Extensions::SECTIONS) {
@@ -186,14 +212,11 @@ impl Walker {
 
         pair.into_inner().next().map(|p| {
             is_rule!(p, Rule::section_name);
-            p.text_trimmed()
+            p.text()
         })
     }
 
-    fn component<'a>(
-        &mut self,
-        pair: Pair<'a>,
-    ) -> (Located<Component<'a>>, Option<Located<Cow<'a, str>>>) {
+    fn component<'a>(&mut self, pair: Pair<'a>) -> (Located<Component<'a>>, Option<Text<'a>>) {
         is_rule!(pair, Rule::component);
 
         let mut token = None;
@@ -207,23 +230,46 @@ impl Walker {
 
         for pair in pair.into_inner() {
             match pair.as_rule() {
-                Rule::component_token => token = Some(pair.as_str()),
+                Rule::component_token => token = Some(pair.first_inner()),
                 Rule::modifiers => modifiers = Some(pair.into()),
-                Rule::name | Rule::one_word_component => {
-                    name = Some(pair.located_text_trimmed());
+                Rule::name => {
+                    name = Some(pair.text());
+                }
+                Rule::one_word_component => {
+                    name = Some(Text::from_str(pair.as_str(), pair.as_span().start()))
                 }
                 Rule::alias => {
-                    alias = Some(pair.located_text_trimmed());
+                    alias = Some(pair.text());
                 }
-                Rule::quantity => {
-                    quantity = Some(Located::from(pair).map_inner(|p| self.quantity(p)))
+                Rule::close_component => {
+                    let mut it = pair.into_inner();
+                    let open = it.next().unwrap().as_span().into();
+                    let p = it.next().unwrap();
+                    match p.as_rule() {
+                        Rule::close_quantity => continue,
+                        Rule::quantity => {
+                            let close = it.next().unwrap().as_span().into();
+                            quantity = Some(Delimited::new(open, self.quantity(p), close));
+                        }
+                        _ => unexpected_panic!(p, "close component"),
+                    }
                 }
-                Rule::note => note = Some(pair.located_text()),
+                Rule::note => {
+                    let mut it = pair.into_inner();
+                    let open = it.next().unwrap().as_span().into();
+                    let content = it.next().unwrap().text();
+                    let close = it.next().unwrap().as_span().into();
+                    debug_assert!(it.next().is_none());
+                    note = Some(Delimited::new(open, content, close));
+                }
                 _ => unexpected_ignore!(pair),
             }
         }
 
+        let token = token.expect("No component_token inside item");
+
         let mut c = GenericComponent {
+            token,
             span,
             name,
             alias,
@@ -247,10 +293,8 @@ impl Walker {
         if !self.extensions.contains(Extensions::INGREDIENT_ALIAS) {
             if let Some(alias) = c.alias {
                 let name = c.name.as_mut().expect("Alias but no name");
-                *name = Located::new(
-                    format!("{name}|{alias}").into(),
-                    name.range().start..alias.range().end,
-                );
+                name.append_str("|");
+                name.append(alias);
             }
             c.alias = None;
         }
@@ -259,16 +303,21 @@ impl Walker {
         let mut extra_text = None;
         if !self.extensions.contains(Extensions::INGREDIENT_NOTE) {
             if let Some(note) = c.note {
-                extra_text = Some(note);
+                let orig_span = note.span();
+                let mut t = Text::from_str("(", note.span().start());
+                t.append(note.into_inner());
+                t.append_str(")");
+                assert_eq!(t.span(), orig_span);
+                extra_text = Some(t);
             }
             c.note = None;
         }
 
-        let component = match token.expect("No component_token inside item") {
-            "@" => Component::Ingredient(self.ingredient(c)),
-            "#" => Component::Cookware(self.cookware(c)),
-            "~" => Component::Timer(self.timer(c)),
-            _ => unreachable!("Unknown item kind"),
+        let component = match c.token.as_rule() {
+            Rule::ingredient_token => Component::Ingredient(self.ingredient(c)),
+            Rule::cookware_token => Component::Cookware(self.cookware(c)),
+            Rule::timer_token => Component::Timer(self.timer(c)),
+            _ => unexpected_panic!(c.token, "component token"),
         };
 
         (Located::new(component, span), extra_text)
@@ -277,17 +326,10 @@ impl Walker {
     fn ingredient<'a>(&mut self, component: GenericComponent<'a>) -> Ingredient<'a> {
         let modifiers = component
             .modifiers
-            .map(|p| p.map_inner(|p| self.modifiers(p)))
-            .unwrap_or_else(|| {
-                Located::new(
-                    Modifiers::empty(),
-                    component.span.start() + 1..component.span.start() + 1,
-                )
-            });
+            .map(|p| p.located().map_inner(|p| self.modifiers(p)));
 
         let name = component.name.unwrap_or_else(Recover::recover);
-
-        if name.is_empty() {
+        if name.is_text_empty() {
             self.error(ParserError::ComponentPartMissing {
                 container: INGREDIENT,
                 what: "name",
@@ -297,11 +339,12 @@ impl Walker {
 
         let alias = component.alias;
         if let Some(alias) = &alias {
-            if alias.is_empty() {
+            if alias.is_text_empty() {
+                let span = alias.span();
                 self.error(ParserError::ComponentPartNotAllowed {
                     container: INGREDIENT,
                     what: "empty alias",
-                    to_remove: Span::new(alias.offset() - 1, alias.offset()),
+                    to_remove: Span::new(span.start() - 1, span.end()),
                     help: Some("Add an alias or remove the '|'"),
                 });
             }
@@ -309,6 +352,10 @@ impl Walker {
 
         let quantity = component.quantity;
         let note = component.note;
+        let modifiers = modifiers.unwrap_or_else(|| {
+            let pos = component.token.as_span().end();
+            Located::new(Modifiers::empty(), Span::new(pos, pos))
+        });
 
         Ingredient {
             modifiers,
@@ -324,7 +371,7 @@ impl Walker {
             self.error(ParserError::ComponentPartNotAllowed {
                 container: COOKWARE,
                 what: "modifiers",
-                to_remove: modifiers.span(),
+                to_remove: modifiers.as_span().into(),
                 help: Some("Modifiers are only available in ingredients"),
             });
         }
@@ -348,7 +395,7 @@ impl Walker {
         }
 
         let name = component.name.unwrap_or_else(Recover::recover);
-        if name.is_empty() {
+        if name.is_text_empty() {
             self.error(ParserError::ComponentPartMissing {
                 container: COOKWARE,
                 what: "name",
@@ -357,19 +404,25 @@ impl Walker {
         }
 
         let quantity = component.quantity.map(|quantity| {
-            if let Some(unit) = &quantity.unit {
+            if let Some(unit_span) = quantity.unit_span() {
                 self.error(ParserError::ComponentPartNotAllowed {
                     container: COOKWARE,
                     what: "unit in quantity",
-                    to_remove: Span::new(quantity.value.span().end(), unit.span().end()),
+                    to_remove: unit_span,
                     help: Some("Cookware quantity can't have an unit"),
                 });
             }
-            quantity.take().value
+            let open = quantity.open();
+            let close = quantity.close();
+            Delimited::new(open, quantity.into_inner().value, close)
         });
-        if let Some(QuantityValue::Single {
-            scalable: true,
-            auto_scale_marker,
+        if let Some(Delimited {
+            inner:
+                QuantityValue::Single {
+                    scalable: true,
+                    auto_scale_marker,
+                    ..
+                },
             ..
         }) = &quantity
         {
@@ -389,7 +442,7 @@ impl Walker {
             self.error(ParserError::ComponentPartNotAllowed {
                 container: TIMER,
                 what: "modifiers",
-                to_remove: modifiers.span(),
+                to_remove: modifiers.as_span().into(),
                 help: Some("Modifiers are only available in ingredients"),
             });
         }
@@ -449,20 +502,21 @@ impl Walker {
     fn modifiers(&mut self, pair: Pair) -> Modifiers {
         is_rule!(pair, Rule::modifiers);
 
+        let span = pair.as_span().into();
         let mut modifiers = Modifiers::empty();
-        for c in pair.as_str().chars() {
-            let m = match c {
-                '@' => Modifiers::RECIPE,
-                '+' => Modifiers::NEW,
-                '-' => Modifiers::HIDDEN,
-                '&' => Modifiers::REF,
-                '?' => Modifiers::OPT,
-                _ => panic!("Unknown modifier"),
+        for p in pair.into_inner() {
+            let m = match p.as_rule() {
+                Rule::mod_recipe => Modifiers::RECIPE,
+                Rule::mod_new => Modifiers::NEW,
+                Rule::mod_hidden => Modifiers::HIDDEN,
+                Rule::mod_ref => Modifiers::REF,
+                Rule::mod_opt => Modifiers::OPT,
+                _ => unexpected_panic!(p, "modifiers"),
             };
             if modifiers.contains(m) {
                 self.context.errors.push(ParserError::InvalidModifiers {
-                    modifiers_span: pair.into(),
-                    reason: format!("duplicate modifier '{c}'").into(),
+                    modifiers_span: span,
+                    reason: format!("duplicate modifier '{}'", p.as_str()).into(),
                     help: Some("Modifier order does not matter, but duplicates are not allowed"),
                 });
                 return Modifiers::empty();
@@ -475,7 +529,7 @@ impl Walker {
             && modifiers.intersects(Modifiers::NEW | Modifiers::HIDDEN | Modifiers::OPT)
         {
             self.context.errors.push(ParserError::InvalidModifiers {
-                modifiers_span: pair.into(),
+                modifiers_span: span,
                 reason: "unsuported combination with reference".into(),
                 help: Some("Reference ('&') modifier can only be combined with recipe ('@')"),
             });
@@ -492,25 +546,27 @@ impl Walker {
         let mut values = Vec::new();
         let mut auto_scale = false;
         let mut auto_scale_marker = None;
-        let mut separator = None;
+        let mut unit_separator = None;
         let mut unit = None;
         for pair in inner.by_ref() {
             match pair.as_rule() {
                 Rule::numeric_value => {
                     values.push(pair.located().map_inner(|p| self.numeric_value(p)))
                 }
-                Rule::value_text => {
-                    values.push(pair.located().map_inner(|p| Value::Text(p.text_trimmed())))
-                }
+                Rule::value_text => values.push(
+                    pair.located()
+                        .map_inner(|p| Value::Text(p.text().text_trimmed())),
+                ),
                 Rule::auto_scale => {
                     auto_scale = true;
-                    auto_scale_marker = Some(pair.as_span().into())
+                    auto_scale_marker = Some(Span::from(pair.as_span()))
                 }
-                Rule::unit_separator => separator = Some(pair),
+                Rule::unit_separator => unit_separator = Some(Span::from(pair.as_span())),
                 Rule::unit => {
-                    unit = Some(pair.located_text_trimmed());
+                    unit = Some(pair.text());
                     break; // should be the last thing
                 }
+                Rule::value_separator => {}
                 _ => unexpected_panic!(pair, "quantity"),
             }
         }
@@ -520,7 +576,7 @@ impl Walker {
         // all as a value text, even if a unit has been found. this is the default
         // (original) cooklang behaviour
         if !self.extensions.contains(Extensions::ADVANCED_UNITS)
-            && separator.is_none()
+            && unit_separator.is_none()
             && unit.is_some()
         {
             values = vec![pair
@@ -543,14 +599,14 @@ impl Walker {
                         bad_bit: pair.into(),
                     });
                 }
-                QuantityValue::Many(values)
+                QuantityValue::Many(Separated::from_items(values))
             }
         };
 
         if let Some(u) = &unit {
-            if u.is_empty() {
-                if let Some(separator) = separator {
-                    let to_remove = Span::new(separator.as_span().start(), u.range().end);
+            if u.is_text_empty() {
+                if let Some(separator) = unit_separator {
+                    let to_remove = Span::new(separator.start(), u.span().end());
                     self.error(ParserError::ComponentPartNotAllowed {
                         container: "quantity",
                         what: "empty unit",
@@ -563,7 +619,11 @@ impl Walker {
             }
         }
 
-        Quantity { value, unit }
+        Quantity {
+            value,
+            unit,
+            unit_separator,
+        }
     }
 
     fn numeric_value<'a>(&mut self, pair: Pair<'a>) -> Value<'a> {
@@ -691,11 +751,13 @@ fn mixed_number(pair: Pair) -> Result<f64, ParserError> {
     Ok(integer + frac)
 }
 
+#[derive(Debug)]
 struct GenericComponent<'a> {
+    token: Pair<'a>,
     span: Span,
-    modifiers: Option<Located<Pair<'a>>>,
-    name: Option<Located<Cow<'a, str>>>,
-    alias: Option<Located<Cow<'a, str>>>,
-    quantity: Option<Located<Quantity<'a>>>,
-    note: Option<Located<Cow<'a, str>>>,
+    modifiers: Option<Pair<'a>>,
+    name: Option<Text<'a>>,
+    alias: Option<Text<'a>>,
+    quantity: Option<Delimited<Quantity<'a>>>,
+    note: Option<Delimited<Text<'a>>>,
 }

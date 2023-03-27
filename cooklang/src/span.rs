@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Span<Id = ()> {
     source_id: Id,
 
@@ -14,6 +14,14 @@ impl<Id: Default> Span<Id> {
             source_id: Id::default(),
             start,
             end,
+        }
+    }
+
+    pub fn pos(pos: usize) -> Self {
+        Self {
+            source_id: Id::default(),
+            start: pos,
+            end: pos,
         }
     }
 }
@@ -37,6 +45,10 @@ impl<Id> Span<Id> {
 
     pub fn range(&self) -> Range<usize> {
         self.start..self.end
+    }
+
+    pub fn len(&self) -> usize {
+        self.end - self.start
     }
 }
 

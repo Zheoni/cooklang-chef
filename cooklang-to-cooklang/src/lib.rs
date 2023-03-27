@@ -1,9 +1,9 @@
 use std::{borrow::Cow, fmt::Write, io};
 
 use cooklang::{
+    ast::Modifiers,
     metadata::Metadata,
     model::{ComponentKind, Item, Section, Step},
-    parser::ast::Modifiers,
     quantity::Quantity,
     ScaledRecipe,
 };

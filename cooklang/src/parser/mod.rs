@@ -7,9 +7,8 @@ use thiserror::Error;
 use crate::error::{PassResult, RichError};
 use crate::located::Located;
 use crate::span::Span;
-use crate::Extensions;
+use crate::{ast, Extensions};
 
-pub mod ast;
 mod pairs_walker;
 mod pest_ext;
 
@@ -67,6 +66,16 @@ pub enum ParserError {
         help: Option<&'static str>,
     },
 
+    #[error("Invalid {container} {what}: {reason}")]
+    ComponentPartInvalid {
+        container: &'static str,
+        what: &'static str,
+        reason: &'static str,
+        bad_bit: Span,
+        span_label: Option<&'static str>,
+        help: Option<&'static str>,
+    },
+
     #[error("Tried to use a disabled extension: {extension_name}")]
     ExtensionNotEnabled {
         span: Span,
@@ -119,6 +128,13 @@ impl RichError for ParserError {
             }
             ParserError::ComponentPartNotAllowed { to_remove, .. } => {
                 vec![label!(to_remove, "remove this")]
+            }
+            ParserError::ComponentPartInvalid {
+                bad_bit,
+                span_label,
+                ..
+            } => {
+                vec![(*bad_bit, span_label.map(Cow::from))]
             }
             ParserError::ExtensionNotEnabled { span, .. } => vec![label!(span, "used here")],
             ParserError::InvalidModifiers { modifiers_span, .. } => vec![label!(modifiers_span)],

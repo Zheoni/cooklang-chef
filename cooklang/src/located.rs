@@ -3,9 +3,11 @@ use std::{
     ops::{Deref, DerefMut, Range},
 };
 
+use serde::Serialize;
+
 use crate::{context::Recover, span::Span};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Located<T, Id = ()> {
     pub(crate) inner: T,
     span: Span<Id>,

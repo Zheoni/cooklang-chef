@@ -8,6 +8,7 @@ use crate::Context;
 
 use self::read::ReadArgs;
 
+mod ast;
 mod check;
 mod list;
 mod read;
@@ -33,6 +34,8 @@ enum RecipeCommand {
     /// List all the recipes
     #[command(alias = "l")]
     List(list::ListArgs),
+    /// Get the recipe abstract syntax tree
+    Ast(ast::AstArgs),
 }
 
 pub fn run(ctx: &Context, args: RecipeArgs) -> Result<()> {
@@ -42,6 +45,7 @@ pub fn run(ctx: &Context, args: RecipeArgs) -> Result<()> {
         RecipeCommand::Read(args) => read::run(ctx, args),
         RecipeCommand::Check(args) => check::run(ctx, args),
         RecipeCommand::List(args) => list::run(ctx, args),
+        RecipeCommand::Ast(args) => ast::run(ctx, args),
     }
 }
 

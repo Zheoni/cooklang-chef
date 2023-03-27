@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::Url;
 
-// from <https://docs.rs/once_cell/latest/once_cell/#lazily-compiled-regex>
+/// Utility to create lazy regex
+/// from <https://docs.rs/once_cell/latest/once_cell/#lazily-compiled-regex>
 macro_rules! regex {
     ($re:literal $(,)?) => {{
         static RE: once_cell::sync::OnceCell<regex::Regex> = once_cell::sync::OnceCell::new();
@@ -15,19 +16,20 @@ macro_rules! regex {
         })
     }};
 }
+pub(crate) use regex;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
 pub struct Metadata<'a> {
     pub slug: Option<String>,
-    pub description: Option<&'a str>,
-    pub tags: Vec<&'a str>,
-    pub emoji: Option<&'a str>,
+    pub description: Option<Cow<'a, str>>,
+    pub tags: Vec<Cow<'a, str>>,
+    pub emoji: Option<Cow<'a, str>>,
     pub author: Option<NameAndUrl<'a>>,
     pub source: Option<NameAndUrl<'a>>,
     pub time: Option<RecipeTime>,
     pub servings: Option<Vec<u32>>,
     #[serde(borrow)]
-    pub map: IndexMap<&'a str, &'a str>,
+    pub map: IndexMap<Cow<'a, str>, Cow<'a, str>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -50,22 +52,29 @@ pub enum RecipeTime {
 }
 
 impl<'a> Metadata<'a> {
-    pub(crate) fn insert(&mut self, key: &'a str, value: &'a str) -> Result<(), MetadataError> {
-        self.map.insert(key, value);
-        match key {
-            "slug" => self.slug = Some(slugify(value)),
+    pub(crate) fn insert(
+        &mut self,
+        key: Cow<'a, str>,
+        value: Cow<'a, str>,
+    ) -> Result<(), MetadataError> {
+        self.map.insert(key.clone(), value.clone());
+        match key.as_ref() {
+            "slug" => self.slug = Some(slugify(&value)),
             "description" => self.description = Some(value),
             "tag" | "tags" => {
-                let new_tags = value.split(',').map(str::trim).collect::<Vec<_>>();
+                let new_tags = value
+                    .split(',')
+                    .map(|s| Cow::from(s.trim().to_owned()))
+                    .collect::<Vec<_>>();
                 if new_tags.iter().any(|t| !is_valid_tag(t)) {
                     return Err(MetadataError::InvalidTag {
-                        tag: value.to_string(),
+                        tag: value.into_owned(),
                     });
                 }
                 self.tags.extend(new_tags);
             }
             "emoji" => {
-                if emojis::get(value).is_some() {
+                if emojis::get(&value).is_some() {
                     self.emoji = Some(value);
                 } else {
                     return Err(MetadataError::NotEmoji {
@@ -75,14 +84,14 @@ impl<'a> Metadata<'a> {
             }
             "author" => self.author = Some(NameAndUrl::new(value)),
             "source" => self.source = Some(NameAndUrl::new(value)),
-            "time" => self.time = Some(RecipeTime::Total(parse_time(value)?)),
+            "time" => self.time = Some(RecipeTime::Total(parse_time(&value)?)),
             "prep_time" | "prep time" => {
                 let cook_time = self.time.and_then(|t| match t {
                     RecipeTime::Total(_) => None,
                     RecipeTime::Composed { cook_time, .. } => cook_time,
                 });
                 self.time = Some(RecipeTime::Composed {
-                    prep_time: Some(parse_time(value)?),
+                    prep_time: Some(parse_time(&value)?),
                     cook_time,
                 });
             }
@@ -93,7 +102,7 @@ impl<'a> Metadata<'a> {
                 });
                 self.time = Some(RecipeTime::Composed {
                     prep_time,
-                    cook_time: Some(parse_time(value)?),
+                    cook_time: Some(parse_time(&value)?),
                 });
             }
             "servings" => {
@@ -113,7 +122,7 @@ impl<'a> Metadata<'a> {
 
     /// Returns a copy of [Self::map] but with all "special" metadata values
     /// removed
-    pub fn map_filtered(&self) -> IndexMap<&str, &str> {
+    pub fn map_filtered(&self) -> IndexMap<Cow<str>, Cow<str>> {
         const ALL_KNOWN_KEYS: &[&str] = &[
             "slug",
             "description",
@@ -130,7 +139,7 @@ impl<'a> Metadata<'a> {
             "servings",
         ];
         let mut new_map = self.map.clone();
-        new_map.retain(|key, _| !ALL_KNOWN_KEYS.contains(key));
+        new_map.retain(|key, _| !ALL_KNOWN_KEYS.contains(&key.as_ref()));
         new_map
     }
 }
@@ -144,26 +153,29 @@ fn parse_time(s: &str) -> Result<u32, std::num::ParseIntError> {
 }
 
 impl<'a> NameAndUrl<'a> {
-    pub fn new(s: &'a str) -> Self {
+    pub fn new(s: Cow<'a, str>) -> Self {
         let re = regex!(r"^(\w+(?:\s\w+)*)\s+<([^>]+)>$");
-        if let Some(captures) = re.captures(s) {
+        if let Some(captures) = re.captures(&s) {
             let name = &captures.get(1).unwrap();
             if let Ok(url) = Url::parse(captures[2].trim()) {
                 return NameAndUrl {
-                    name: Some(name.as_str().into()),
+                    name: Some(match &s {
+                        Cow::Borrowed(s) => s[name.range()].into(),
+                        Cow::Owned(s) => s[name.range()].to_owned().into(),
+                    }),
                     url: Some(url),
                 };
             }
         }
 
-        if let Ok(url) = Url::parse(s) {
+        if let Ok(url) = Url::parse(&s) {
             NameAndUrl {
                 name: None,
                 url: Some(url),
             }
         } else {
             NameAndUrl {
-                name: Some(s.into()),
+                name: Some(s),
                 url: None,
             }
         }
