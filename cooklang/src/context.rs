@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Context<E, W> {
     pub errors: Vec<E>,
     pub warnings: Vec<W>,

@@ -18,6 +18,8 @@ mod located;
 pub mod metadata;
 pub mod model;
 pub mod parser;
+#[allow(unused)]
+pub mod parser2;
 pub mod quantity;
 pub mod scale;
 pub mod shopping_list;
