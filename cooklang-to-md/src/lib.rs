@@ -42,9 +42,9 @@ pub fn print_md(
         writeln!(writer)?;
     }
 
-    ingredients(&mut writer, &recipe, converter)?;
-    cookware(&mut writer, &recipe)?;
-    sections(&mut writer, &recipe)?;
+    ingredients(&mut writer, recipe, converter)?;
+    cookware(&mut writer, recipe)?;
+    sections(&mut writer, recipe)?;
 
     Ok(())
 }

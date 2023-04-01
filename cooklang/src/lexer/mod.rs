@@ -3,6 +3,8 @@ mod cursor;
 pub use cursor::Cursor;
 use cursor::EOF_CHAR;
 
+use finl_unicode::categories::CharacterCategories;
+
 #[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
@@ -64,6 +66,8 @@ pub enum TokenKind {
     Int,
     /// "3.14", ".14", but not "14."
     Float,
+    /// any other unicode punctuation characters
+    Punctuation,
     /// Everything else, a "\" escapes the next char
     Word,
     /// "\" followed by any char
@@ -115,7 +119,6 @@ fn is_special(c: char) -> bool {
 }
 
 fn is_word_char(c: char) -> bool {
-    use finl_unicode::categories::CharacterCategories;
     !is_whitespace(c) && c != '\n' && c != '\r' && !is_special(c) && !c.is_punctuation()
 }
 
@@ -171,6 +174,7 @@ impl Cursor<'_> {
             '[' => TokenKind::OpenSquare,
             ']' => TokenKind::CloseSquare,
 
+            c if c.is_punctuation() => TokenKind::Punctuation,
             c if is_word_char(c) => self.word(),
 
             // anything else, a one char word
@@ -203,7 +207,7 @@ impl Cursor<'_> {
     }
 
     fn word(&mut self) -> TokenKind {
-        self.eat_while(|c| is_word_char(c));
+        self.eat_while(is_word_char);
         TokenKind::Word
     }
 
@@ -368,6 +372,9 @@ macro_rules! T {
     [ws] => {
         $crate::lexer::TokenKind::Whitespace
     };
+    [punctuation] => {
+        $crate::lexer::TokenKind::Punctuation
+    };
     [newline] => {
         $crate::lexer::TokenKind::Newline
     };
@@ -376,37 +383,6 @@ macro_rules! T {
     };
 }
 pub(crate) use T;
-
-/// Utility macro to build a vec of tokens, example:
-/// ```
-/// # use crate::lexer::Token;
-/// # use crate::lexer::tokens;
-/// let tokens = tokens![word: 3, ws: 1];
-/// assert_eq!(tokens, vec![
-///     Token { kind: T![word], len: 3},
-///     Token { kind: T![ws], len: 1
-/// ]);
-/// ```
-/// Also see [T].
-macro_rules! tokens {
-    ($($kind:tt : $len:expr),*) => {{
-        let mut v = Vec::new();
-        $(
-            v.push($crate::lexer::Token { kind: $crate::lexer::T![$kind], len: $len });
-        )*
-        v
-    }};
-    (parse; $($kind:tt . $len:expr),*) => {{
-        let mut v = Vec::new();
-        let mut len = 0;
-        $(
-            v.push($crate::parser::token_stream::Token { kind: $crate::lexer::T![$kind], span: $crate::span::Span::new(len, len + $len) });
-            len += $len;
-        )*
-        v
-    }};
-}
-pub(crate) use tokens;
 
 #[cfg(test)]
 mod tests {
@@ -423,6 +399,7 @@ mod tests {
     #[test]
     fn word() {
         t!("basic", vec![Word]);
+        t!("word.word", vec![Word, Punctuation, Word]);
         t!("👀", vec![Word]);
         t!("👀more", vec![Word]);
         t!("thing👀more", vec![Word]);
@@ -448,7 +425,7 @@ mod tests {
         t!("0.3", vec![Float]);
         t!("0.03", vec![Float]);
         t!("{.3}", vec![OpenBrace, Float, CloseBrace]);
-        t!("phraseends.3", vec![Word, Word, Int]);
+        t!("phraseends.3", vec![Word, Punctuation, Int]);
     }
 
     #[test]
@@ -514,9 +491,9 @@ Use @sauce{100%ml} and @love.
         t!(input, vec![
             L,
             MetadataStart, S, Word, Colon, S, Word, L,
-            Word, S, Word, S, Word, S, Word, Word, L,
+            Word, S, Word, S, Word, S, Word, Punctuation, L,
             L,
-            Word, S, At, Word, OpenBrace, Int, Percent, Word, CloseBrace, S, Word, S, At, Word, Word, L
+            Word, S, At, Word, OpenBrace, Int, Percent, Word, CloseBrace, S, Word, S, At, Word, Punctuation, L
         ]);
     }
 }

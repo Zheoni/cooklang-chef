@@ -1,13 +1,9 @@
 use crate::{
-    ast, context::Context, error::label, lexer::T, located::Located, parser::parser::tokens_span,
-    quantity::Value, span::Span, Extensions,
+    ast, context::Context, error::label, lexer::T, located::Located, quantity::Value, span::Span,
+    Extensions,
 };
 
-use super::{
-    parser::{fatal_err, LineParser, ParseResult},
-    token_stream::Token,
-    ParserError, ParserWarning,
-};
+use super::{token_stream::Token, tokens_span, LineParser, ParserError, ParserWarning};
 
 pub struct ParsedQuantity<'a> {
     pub quantity: Located<ast::Quantity<'a>>,
@@ -17,8 +13,8 @@ pub struct ParsedQuantity<'a> {
 /// `tokens` inside '{' '}'. must not be empty
 /// whole input
 /// enabled extensions
-pub fn parse_quantity<'t, 'input>(
-    tokens: &'t [Token],
+pub fn parse_quantity<'input>(
+    tokens: &[Token],
     input: &'input str,
     extensions: Extensions,
     context: &mut Context<ParserError, ParserWarning>,
@@ -37,20 +33,20 @@ pub fn parse_quantity<'t, 'input>(
             .iter()
             .any(|t| matches!(t.kind, T![|] | T![*] | T![%]))
     {
-        if let Ok((value, unit)) = line.with_recover(|line| {
+        if let Some((value, unit)) = line.with_recover(|line| {
             let start = line.current_offset();
             numeric_value(line).and_then(|value| {
                 let end = line.current_offset();
                 if line.ws_comments().is_empty() {
-                    return fatal_err();
+                    return None;
                 }
                 let unit = line.consume_rest();
                 if unit.is_empty() {
-                    return fatal_err();
+                    return None;
                 }
                 let value = Located::new(value, Span::new(start, end));
                 let unit = line.text(unit.first().unwrap().span.start(), unit);
-                Ok((value, unit))
+                Some((value, unit))
             })
         }) {
             return ParsedQuantity {
@@ -161,9 +157,9 @@ fn many_values<'t, 'input>(line: &mut LineParser<'t, 'input>) -> ast::QuantityVa
     }
 }
 
-fn parse_value<'t, 'input>(line: &mut LineParser<'t, 'input>) -> Located<Value<'input>> {
+fn parse_value<'input>(line: &mut LineParser<'_, 'input>) -> Located<Value<'input>> {
     let start = line.current_offset();
-    let val = line.with_recover(numeric_value).unwrap_or_else(|_| {
+    let val = line.with_recover(numeric_value).unwrap_or_else(|| {
         let offset = line.current_offset();
         let tokens = line.consume_while(|t| !matches!(t, T![|] | T![*] | T![%]));
         let text = line.text(offset, tokens);
@@ -183,58 +179,58 @@ fn parse_value<'t, 'input>(line: &mut LineParser<'t, 'input>) -> Located<Value<'
     Located::new(val, Span::new(start, end))
 }
 
-fn numeric_value(line: &mut LineParser) -> ParseResult<Value<'static>> {
+fn numeric_value(line: &mut LineParser) -> Option<Value<'static>> {
     line.ws_comments();
     let val = match line.peek() {
         T![int] => line
             .with_recover(mixed_num)
             .map(Value::from)
-            .or_else(|_| line.with_recover(frac).map(Value::from))
-            .or_else(|_| line.with_recover(range).map(Value::from))
-            .unwrap_or_else(|_| int(line).map(Value::from).unwrap()),
+            .or_else(|| line.with_recover(frac).map(Value::from))
+            .or_else(|| line.with_recover(range).map(Value::from))
+            .unwrap_or_else(|| int(line).map(Value::from).unwrap()),
         T![float] => line
             .with_recover(range)
             .map(Value::from)
-            .unwrap_or_else(|_| float(line).map(Value::from).unwrap()),
-        _ => return fatal_err(),
+            .unwrap_or_else(|| float(line).map(Value::from).unwrap()),
+        _ => return None,
     };
-    Ok(val)
+    Some(val)
 }
 
-fn mixed_num(line: &mut LineParser) -> ParseResult<f64> {
+fn mixed_num(line: &mut LineParser) -> Option<f64> {
     let a = int(line)?;
     line.ws_comments();
     let f = frac(line)?;
-    Ok(a + f)
+    Some(a + f)
 }
 
-fn frac(line: &mut LineParser) -> ParseResult<f64> {
+fn frac(line: &mut LineParser) -> Option<f64> {
     let a = int(line)?;
     line.ws_comments();
     line.consume(T![/])?;
     line.ws_comments();
     let b = int(line)?;
-    Ok(a / b)
+    Some(a / b)
 }
 
-fn range(line: &mut LineParser) -> ParseResult<std::ops::RangeInclusive<f64>> {
+fn range(line: &mut LineParser) -> Option<std::ops::RangeInclusive<f64>> {
     let start = num(line)?;
     line.ws_comments();
     line.consume(T![-])?;
     line.ws_comments();
     let end = num(line)?;
-    Ok(start..=end)
+    Some(start..=end)
 }
 
-fn num(line: &mut LineParser) -> ParseResult<f64> {
+fn num(line: &mut LineParser) -> Option<f64> {
     match line.peek() {
         T![int] => int(line),
         T![float] => float(line),
-        _ => fatal_err(),
+        _ => None,
     }
 }
 
-fn int(line: &mut LineParser) -> ParseResult<f64> {
+fn int(line: &mut LineParser) -> Option<f64> {
     let tok = line.consume(T![int])?;
     let val = match line.as_str(tok).parse::<u32>() {
         Ok(n) => n,
@@ -246,10 +242,10 @@ fn int(line: &mut LineParser) -> ParseResult<f64> {
             0
         }
     };
-    Ok(val as f64)
+    Some(val as f64)
 }
 
-fn float(line: &mut LineParser) -> ParseResult<f64> {
+fn float(line: &mut LineParser) -> Option<f64> {
     let tok = line.consume(T![float])?;
     let val = match line.as_str(tok).parse::<f64>() {
         Ok(n) => n,
@@ -261,7 +257,7 @@ fn float(line: &mut LineParser) -> ParseResult<f64> {
             0.0
         }
     };
-    Ok(val)
+    Some(val)
 }
 
 #[cfg(test)]

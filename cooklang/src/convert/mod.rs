@@ -542,7 +542,7 @@ impl UnitCount {
 }
 
 impl crate::ScaledRecipe<'_> {
-    pub fn convert<'t>(&mut self, to: System, converter: &Converter) -> Result<(), ConvertError> {
+    pub fn convert(&mut self, to: System, converter: &Converter) -> Result<(), ConvertError> {
         for igr in &mut self.ingredients {
             if let Some(q) = &mut igr.quantity {
                 *q = converter.convert(&*q, to)?;

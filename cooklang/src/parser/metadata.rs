@@ -1,18 +1,13 @@
 use crate::{ast, error::label, lexer::T};
 
-use super::{
-    parser::{LineParser, ParseResult},
-    ParserError, ParserWarning,
-};
+use super::{LineParser, ParserError, ParserWarning};
 
 pub struct MetadataEntry<'input> {
     pub key: ast::Text<'input>,
     pub value: ast::Text<'input>,
 }
 
-pub fn metadata_entry<'t, 'input>(
-    line: &mut LineParser<'t, 'input>,
-) -> ParseResult<MetadataEntry<'input>> {
+pub fn metadata_entry<'input>(line: &mut LineParser<'_, 'input>) -> Option<MetadataEntry<'input>> {
     // Parse
     line.consume(T![meta])?;
     let key_pos = line.current_offset();
@@ -40,18 +35,22 @@ pub fn metadata_entry<'t, 'input>(
 
     let entry = MetadataEntry { key, value };
 
-    Ok(entry)
+    Some(entry)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{lexer::tokens, parser::parser::LineParser, span::Span, Extensions};
+    use crate::{
+        parser::{token_stream::tokens, LineParser},
+        span::Span,
+        Extensions,
+    };
 
     #[test]
     fn basic_metadata_entry() {
         let input = ">> key: value";
-        let tokens = tokens![parse; meta.2, ws.1, word.3, :.1, ws.1, word.5];
+        let tokens = tokens![meta.2, ws.1, word.3, :.1, ws.1, word.5];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
         let entry = metadata_entry(&mut line).unwrap();
         let context = line.finish();
@@ -66,7 +65,7 @@ mod tests {
     #[test]
     fn no_key_metadata_entry() {
         let input = ">>: value";
-        let tokens = tokens![parse; meta.2, :.1, ws.1, word.5];
+        let tokens = tokens![meta.2, :.1, ws.1, word.5];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
         let entry = metadata_entry(&mut line).unwrap();
         let context = line.finish();
@@ -80,7 +79,7 @@ mod tests {
     #[test]
     fn no_val_metadata_entry() {
         let input = ">> key:";
-        let tokens = tokens![parse; meta.2, ws.1, word.3, :.1];
+        let tokens = tokens![meta.2, ws.1, word.3, :.1];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
         let entry = metadata_entry(&mut line).unwrap();
         let context = line.finish();
@@ -91,7 +90,7 @@ mod tests {
         assert_eq!(context.warnings.len(), 1);
 
         let input = ">> key:  ";
-        let tokens = tokens![parse; meta.2, ws.1, word.3, :.1, ws.2];
+        let tokens = tokens![meta.2, ws.1, word.3, :.1, ws.2];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
         let entry = metadata_entry(&mut line).unwrap();
         let context = line.finish();
@@ -105,7 +104,7 @@ mod tests {
     #[test]
     fn empty_metadata_entry() {
         let input = ">>:";
-        let tokens = tokens![parse; meta.2, :.1];
+        let tokens = tokens![meta.2, :.1];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
         let entry = metadata_entry(&mut line).unwrap();
         let context = line.finish();
@@ -117,8 +116,8 @@ mod tests {
         assert!(context.warnings.is_empty()); // no warning if error generated
 
         let input = ">> ";
-        let tokens = tokens![parse; meta.2, ws.1];
+        let tokens = tokens![meta.2, ws.1];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
-        assert!(metadata_entry(&mut line).is_err())
+        assert!(metadata_entry(&mut line).is_none())
     }
 }

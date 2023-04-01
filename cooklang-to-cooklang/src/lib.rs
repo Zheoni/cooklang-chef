@@ -13,7 +13,7 @@ pub fn print_cooklang(recipe: &ScaledRecipe, mut writer: impl io::Write) -> io::
 
     metadata(w, &recipe.metadata)?;
     writeln!(w)?;
-    sections(w, &recipe)?;
+    sections(w, recipe)?;
 
     Ok(())
 }

@@ -257,7 +257,6 @@ impl<'a, 'r> Walker<'a, 'r> {
     fn ingredient(&mut self, ingredient: Located<ast::Ingredient<'a>>) -> usize {
         let located_ingredient = ingredient.clone();
         let (ingredient, location) = ingredient.take_pair();
-        let location = Span::from(location);
 
         let name = ingredient.name.text_trimmed();
 
@@ -376,10 +375,8 @@ impl<'a, 'r> Walker<'a, 'r> {
                     self.context
                         .warn(AnalysisWarning::ReferenceToRecipeMissing {
                             modifiers: ingredient.modifiers,
-                            ingredient_span: location.into(),
-                            referenced_span: self.ingredient_locations[referenced_index]
-                                .clone()
-                                .into(),
+                            ingredient_span: location,
+                            referenced_span: self.ingredient_locations[referenced_index].span(),
                         })
                 }
 
@@ -387,7 +384,7 @@ impl<'a, 'r> Walker<'a, 'r> {
             } else {
                 self.error(AnalysisError::ReferenceNotFound {
                     name: new_igr.name.to_string(),
-                    reference_span: location.clone(),
+                    reference_span: location,
                 });
             }
 

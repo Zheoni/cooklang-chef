@@ -156,7 +156,7 @@ fn tree_label(ctx: &Context, args: &ListArgs, entry: &DirEntry) -> Result<String
     let r = if entry.file_type().is_dir() {
         Paint::cyan(name).to_string()
     } else if args.check {
-        let check = check_str(ctx.parser()?, &entry);
+        let check = check_str(ctx.parser()?, entry);
         format!("{name} [{check}]")
     } else {
         name.to_string()

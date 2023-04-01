@@ -203,8 +203,9 @@ impl QuantityValue<'_> {
                 }
             }
             QuantityValue::Many(v) => {
+                assert!(!v.is_empty(), "QuantityValue::Many with no values");
                 let start = v.first().unwrap().span().start();
-                let end = v.last().unwrap().span().start();
+                let end = v.last().unwrap().span().end();
                 Span::new(start, end)
             }
         }

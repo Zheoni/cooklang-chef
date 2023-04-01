@@ -1,10 +1,8 @@
 use crate::{ast, lexer::T};
 
-use super::parser::{fatal, LineParser, ParseResult};
+use super::LineParser;
 
-pub fn section<'t, 'input>(
-    line: &mut LineParser<'t, 'input>,
-) -> ParseResult<Option<ast::Text<'input>>> {
+pub fn section<'input>(line: &mut LineParser<'_, 'input>) -> Option<Option<ast::Text<'input>>> {
     line.consume(T![=])?;
     line.consume_while(|t| t == T![=]);
     let name_pos = line.current_offset();
@@ -13,25 +11,29 @@ pub fn section<'t, 'input>(
     line.consume_while(|t| t == T![=]);
 
     if !line.rest().is_empty() {
-        return Err(fatal());
+        return None;
     }
 
     if name.is_text_empty() {
-        Ok(None)
+        Some(None)
     } else {
-        Ok(Some(name))
+        Some(Some(name))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{lexer::tokens, parser::parser::LineParser, span::Span, Extensions};
+    use crate::{
+        parser::{token_stream::tokens, LineParser},
+        span::Span,
+        Extensions,
+    };
 
     #[test]
     fn basic_section() {
         let input = "= section";
-        let tokens = tokens![parse; =.1, ws.1, word.7];
+        let tokens = tokens![=.1, ws.1, word.7];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
         let name = section(&mut line).unwrap().unwrap();
         let context = line.finish();
@@ -41,7 +43,7 @@ mod tests {
         assert!(context.warnings.is_empty());
 
         let input = "== section ==";
-        let tokens = tokens![parse; =.1, =.1, ws.1, word.7, ws.1, =.1, =.1];
+        let tokens = tokens![=.1, =.1, ws.1, word.7, ws.1, =.1, =.1];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
         let name = section(&mut line).unwrap().unwrap();
         let context = line.finish();
@@ -54,7 +56,7 @@ mod tests {
     #[test]
     fn no_name_section() {
         let input = "====";
-        let tokens = tokens![parse; =.1, =.1, =.1, =.1];
+        let tokens = tokens![=.1, =.1, =.1, =.1];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
         let name = section(&mut line).unwrap();
         let context = line.finish();
@@ -63,7 +65,7 @@ mod tests {
         assert!(context.warnings.is_empty());
 
         let input = "==   ==";
-        let tokens = tokens![parse; =.1, =.1, ws.3, =.1, =.1];
+        let tokens = tokens![=.1, =.1, ws.3, =.1, =.1];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
         let name = section(&mut line).unwrap();
         let context = line.finish();
@@ -72,8 +74,8 @@ mod tests {
         assert!(context.warnings.is_empty());
 
         let input = "= =  ==";
-        let tokens = tokens![parse; =.1, ws.1, =.1, ws.2, =.1, =.1];
+        let tokens = tokens![=.1, ws.1, =.1, ws.2, =.1, =.1];
         let mut line = LineParser::new(0, &tokens, input, Extensions::all());
-        assert!(section(&mut line).is_err());
+        assert!(section(&mut line).is_none());
     }
 }

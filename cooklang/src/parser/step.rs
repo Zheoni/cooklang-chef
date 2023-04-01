@@ -4,15 +4,13 @@ use crate::{
     error::label,
     lexer::T,
     located::Located,
-    parser::{parser::fatal_err, quantity::parse_quantity, ParserWarning},
     span::Span,
     Extensions,
 };
 
 use super::{
-    parser::{tokens_span, LineParser, ParseResult},
-    token_stream::Token,
-    ParserError,
+    quantity::parse_quantity, token_stream::Token, tokens_span, LineParser, ParserError,
+    ParserWarning,
 };
 
 pub struct ParsedStep<'input> {
@@ -20,8 +18,8 @@ pub struct ParsedStep<'input> {
     pub items: Vec<ast::Item<'input>>,
 }
 
-pub fn step<'t, 'input>(line: &mut LineParser<'t, 'input>, force_text: bool) -> ParsedStep<'input> {
-    let is_text = line.consume(T![>]).is_ok();
+pub fn step<'input>(line: &mut LineParser<'_, 'input>, force_text: bool) -> ParsedStep<'input> {
+    let is_text = line.consume(T![>]).is_some();
 
     let mut items: Vec<ast::Item> = vec![];
 
@@ -37,13 +35,9 @@ pub fn step<'t, 'input>(line: &mut LineParser<'t, 'input>, force_text: bool) -> 
         let component = match line.peek() {
             T![@] => line
                 .with_recover(ingredient)
-                .map(ast::Component::Ingredient)
-                .ok(),
-            T![#] => line
-                .with_recover(cookware)
-                .map(ast::Component::Cookware)
-                .ok(),
-            T![~] => line.with_recover(timer).map(ast::Component::Timer).ok(),
+                .map(ast::Component::Ingredient),
+            T![#] => line.with_recover(cookware).map(ast::Component::Cookware),
+            T![~] => line.with_recover(timer).map(ast::Component::Timer),
             _ => None,
         };
         if let Some(component) = component {
@@ -53,7 +47,12 @@ pub fn step<'t, 'input>(line: &mut LineParser<'t, 'input>, force_text: bool) -> 
                 Span::new(start, end),
             ))));
         } else {
-            let tokens = line.consume_while(|t| !matches!(t, T![@] | T![#] | T![~]));
+            let tokens_start = line.tokens_consumed();
+            line.bump_any(); // consume the first token, this avoids entering an infinite loop
+            line.consume_while(|t| !matches!(t, T![@] | T![#] | T![~]));
+            let tokens_end = line.tokens_consumed();
+            let tokens = &line.tokens()[tokens_start..tokens_end];
+
             items.push(ast::Item::Text(line.text(start, tokens)));
         }
     }
@@ -64,9 +63,13 @@ pub fn step<'t, 'input>(line: &mut LineParser<'t, 'input>, force_text: bool) -> 
     }
 }
 
-fn comp_body<'t, 'input>(
-    line: &mut LineParser<'t, 'input>,
-) -> ParseResult<(&'t [Token], Option<Span>, Option<&'t [Token]>)> {
+struct Body<'t> {
+    name: &'t [Token],
+    close: Option<Span>,
+    quantity: Option<&'t [Token]>,
+}
+
+fn comp_body<'t>(line: &mut LineParser<'t, '_>) -> Option<Body<'t>> {
     line.with_recover(|line| {
         let name = line.until(|t| matches!(t, T!['{'] | T![@] | T![#] | T![~]))?;
         let close_span = line.consume(T!['{'])?.span;
@@ -76,22 +79,35 @@ fn comp_body<'t, 'input>(
             .iter()
             .any(|t| !matches!(t.kind, T![ws] | T![block comment]))
         {
-            Ok((name, Some(close_span), Some(quantity)))
+            Some(Body {
+                name,
+                close: Some(close_span),
+                quantity: Some(quantity),
+            })
         } else {
-            Ok((name, Some(close_span), None))
+            Some(Body {
+                name,
+                close: Some(close_span),
+                quantity: None,
+            })
         }
     })
-    .or_else(|_| {
+    .or_else(|| {
         line.with_recover(|line| {
-            line.consume(T![word])?;
-            let parsed = line.parsed();
-            let name = &parsed[parsed.len() - 1..];
-            Ok((name, None, None))
+            let tokens = line.consume_while(|t| matches!(t, T![word] | T![int] | T![float]));
+            if tokens.is_empty() {
+                return None;
+            }
+            Some(Body {
+                name: tokens,
+                close: None,
+                quantity: None,
+            })
         })
     })
 }
 
-fn modifiers<'t, 'input>(line: &mut LineParser<'t, 'input>) -> &'t [Token] {
+fn modifiers<'t>(line: &mut LineParser<'t, '_>) -> &'t [Token] {
     line.consume_while(|t| matches!(t, T![@] | T![&] | T![?] | T![+] | T![-]))
 }
 
@@ -99,15 +115,13 @@ const INGREDIENT: &str = "ingredient";
 const COOKWARE: &str = "cookware";
 const TIMER: &str = "timer";
 
-fn ingredient<'t, 'input>(
-    line: &mut LineParser<'t, 'input>,
-) -> ParseResult<ast::Ingredient<'input>> {
+fn ingredient<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Ingredient<'input>> {
     // Parse
     line.consume(T![@])?;
     let modifiers_pos = line.current_offset();
     let modifiers_tokens = modifiers(line);
     let name_offset = line.current_offset();
-    let (name_tokens, _, quantity_tokens) = comp_body(line)?;
+    let body = comp_body(line)?;
     let note = line
         .extension(Extensions::INGREDIENT_NOTE)
         .then(|| {
@@ -116,19 +130,18 @@ fn ingredient<'t, 'input>(
                 let offset = line.current_offset();
                 let note = line.until(|t| t == T![')'])?;
                 line.bump(T![')']);
-                Ok(line.text(offset, note))
+                Some(line.text(offset, note))
             })
-            .ok()
         })
         .flatten();
 
     // Build text(s) and checks
     let (name, alias) = if let Some(alias_sep) = line
         .extension(Extensions::INGREDIENT_ALIAS)
-        .then(|| name_tokens.iter().position(|t| t.kind == T![|]))
+        .then(|| body.name.iter().position(|t| t.kind == T![|]))
         .flatten()
     {
-        let (name_tokens, alias_tokens) = name_tokens.split_at(alias_sep);
+        let (name_tokens, alias_tokens) = body.name.split_at(alias_sep);
         let (alias_sep, alias_text_tokens) = alias_tokens.split_first().unwrap();
         let alias_text = line.text(alias_sep.span.end(), alias_text_tokens);
         let alias_text = if alias_text_tokens.iter().any(|t| t.kind == T![|]) {
@@ -161,7 +174,7 @@ fn ingredient<'t, 'input>(
         };
         (line.text(name_offset, name_tokens), alias_text)
     } else {
-        (line.text(name_offset, name_tokens), None)
+        (line.text(name_offset, body.name), None)
     };
 
     if name.is_text_empty() {
@@ -205,7 +218,7 @@ fn ingredient<'t, 'input>(
                             "Modifier order does not matter, but duplicates are not allowed",
                         ),
                     });
-                    return Err(());
+                    Err(())
                 } else {
                     Ok(acc | new_m)
                 }
@@ -227,11 +240,11 @@ fn ingredient<'t, 'input>(
         Located::new(m, modifiers_span)
     };
 
-    let quantity = quantity_tokens.map(|tokens| {
+    let quantity = body.quantity.map(|tokens| {
         parse_quantity(tokens, line.input, line.extensions, &mut line.context).quantity
     });
 
-    Ok(ast::Ingredient {
+    Some(ast::Ingredient {
         modifiers,
         name,
         alias,
@@ -240,19 +253,19 @@ fn ingredient<'t, 'input>(
     })
 }
 
-fn cookware<'t, 'input>(line: &mut LineParser<'t, 'input>) -> ParseResult<ast::Cookware<'input>> {
+fn cookware<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Cookware<'input>> {
     // Parse
     line.consume(T![#])?;
     let modifiers_tokens = modifiers(line);
     let name_offset = line.current_offset();
-    let (name_tokens, _, quantity_tokens) = comp_body(line)?;
+    let body = comp_body(line)?;
 
     // Errors
     check_modifiers(line, modifiers_tokens, COOKWARE);
-    check_alias(line, name_tokens, COOKWARE);
+    check_alias(line, body.name, COOKWARE);
     check_note(line, COOKWARE);
 
-    let name = line.text(name_offset, name_tokens);
+    let name = line.text(name_offset, body.name);
     if name.is_text_empty() {
         line.error(ParserError::ComponentPartInvalid {
             container: COOKWARE,
@@ -262,7 +275,7 @@ fn cookware<'t, 'input>(line: &mut LineParser<'t, 'input>) -> ParseResult<ast::C
             help: None,
         });
     }
-    let quantity = quantity_tokens.map(|tokens| {
+    let quantity = body.quantity.map(|tokens| {
         let q = parse_quantity(tokens, line.input, line.extensions, &mut line.context);
         if let Some(unit) = &q.quantity.unit {
             let span = if let Some(sep) = q.unit_separator {
@@ -292,24 +305,25 @@ fn cookware<'t, 'input>(line: &mut LineParser<'t, 'input>) -> ParseResult<ast::C
         q.quantity.map_inner(|q| q.value)
     });
 
-    Ok(ast::Cookware { name, quantity })
+    Some(ast::Cookware { name, quantity })
 }
 
-fn timer<'t, 'input>(line: &mut LineParser<'t, 'input>) -> ParseResult<ast::Timer<'input>> {
+fn timer<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Timer<'input>> {
     // Parse
     line.consume(T![~])?;
     let modifiers_tokens = modifiers(line);
     let name_offset = line.current_offset();
-    let (name_tokens, close_span, quantity_tokens) = comp_body(line)?;
+    let body = comp_body(line)?;
 
     // Errors
     check_modifiers(line, modifiers_tokens, COOKWARE);
-    check_alias(line, name_tokens, COOKWARE);
+    check_alias(line, body.name, COOKWARE);
     check_note(line, COOKWARE);
 
-    let name = line.text(name_offset, name_tokens);
+    let name = line.text(name_offset, body.name);
 
-    let quantity = quantity_tokens
+    let quantity = body
+        .quantity
         .map(|tokens| {
             let q = parse_quantity(tokens, line.input, line.extensions, &mut line.context);
             if let ast::QuantityValue::Single {
@@ -334,7 +348,7 @@ fn timer<'t, 'input>(line: &mut LineParser<'t, 'input>) -> ParseResult<ast::Time
             q.quantity
         })
         .unwrap_or_else(|| {
-            let span = if let Some(s) = close_span {
+            let span = if let Some(s) = body.close {
                 Span::pos(s.end())
             } else {
                 Span::pos(name.span().end())
@@ -352,7 +366,7 @@ fn timer<'t, 'input>(line: &mut LineParser<'t, 'input>) -> ParseResult<ast::Time
     } else {
         Some(name)
     };
-    Ok(ast::Timer { name, quantity })
+    Some(ast::Timer { name, quantity })
 }
 
 fn check_modifiers(line: &mut LineParser, modifiers_tokens: &[Token], container: &'static str) {
@@ -389,17 +403,18 @@ fn check_note(line: &mut LineParser, container: &'static str) {
         return;
     }
 
-    line.with_recover(|line| {
-        let start = line.consume(T!['('])?.span.start();
-        let _ = line.until(|t| t == T![')'])?;
-        let end = line.bump(T![')']).span.end();
-        line.warn(ParserWarning::ComponentPartIgnored {
-            container,
-            what: "note",
-            ignored: Span::new(start, end),
-            help: Some("Notes are only available in ingredients"),
-        });
-        fatal_err::<()>() // always backtrack
-    })
-    .unwrap_err();
+    assert!(line
+        .with_recover(|line| {
+            let start = line.consume(T!['('])?.span.start();
+            let _ = line.until(|t| t == T![')'])?;
+            let end = line.bump(T![')']).span.end();
+            line.warn(ParserWarning::ComponentPartIgnored {
+                container,
+                what: "note",
+                ignored: Span::new(start, end),
+                help: Some("Notes are only available in ingredients"),
+            });
+            None::<()> // always backtrack
+        })
+        .is_none());
 }

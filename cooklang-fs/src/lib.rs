@@ -88,7 +88,7 @@ impl TryFrom<walkdir::DirEntry> for DirEntry {
     fn try_from(value: walkdir::DirEntry) -> Result<Self, Self::Error> {
         let depth = value.depth();
         let file_type = value.file_type();
-        let path = Utf8PathBuf::from_path_buf(value.into_path()).map_err(|p| NonUtf8(p))?;
+        let path = Utf8PathBuf::from_path_buf(value.into_path()).map_err(NonUtf8)?;
         Ok(Self {
             path,
             depth,
@@ -101,14 +101,14 @@ impl FsIndex {
     pub fn new(base_path: impl AsRef<std::path::Path>, max_depth: usize) -> Result<Self, Error> {
         let base_path = Utf8Path::from_path(base_path.as_ref())
             .ok_or_else(|| Error::NonUtf8(NonUtf8(base_path.as_ref().into())))?;
-        let walker = walkdir::WalkDir::new(&base_path)
+        let walker = walkdir::WalkDir::new(base_path)
             .max_depth(max_depth)
             .sort_by(
                 // files first, and sort by name
                 |a, b| match (a.file_type().is_file(), b.file_type().is_file()) {
                     (true, false) => std::cmp::Ordering::Less,
                     (false, true) => std::cmp::Ordering::Greater,
-                    _ => a.file_name().cmp(&b.file_name()),
+                    _ => a.file_name().cmp(b.file_name()),
                 },
             )
             .into_iter();
@@ -129,7 +129,7 @@ impl FsIndex {
             .sort_by_file_name()
             .into_iter()
             .filter_map(|e| e.ok().and_then(|e| DirEntry::try_from(e).ok()))
-            .filter(|e| e.file_type.is_dir() || is_cooklang_file(&e))
+            .filter(|e| e.file_type.is_dir() || is_cooklang_file(e))
     }
 
     pub fn contains(&self, recipe: &str) -> bool {

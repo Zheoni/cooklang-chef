@@ -105,7 +105,7 @@ impl Config {
                 local.is_file().then_some(local)
             })
             .or_else(|| {
-                let relative = resolve_path(&ctx.config_path, &Path::new(AUTO_AILE));
+                let relative = resolve_path(&ctx.config_path, Path::new(AUTO_AILE));
                 relative.is_file().then_some(relative)
             })
     }
@@ -121,7 +121,7 @@ impl Config {
         }
 
         let local = base_dir.join(COOK_DIR).join(AUTO_UNITS);
-        let relative = resolve_path(config_path, &Path::new(AUTO_UNITS));
+        let relative = resolve_path(config_path, Path::new(AUTO_UNITS));
         if local.is_file() {
             vec![local]
         } else if relative.is_file() {

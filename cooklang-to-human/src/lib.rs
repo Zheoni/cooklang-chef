@@ -228,7 +228,7 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
         } else {
             let list = igr
                 .all_quantities(&recipe.ingredients)
-                .map(|q| quantity_fmt(q))
+                .map(quantity_fmt)
                 .reduce(|s, q| format!("{s}, {q}"));
             if let Some(list) = list {
                 row.add_ansi_cell(s.wrap().paint(list));
@@ -340,7 +340,7 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
                         },
                         Item::InlineQuantity(index) => {
                             let q = &recipe.inline_quantities[*index];
-                            write!(&mut step_text, "{}", Paint::red(quantity_fmt(&q))).unwrap()
+                            write!(&mut step_text, "{}", Paint::red(quantity_fmt(q))).unwrap()
                         }
                     }
                 }

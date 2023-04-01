@@ -47,3 +47,43 @@ impl Token {
         self.span.len()
     }
 }
+
+#[cfg(test)]
+macro_rules! tokens {
+    ($($kind:tt . $len:expr),*) => {{
+        let mut v = Vec::new();
+        let mut _len = 0;
+        $(
+            v.push($crate::parser::token_stream::Token { kind: $crate::lexer::T![$kind], span: $crate::span::Span::new(_len, _len + $len) });
+            _len += $len;
+        )*
+        v
+    }};
+}
+#[cfg(test)]
+pub(crate) use tokens;
+
+#[cfg(test)]
+mod tests {
+    use crate::lexer::T;
+
+    use super::*;
+
+    #[test]
+    fn tokens_macro() {
+        let t = tokens![word.3, ws.1];
+        assert_eq!(
+            t,
+            vec![
+                Token {
+                    kind: T![word],
+                    span: Span::new(0, 3)
+                },
+                Token {
+                    kind: T![ws],
+                    span: Span::new(3, 4)
+                },
+            ]
+        );
+    }
+}
