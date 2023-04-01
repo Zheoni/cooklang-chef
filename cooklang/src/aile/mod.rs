@@ -8,11 +8,11 @@ use thiserror::Error;
 use crate::{error::RichError, span::Span};
 
 #[derive(Parser)]
-#[grammar = "shopping_list/grammar.pest"]
-struct ShoppingListParser;
+#[grammar = "aile/grammar.pest"]
+struct AileConfParser;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct ShoppingListConf<'a> {
+pub struct AileConf<'a> {
     #[serde(borrow)]
     pub categories: Vec<Category<'a>>,
 }
@@ -30,13 +30,12 @@ pub struct Ingredient<'a> {
     pub names: Vec<&'a str>,
 }
 
-pub fn parse(input: &str) -> Result<ShoppingListConf, ShoppingListError> {
-    let pairs = ShoppingListParser::parse(Rule::shopping_list, input).map_err(|e| {
-        ShoppingListError::Parse {
+pub fn parse(input: &str) -> Result<AileConf, AileConfError> {
+    let pairs =
+        AileConfParser::parse(Rule::shopping_list, input).map_err(|e| AileConfError::Parse {
             span: e.location.into(),
             message: e.variant.message().to_string(),
-        }
-    })?;
+        })?;
 
     let mut categories = Vec::new();
     let mut categories_span = HashMap::new();
@@ -49,7 +48,7 @@ pub fn parse(input: &str) -> Result<ShoppingListConf, ShoppingListError> {
         let current_span = Span::from(name_pair.as_span());
 
         if let Some(other) = categories_span.insert(name, current_span) {
-            return Err(ShoppingListError::DuplicateCategory {
+            return Err(AileConfError::DuplicateCategory {
                 name: name.to_string(),
                 first_span: other,
                 second_span: current_span,
@@ -65,7 +64,7 @@ pub fn parse(input: &str) -> Result<ShoppingListConf, ShoppingListError> {
                 let name = p.as_str().trim();
                 let span = Span::from(p.as_span());
                 if let Some(other) = names_span.insert(name, span) {
-                    return Err(ShoppingListError::DuplicateIngredient {
+                    return Err(AileConfError::DuplicateIngredient {
                         name: name.to_string(),
                         first_span: other,
                         second_span: span,
@@ -80,10 +79,10 @@ pub fn parse(input: &str) -> Result<ShoppingListConf, ShoppingListError> {
         categories.push(category);
     }
 
-    Ok(ShoppingListConf { categories })
+    Ok(AileConf { categories })
 }
 
-pub fn write(conf: &ShoppingListConf, mut write: impl std::io::Write) -> std::io::Result<()> {
+pub fn write(conf: &AileConf, mut write: impl std::io::Write) -> std::io::Result<()> {
     let w = &mut write;
     for category in &conf.categories {
         writeln!(w, "[{}]", category.name)?;
@@ -104,7 +103,7 @@ pub fn write(conf: &ShoppingListConf, mut write: impl std::io::Write) -> std::io
 }
 
 #[derive(Debug, Error)]
-pub enum ShoppingListError {
+pub enum AileConfError {
     #[error("Error parsing input: {message}")]
     Parse { span: Span, message: String },
     #[error("Duplicate category: '{name}'")]
@@ -121,12 +120,12 @@ pub enum ShoppingListError {
     },
 }
 
-impl RichError for ShoppingListError {
+impl RichError for AileConfError {
     fn labels(&self) -> Vec<(Span<()>, Option<std::borrow::Cow<'static, str>>)> {
         use crate::error::label;
         match self {
-            ShoppingListError::Parse { span, .. } => vec![label!(span)],
-            ShoppingListError::DuplicateCategory {
+            AileConfError::Parse { span, .. } => vec![label!(span)],
+            AileConfError::DuplicateCategory {
                 first_span,
                 second_span,
                 ..
@@ -134,7 +133,7 @@ impl RichError for ShoppingListError {
                 label!(first_span, "first defined here"),
                 label!(second_span, "then here"),
             ],
-            ShoppingListError::DuplicateIngredient {
+            AileConfError::DuplicateIngredient {
                 first_span,
                 second_span,
                 ..

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
-use cooklang::shopping_list::ShoppingListConf;
+use cooklang::aile::AileConf;
 use yansi::Paint;
 
 use crate::write_to_output;
@@ -32,7 +32,7 @@ enum OutputFormat {
     Json,
 }
 
-pub fn run(mut aile: ShoppingListConf, args: ConfArgs) -> Result<()> {
+pub fn run(mut aile: AileConf, args: ConfArgs) -> Result<()> {
     if args.sorted {
         aile.categories.sort_unstable_by_key(|c| c.name);
         for c in &mut aile.categories {
@@ -55,7 +55,7 @@ pub fn run(mut aile: ShoppingListConf, args: ConfArgs) -> Result<()> {
     write_to_output(args.output.as_deref(), |writer| {
         match format {
             OutputFormat::Human => print_aile_human(&aile, writer)?,
-            OutputFormat::Conf => cooklang::shopping_list::write(&aile, writer)?,
+            OutputFormat::Conf => cooklang::aile::write(&aile, writer)?,
             OutputFormat::Json => {
                 if args.pretty {
                     serde_json::to_writer_pretty(writer, &aile)?;
@@ -70,10 +70,7 @@ pub fn run(mut aile: ShoppingListConf, args: ConfArgs) -> Result<()> {
     Ok(())
 }
 
-fn print_aile_human(
-    aile: &ShoppingListConf,
-    mut writer: impl std::io::Write,
-) -> std::io::Result<()> {
+fn print_aile_human(aile: &AileConf, mut writer: impl std::io::Write) -> std::io::Result<()> {
     let w = &mut writer;
     for category in aile.categories.iter() {
         writeln!(

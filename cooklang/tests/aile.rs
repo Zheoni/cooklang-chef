@@ -1,6 +1,6 @@
 //! Shopping list configuration file test
 
-use cooklang::shopping_list::*;
+use cooklang::aile::*;
 
 const CONF: &str = r#"
 [produce]
@@ -25,7 +25,7 @@ tuna|chicken of the sea
 fn test_shopping_list() {
     let got = parse(CONF).unwrap();
 
-    let expected = ShoppingListConf {
+    let expected = AileConf {
         categories: vec![
             Category {
                 name: "produce",

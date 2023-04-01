@@ -50,7 +50,7 @@ pub fn run(ctx: &Context, args: ShoppingListArgs) -> Result<()> {
         .transpose()?;
 
     let aile = if let Some((path, content)) = &aile_path {
-        match cooklang::shopping_list::parse(content) {
+        match cooklang::aile::parse(content) {
             Ok(conf) => conf,
             Err(e) => {
                 cooklang::error::write_rich_error(

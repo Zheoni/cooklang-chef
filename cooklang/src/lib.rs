@@ -8,6 +8,8 @@
 //!
 //! The parser returns rich errors with annotated code spans. For example.
 
+#[cfg(feature = "aile")]
+pub mod aile;
 mod analysis;
 pub mod ast;
 mod context;
@@ -20,7 +22,6 @@ pub mod model;
 pub mod parser;
 pub mod quantity;
 pub mod scale;
-pub mod shopping_list;
 mod span;
 
 #[cfg(doc)]

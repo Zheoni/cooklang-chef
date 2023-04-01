@@ -12,8 +12,8 @@ serde = { version = "1", features = ["derive", "rc"] }
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1.0"
 url = { version = "2.3", features = ["serde"] }
-pest = "2.5"
-pest_derive = "2.5"
+pest = { version = "2.5", optional = true }
+pest_derive = { version = "2.5", optional = true }
 indexmap = { version = "1.9", features = ["serde"] }
 emojis = "0.5"
 toml = "0.7"
@@ -32,10 +32,15 @@ yaml-rust = "0.4"
 serde_json = "1"
 criterion = "0.4"
 
+[features]
+default = ["bundled_units", "aile"]
+bundled_units = []
+aile = ["dep:pest", "dep:pest_derive"]
+
 [[bench]]
 name = "special_chars_lookup"
 harness = false
 
-[features]
-default = ["bundled_units"]
-bundled_units = []
+[[test]]
+name = "aile"
+required-features = ["aile"]
