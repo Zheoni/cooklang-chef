@@ -1,5 +1,6 @@
 target/
-./*.cook
+*.cook
+!cooklang/benches/test_recipe.cook
 *.conf
 thoughts.md
 .vscode/launch.json

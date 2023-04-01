@@ -57,10 +57,6 @@ pub enum TokenKind {
     OpenParen,
     /// ")"
     CloseParen,
-    /// "["
-    OpenSquare,
-    /// "]"
-    CloseSquare,
 
     /// "14", "0", but not "014"
     Int,
@@ -110,10 +106,10 @@ fn is_whitespace(c: char) -> bool {
 }
 
 fn is_special(c: char) -> bool {
-    // faster than str::contains and equally as fast as match
+    // faster than str::contains and equally as fast as match, at least in
+    // rustc 1.68.2
     const SPECIAL_CHARS_LIST: &[char] = &[
         '>', ':', '@', '#', '~', '?', '+', '-', '/', '*', '&', '|', '=', '%', '{', '}', '(', ')',
-        '[', ']',
     ];
     SPECIAL_CHARS_LIST.contains(&c)
 }
@@ -171,8 +167,6 @@ impl Cursor<'_> {
             '}' => TokenKind::CloseBrace,
             '(' => TokenKind::OpenParen,
             ')' => TokenKind::CloseParen,
-            '[' => TokenKind::OpenSquare,
-            ']' => TokenKind::CloseSquare,
 
             c if c.is_punctuation() => TokenKind::Punctuation,
             c if is_word_char(c) => self.word(),
@@ -326,12 +320,6 @@ macro_rules! T {
     };
     [>] => {
         $crate::lexer::TokenKind::TextStep
-    };
-    ['['] => {
-        $crate::lexer::TokenKind::OpenSquare
-    };
-    [']'] => {
-        $crate::lexer::TokenKind::CloseSquare
     };
     ['{'] => {
         $crate::lexer::TokenKind::OpenBrace
