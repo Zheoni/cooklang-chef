@@ -186,12 +186,20 @@ fn numeric_value(line: &mut LineParser) -> Option<Value<'static>> {
             .with_recover(mixed_num)
             .map(Value::from)
             .or_else(|| line.with_recover(frac).map(Value::from))
-            .or_else(|| line.with_recover(range).map(Value::from))
+            .or_else(|| {
+                if line.extension(Extensions::RANGE_VALUES) {
+                    line.with_recover(range).map(Value::from)
+                } else {
+                    None
+                }
+            })
             .unwrap_or_else(|| int(line).map(Value::from).unwrap()),
-        T![float] => line
-            .with_recover(range)
-            .map(Value::from)
-            .unwrap_or_else(|| float(line).map(Value::from).unwrap()),
+        T![float] => if line.extension(Extensions::RANGE_VALUES) {
+            line.with_recover(range).map(Value::from)
+        } else {
+            None
+        }
+        .unwrap_or_else(|| float(line).map(Value::from).unwrap()),
         _ => return None,
     };
     Some(val)

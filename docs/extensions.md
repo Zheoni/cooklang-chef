@@ -152,7 +152,7 @@ comunicating that in some cases.
 ```cooklang
 @eggs{2-4}
 @tomato sauce{200-300%ml}            -- works with units
-@water{1/2-1%l}                      -- with any other numeric value
+@water{1.5-2%l}                      -- with floats too
 @flour{100%g} ... @&flour{200-400%g} -- the total will be 300-500 g
 ```
 
