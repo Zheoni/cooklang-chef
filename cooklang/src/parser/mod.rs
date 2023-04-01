@@ -207,6 +207,33 @@ pub fn parse<'input>(
     parser.context.finish(Some(ast))
 }
 
+#[tracing::instrument(skip_all, fields(len = input.len()))]
+pub fn parse_metadata<'input>(
+    input: &'input str,
+) -> PassResult<ast::Ast<'input>, ParserError, ParserWarning> {
+    let mut parser = Parser::new(input, Extensions::empty());
+    let mut lines = vec![];
+    while let Some(mut line) = parser.next_line() {
+        let meta_line = match line.peek() {
+            T![meta] => line
+                .with_recover(metadata_entry)
+                .map(|entry| ast::Line::Metadata {
+                    key: entry.key,
+                    value: entry.value,
+                }),
+            _ => {
+                line.consume_rest();
+                continue;
+            }
+        };
+        if let Some(meta_line) = meta_line {
+            lines.push(meta_line);
+        }
+    }
+    let ast = ast::Ast { lines };
+    parser.context.finish(Some(ast))
+}
+
 pub struct LineParser<'t, 'input> {
     base_offset: usize,
     tokens: &'t [Token],
@@ -594,6 +621,8 @@ impl RichError for ParserWarning {
 
 #[cfg(test)]
 mod tests {
+    use crate::ast::Text;
+
     use super::*;
 
     #[test]
@@ -603,5 +632,34 @@ mod tests {
         println!("{:#?}", ast);
         println!("{:#?}", warn);
         println!("{:#?}", err);
+    }
+
+    #[test]
+    fn the_metadata_test() {
+        let (ast, warn, err) = parse_metadata(
+            r#">> entry: true
+a test @step @salt{1%mg} more text
+a test @step @salt{1%mg} more text
+a test @step @salt{1%mg} more text
+>> entry2: uwu
+a test @step @salt{1%mg} more text
+"#,
+        )
+        .into_tuple();
+        assert!(warn.is_empty());
+        assert!(err.is_empty());
+        assert_eq!(
+            ast.unwrap().lines,
+            vec![
+                ast::Line::Metadata {
+                    key: Text::from_str(" entry", 2),
+                    value: Text::from_str(" true", 10)
+                },
+                ast::Line::Metadata {
+                    key: Text::from_str(" entry2", 126),
+                    value: Text::from_str(" uwu", 134)
+                },
+            ]
+        );
     }
 }

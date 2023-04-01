@@ -10,27 +10,27 @@ pub struct Ast<'a> {
     pub lines: Vec<Line<'a>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 pub enum Line<'a> {
     Metadata { key: Text<'a>, value: Text<'a> },
     Step { is_text: bool, items: Vec<Item<'a>> },
     Section { name: Option<Text<'a>> },
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 pub enum Item<'a> {
     Text(Text<'a>),
     Component(Box<Located<Component<'a>>>),
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 pub enum Component<'a> {
     Ingredient(Ingredient<'a>),
     Cookware(Cookware<'a>),
     Timer(Timer<'a>),
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Ingredient<'a> {
     pub modifiers: Located<Modifiers>,
     pub name: Text<'a>,
@@ -39,18 +39,18 @@ pub struct Ingredient<'a> {
     pub note: Option<Text<'a>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 pub struct Cookware<'a> {
     pub name: Text<'a>,
     pub quantity: Option<Located<QuantityValue<'a>>>,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Timer<'a> {
     pub name: Option<Text<'a>>,
     pub quantity: Located<Quantity<'a>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Quantity<'a> {
     pub value: QuantityValue<'a>,
     pub unit: Option<Text<'a>>,

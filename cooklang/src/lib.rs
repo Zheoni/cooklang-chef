@@ -151,12 +151,12 @@ impl CooklangParser {
 
     #[tracing::instrument(name = "metadata", skip_all, fields(len = input.len()))]
     pub fn parse_metadata<'a>(&self, input: &'a str) -> MetadataResult<'a> {
-        let mut r = parser::parse(input, self.extensions).into_context_result();
+        let mut r = parser::parse_metadata(input).into_context_result();
         if r.invalid() {
             return r.discard_output();
         }
         let ast = r.take_output().unwrap();
-        analysis::parse_ast(ast, self.extensions, &self.converter, None)
+        analysis::parse_ast(ast, Extensions::empty(), &self.converter, None)
             .into_context_result()
             .merge(r)
             .map(|c| c.metadata)

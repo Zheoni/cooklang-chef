@@ -38,7 +38,7 @@ bundled_units = []
 aile = ["dep:pest", "dep:pest_derive"]
 
 [[bench]]
-name = "special_chars_lookup"
+name = "parse"
 harness = false
 
 [[test]]
