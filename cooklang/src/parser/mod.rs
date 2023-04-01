@@ -1,50 +1,16 @@
+mod metadata;
+mod parser;
+mod quantity;
+mod section;
+mod step;
+mod token_stream;
+
 use std::borrow::Cow;
 
-use pest::Parser;
-use pest_derive::Parser;
+pub use parser::parse;
 use thiserror::Error;
 
-use crate::error::{PassResult, RichError};
-use crate::located::Located;
-use crate::span::Span;
-use crate::{ast, Extensions};
-
-mod pairs_walker;
-mod pest_ext;
-
-#[tracing::instrument(skip_all, fields(len = input.len()))]
-pub fn parse(input: &str, extensions: Extensions) -> ParserResult {
-    parse_impl(input, extensions, Rule::cooklang)
-}
-
-#[tracing::instrument(skip_all, fields(len = input.len()))]
-pub fn parse_metadata(input: &str, extensions: Extensions) -> ParserResult {
-    parse_impl(input, extensions, Rule::cooklang_metadata)
-}
-
-fn parse_impl(input: &str, extensions: Extensions, rule: Rule) -> ParserResult {
-    let pairs = match CooklangParser::parse(rule, input) {
-        Ok(pairs) => pairs,
-        Err(e) => {
-            return ParserError::Parse {
-                span: e.location.into(),
-                message: e.variant.message().to_string(),
-            }
-            .into()
-        }
-    };
-
-    pairs_walker::build_ast(pairs, extensions)
-}
-
-#[derive(Parser)]
-#[grammar = "parser/grammar.pest"]
-struct CooklangParser;
-
-type Pair<'a> = pest::iterators::Pair<'a, Rule>;
-type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
-
-pub type ParserResult<'a> = PassResult<ast::Ast<'a>, ParserError, ParserWarning>;
+use crate::{error::RichError, located::Located, span::Span};
 
 #[derive(Debug, Error)]
 pub enum ParserError {
@@ -55,7 +21,7 @@ pub enum ParserError {
     ComponentPartMissing {
         container: &'static str,
         what: &'static str,
-        component_span: Span,
+        expected_pos: Span,
     },
 
     #[error("A {container} cannot have: {what}")]
@@ -71,8 +37,7 @@ pub enum ParserError {
         container: &'static str,
         what: &'static str,
         reason: &'static str,
-        bad_bit: Span,
-        span_label: Option<&'static str>,
+        labels: Vec<(Span, Option<Cow<'static, str>>)>,
         help: Option<&'static str>,
     },
 
@@ -112,6 +77,13 @@ pub enum ParserError {
 pub enum ParserWarning {
     #[error("Empty metadata value for key: {key}")]
     EmptyMetadataValue { key: Located<String> },
+    #[error("A {container} cannot have {what}, it will be ignored")]
+    ComponentPartIgnored {
+        container: &'static str,
+        what: &'static str,
+        ignored: Span,
+        help: Option<&'static str>,
+    },
 }
 
 impl RichError for ParserError {
@@ -120,7 +92,7 @@ impl RichError for ParserError {
         match self {
             ParserError::Parse { span, .. } => vec![label!(span)],
             ParserError::ComponentPartMissing {
-                component_span,
+                expected_pos: component_span,
                 what,
                 ..
             } => {
@@ -129,13 +101,7 @@ impl RichError for ParserError {
             ParserError::ComponentPartNotAllowed { to_remove, .. } => {
                 vec![label!(to_remove, "remove this")]
             }
-            ParserError::ComponentPartInvalid {
-                bad_bit,
-                span_label,
-                ..
-            } => {
-                vec![(*bad_bit, span_label.map(Cow::from))]
-            }
+            ParserError::ComponentPartInvalid { labels, .. } => labels.clone(),
             ParserError::ExtensionNotEnabled { span, .. } => vec![label!(span, "used here")],
             ParserError::InvalidModifiers { modifiers_span, .. } => vec![label!(modifiers_span)],
             ParserError::ParseInt { bad_bit, .. } => vec![label!(bad_bit)],
@@ -172,6 +138,9 @@ impl RichError for ParserWarning {
         match self {
             ParserWarning::EmptyMetadataValue { key } => {
                 vec![label!(key)]
+            }
+            ParserWarning::ComponentPartIgnored { ignored, .. } => {
+                vec![label!(ignored, "this is ignored")]
             }
         }
     }

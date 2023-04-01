@@ -60,8 +60,14 @@ pub enum TokenKind {
     /// "]"
     CloseSquare,
 
-    /// [LiteralKind]
-    Literal(LiteralKind),
+    /// "14", "0", but not "014"
+    Int,
+    /// "3.14", ".14", but not "14."
+    Float,
+    /// Everything else, a "\" escapes the next char
+    Word,
+    /// "\" followed by any char
+    Escaped,
 
     /// " " and \t
     Whitespace,
@@ -77,16 +83,7 @@ pub enum TokenKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LiteralKind {
-    /// "14", "0", but not "014"
-    Int,
-    /// "3.14", ".14", but not "14."
-    Float,
-    /// Everything else, a "\" escapes the next char
-    Word,
-    /// "\" followed by any char
-    Escaped,
-}
+pub enum LiteralKind {}
 
 pub fn tokenize(input: &str) -> impl Iterator<Item = Token> + '_ {
     let mut cursor = Cursor::new(input);
@@ -135,7 +132,7 @@ impl Cursor<'_> {
             // escape next symbol
             '\\' => {
                 self.bump();
-                TokenKind::Literal(LiteralKind::Escaped)
+                TokenKind::Escaped
             }
 
             // multi char tokens
@@ -177,7 +174,7 @@ impl Cursor<'_> {
             c if is_word_char(c) => self.word(),
 
             // anything else, a one char word
-            _ => TokenKind::Literal(LiteralKind::Word),
+            _ => TokenKind::Word,
         };
         let token = Token::new(token_kind, self.pos_within_token());
         self.reset_pos_within_token();
@@ -207,7 +204,7 @@ impl Cursor<'_> {
 
     fn word(&mut self) -> TokenKind {
         self.eat_while(|c| is_word_char(c));
-        TokenKind::Literal(LiteralKind::Word)
+        TokenKind::Word
     }
 
     fn whitespace(&mut self) -> TokenKind {
@@ -240,9 +237,9 @@ impl Cursor<'_> {
         // no int special case
         if c == '.' {
             if self.eat_digits() {
-                return TokenKind::Literal(LiteralKind::Float);
+                return TokenKind::Float;
             } else {
-                return TokenKind::Literal(LiteralKind::Word);
+                return TokenKind::Word;
             }
         }
 
@@ -258,13 +255,13 @@ impl Cursor<'_> {
         };
 
         if int_leading_zero {
-            return TokenKind::Literal(LiteralKind::Word);
+            return TokenKind::Word;
         }
 
         match (has_int, has_divider, has_frac) {
-            (true, false, false) => TokenKind::Literal(LiteralKind::Int),
-            (_, true, true) => TokenKind::Literal(LiteralKind::Float),
-            _ => TokenKind::Literal(LiteralKind::Word),
+            (true, false, false) => TokenKind::Int,
+            (_, true, true) => TokenKind::Float,
+            _ => TokenKind::Word,
         }
     }
 
@@ -283,7 +280,6 @@ impl Cursor<'_> {
 }
 
 /// Shorthand macro for [TokenKind]
-#[macro_export]
 macro_rules! T {
     [+] => {
         $crate::lexer::TokenKind::Plus
@@ -305,6 +301,9 @@ macro_rules! T {
     };
     [*] => {
         $crate::lexer::TokenKind::Star
+    };
+    [%] => {
+        $crate::lexer::TokenKind::Percent
     };
     [/] => {
         $crate::lexer::TokenKind::Slash
@@ -343,7 +342,10 @@ macro_rules! T {
         $crate::lexer::TokenKind::CloseParen
     };
     [word] => {
-        $crate::lexer::TokenKind::Literal($crate::lexer::LiteralKind::Word)
+        $crate::lexer::TokenKind::Word
+    };
+    [escaped] => {
+        $crate::lexer::TokenKind::Escaped
     };
     [line comment] => {
         $crate::lexer::TokenKind::LineComment
@@ -352,10 +354,10 @@ macro_rules! T {
         $crate::lexer::TokenKind::BlockComment
     };
     [int] => {
-        $crate::lexer::TokenKind::Literal($crate::lexer::LiteralKind::Int)
+        $crate::lexer::TokenKind::Int
     };
     [float] => {
-        $crate::lexer::TokenKind::Literal($crate::lexer::LiteralKind::Float)
+        $crate::lexer::TokenKind::Float
     };
     [meta] => {
         $crate::lexer::TokenKind::MetadataStart
@@ -373,18 +375,43 @@ macro_rules! T {
         $crate::lexer::TokenKind::Eof
     };
 }
+pub(crate) use T;
+
+/// Utility macro to build a vec of tokens, example:
+/// ```
+/// # use crate::lexer::Token;
+/// # use crate::lexer::tokens;
+/// let tokens = tokens![word: 3, ws: 1];
+/// assert_eq!(tokens, vec![
+///     Token { kind: T![word], len: 3},
+///     Token { kind: T![ws], len: 1
+/// ]);
+/// ```
+/// Also see [T].
+macro_rules! tokens {
+    ($($kind:tt : $len:expr),*) => {{
+        let mut v = Vec::new();
+        $(
+            v.push($crate::lexer::Token { kind: $crate::lexer::T![$kind], len: $len });
+        )*
+        v
+    }};
+    (parse; $($kind:tt . $len:expr),*) => {{
+        let mut v = Vec::new();
+        let mut len = 0;
+        $(
+            v.push($crate::parser::token_stream::Token { kind: $crate::lexer::T![$kind], span: $crate::span::Span::new(len, len + $len) });
+            len += $len;
+        )*
+        v
+    }};
+}
+pub(crate) use tokens;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use TokenKind::*;
-
-    #[allow(non_upper_case_globals)]
-    const Word: TokenKind = TokenKind::Literal(LiteralKind::Word);
-    #[allow(non_upper_case_globals)]
-    const Int: TokenKind = TokenKind::Literal(LiteralKind::Int);
-    #[allow(non_upper_case_globals)]
-    const Float: TokenKind = TokenKind::Literal(LiteralKind::Float);
 
     macro_rules! t {
         ($input:expr, $token_kinds:expr) => {

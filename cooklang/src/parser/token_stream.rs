@@ -1,8 +1,6 @@
 //! [Cursor](crate::lexer::Cursor) iterator adapter for it's use in
 //! Parser(super::parser::Parser).
 
-use std::collections::VecDeque;
-
 pub use crate::lexer::TokenKind;
 use crate::{lexer::Cursor, span::Span};
 
@@ -45,14 +43,6 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, span: Span) -> Self {
-        Self { kind, span }
-    }
-
-    pub fn dummy() -> Self {
-        Self::new(TokenKind::Question, Span::new(0, 0))
-    }
-
     pub fn len(&self) -> usize {
         self.span.len()
     }

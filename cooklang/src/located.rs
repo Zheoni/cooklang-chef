@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::{context::Recover, span::Span};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct Located<T, Id = ()> {
     pub(crate) inner: T,
     span: Span<Id>,

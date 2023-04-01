@@ -22,27 +22,13 @@ impl<E, W> Context<E, W> {
         self.warnings.push(w);
     }
 
-    pub fn recover<T>(&mut self, r: Result<T, E>) -> T
-    where
-        T: Recover,
-    {
-        match r {
-            Ok(v) => v,
-            Err(e) => {
-                self.error(e);
-                T::recover()
-            }
-        }
+    pub fn append(&mut self, other: &mut Self) {
+        self.errors.append(&mut other.errors);
+        self.warnings.append(&mut other.warnings);
     }
 
-    pub fn recover_val<T>(&mut self, r: Result<T, E>, val: T) -> T {
-        match r {
-            Ok(v) => v,
-            Err(e) => {
-                self.error(e);
-                val
-            }
-        }
+    pub fn is_empty(&self) -> bool {
+        self.errors.is_empty() && self.warnings.is_empty()
     }
 
     pub fn finish<T>(self, output: Option<T>) -> PassResult<T, E, W> {

@@ -190,19 +190,16 @@ impl<'a> QuantityValue<'a> {
         match value {
             ast::QuantityValue::Single {
                 value,
-                scalable: false,
+                auto_scale: None,
                 ..
             } => Self::Fixed(value.take()),
             ast::QuantityValue::Single {
                 value,
-                scalable: true,
+                auto_scale: Some(_),
                 ..
             } => Self::Scalable(ScalableValue::Linear(value.take())),
             ast::QuantityValue::Many(v) => Self::Scalable(ScalableValue::ByServings(
-                v.into_items()
-                    .into_iter()
-                    .map(crate::located::Located::take)
-                    .collect(),
+                v.into_iter().map(crate::located::Located::take).collect(),
             )),
         }
     }

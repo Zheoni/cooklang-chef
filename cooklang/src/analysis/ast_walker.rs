@@ -101,7 +101,6 @@ crate::context::impl_deref_context!(Walker<'_, '_>, AnalysisError, AnalysisWarni
 impl<'a, 'r> Walker<'a, 'r> {
     fn ast(&mut self, ast: ast::Ast<'a>) {
         let mut current_section = Section::default();
-        let mut continue_last_step = false;
 
         for line in ast.lines {
             match line {
@@ -113,13 +112,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                     // step to the section. The components should have been
                     // added to their lists
                     if self.define_mode != DefineMode::Components {
-                        if continue_last_step && !current_section.steps.is_empty() {
-                            let last_step = current_section.steps.last_mut().unwrap();
-                            last_step.items.push(Item::Text(" ".into()));
-                            last_step.items.extend(new_step.items);
-                        } else {
-                            current_section.steps.push(new_step);
-                        }
+                        current_section.steps.push(new_step);
                     }
                 }
                 ast::Line::Section { name } => {
@@ -128,14 +121,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                     }
                     current_section = Section::new(name.map(|t| t.text_trimmed()));
                 }
-                ast::Line::SoftBreak => {
-                    if self.extensions.contains(Extensions::MULTINE_STEPS) {
-                        continue_last_step = true;
-                        continue; // skip set to false
-                    }
-                }
             }
-            continue_last_step = false;
         }
         if !current_section.is_empty() {
             self.content.sections.push(current_section);
@@ -288,10 +274,7 @@ impl<'a, 'r> Walker<'a, 'r> {
         let mut new_igr = Ingredient {
             name,
             alias: ingredient.alias.map(|t| t.text_trimmed()),
-            quantity: ingredient
-                .quantity
-                .clone()
-                .map(|q| self.quantity(q.into_located_inner(), true)),
+            quantity: ingredient.quantity.clone().map(|q| self.quantity(q, true)),
             note: ingredient.note.map(|n| n.text_trimmed()),
             modifiers: ingredient.modifiers.clone().take(),
             references_to: None,
@@ -436,7 +419,7 @@ impl<'a, 'r> Walker<'a, 'r> {
 
         let new_cookware = Cookware {
             name: cookware.name.text_trimmed(),
-            quantity: cookware.quantity.map(|q| self.value(q.into_inner(), false)),
+            quantity: cookware.quantity.map(|q| self.value(q.inner, false)),
         };
 
         self.content.cookware.push(new_cookware);
@@ -447,7 +430,7 @@ impl<'a, 'r> Walker<'a, 'r> {
         let located_timer = timer.clone();
         let (timer, span) = timer.take_pair();
 
-        let quantity = self.quantity(timer.quantity.into_located_inner(), false);
+        let quantity = self.quantity(timer.quantity, false);
         if self.extensions.contains(Extensions::ADVANCED_UNITS) {
             if let Some(unit) = quantity.unit() {
                 match unit.unit_or_parse(self.converter) {
@@ -495,13 +478,13 @@ impl<'a, 'r> Walker<'a, 'r> {
                     .metadata_locations
                     .get("servings")
                     .map(|(_, value)| value.span());
-                if s.len() != v.items().len() {
+                if s.len() != v.len() {
                     self.context
                         .error(AnalysisError::ScalableValueManyConflict {
                             reason: format!(
                                 "{} servings defined but {} values in the quantity",
                                 s.len(),
-                                v.items().len()
+                                v.len()
                             )
                             .into(),
                             value_span: value.span(),
@@ -510,11 +493,8 @@ impl<'a, 'r> Walker<'a, 'r> {
                 }
             } else {
                 self.error(AnalysisError::ScalableValueManyConflict {
-                    reason: format!(
-                        "no servings defined but {} values in quantity",
-                        v.items().len()
-                    )
-                    .into(),
+                    reason: format!("no servings defined but {} values in quantity", v.len())
+                        .into(),
                     value_span: value.span(),
                     servings_meta_span: None,
                 })
