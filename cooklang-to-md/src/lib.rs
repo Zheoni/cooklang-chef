@@ -1,3 +1,5 @@
+//! Format a recipe as markdown
+
 use std::{borrow::Cow, fmt::Write, io};
 
 use cooklang::{

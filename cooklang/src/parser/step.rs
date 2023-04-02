@@ -18,7 +18,10 @@ pub struct ParsedStep<'input> {
     pub items: Vec<ast::Item<'input>>,
 }
 
-pub fn step<'input>(line: &mut LineParser<'_, 'input>, force_text: bool) -> ParsedStep<'input> {
+pub(crate) fn step<'input>(
+    line: &mut LineParser<'_, 'input>,
+    force_text: bool,
+) -> ParsedStep<'input> {
     let is_text = line.consume(T![>]).is_some();
 
     let mut items: Vec<ast::Item> = vec![];

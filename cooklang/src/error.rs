@@ -1,3 +1,5 @@
+//! Error type, formatting and utilities.
+
 use std::borrow::Cow;
 
 use thiserror::Error;

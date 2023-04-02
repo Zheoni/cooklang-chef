@@ -1,12 +1,17 @@
-//! # cooklang
+//! A [cooklang](https://cooklang.org/) parser with opt-in extensions.
 //!
-//! This crate is a [cooklang](https://cooklang.org/) parser written in rust
-//! with some extra opt-in extensions.
+//! The extensions creates a superset of the original cooklang language and can
+//! be turned off. To see a detailed list go to [extensions](_extensions).
 //!
-//! The extensions form a superset of the original cooklang language and can be
-//! turned off. To see a detailed list go to [extensions](_extensions).
+//! Also includes:
+//! - Rich error report with annotated code spans.
+//! - Unit conversion.
+//! - Recipe scaling.
+//! - A parser for cooklang aile configuration file.
 //!
-//! The parser returns rich errors with annotated code spans. For example.
+//! More information in the [cooklang-rs repo](https://github.com/Zheoni/cooklang-rs).
+
+#![deny(rustdoc::broken_intra_doc_links)]
 
 #[cfg(feature = "aile")]
 pub mod aile;
@@ -15,7 +20,7 @@ pub mod ast;
 mod context;
 pub mod convert;
 pub mod error;
-pub mod lexer;
+mod lexer;
 mod located;
 pub mod metadata;
 pub mod model;
@@ -67,12 +72,17 @@ impl Default for Extensions {
     }
 }
 
+/// A cooklang parser
 #[derive(Debug, Default, Clone)]
 pub struct CooklangParser {
     extensions: Extensions,
     converter: Converter,
 }
 
+/// A helper parser builder.
+///
+/// If no [Converter] given, [Converter::default] will be used. Note that
+/// [Converter::default] changes depending on the `bundled_units` feature.
 #[derive(Debug, Default, Clone)]
 pub struct CooklangParserBuilder {
     extensions: Extensions,
@@ -115,22 +125,32 @@ pub type MetadataResult<'a> = PassResult<Metadata<'a>, CooklangError, CooklangWa
 pub type RecipeRefChecker<'a> = Box<dyn Fn(&str) -> bool + 'a>;
 
 impl CooklangParser {
+    /// Start initializing a new parser
     pub fn builder() -> CooklangParserBuilder {
         CooklangParserBuilder::default()
     }
 
+    /// Get the parser inner converter
     pub fn converter(&self) -> &Converter {
         &self.converter
     }
 
+    /// Get the enabled extensions
     pub fn extensions(&self) -> Extensions {
         self.extensions
     }
 
+    /// Parse a recipe
+    ///
+    /// As in cooklang the name is external to the recipe, this must be given
+    /// here too.
     pub fn parse<'a>(&self, input: &'a str, recipe_name: &str) -> RecipeResult<'a> {
         self.parse_with_recipe_ref_checker(input, recipe_name, None)
     }
 
+    /// Same as [Self::parse] but with a function that checks if a recipe
+    /// reference exists. If the function returns `false` for a recipe reference,
+    /// it will be considered an error.
     #[tracing::instrument(name = "parse", skip_all, fields(len = input.len()))]
     pub fn parse_with_recipe_ref_checker<'a>(
         &self,
@@ -149,6 +169,9 @@ impl CooklangParser {
             .map(|c| Recipe::from_content(recipe_name.to_string(), c))
     }
 
+    /// Parse only the metadata of a recipe
+    ///
+    /// This is a bit faster than [Self::parse] if you only want the metadata
     #[tracing::instrument(name = "metadata", skip_all, fields(len = input.len()))]
     pub fn parse_metadata<'a>(&self, input: &'a str) -> MetadataResult<'a> {
         let mut r = parser::parse_metadata(input).into_context_result();
@@ -163,6 +186,7 @@ impl CooklangParser {
     }
 }
 
+/// Parse a recipe with a default [CooklangParser]
 pub fn parse<'a>(
     input: &'a str,
     recipe_name: &str,

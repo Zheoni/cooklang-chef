@@ -57,6 +57,13 @@ Divide the steps. Sections can have a name or not.
 ====              -- 2 or more '=' for a section without name
 ```
 
+To add images to steps inside a section, add another index to the image name:
+```txt
+Recipe.0.jpeg   -- First section, first step
+Recipe.0.0.jpeg -- The same
+Recipe.1.0.jpeg -- Second section, first, step
+```
+
 ## Text steps
 All components are ignored and the steps don't increment the step counter. Some
 people like to write a couple of paragraphs in the recipe that don't are steps.
@@ -139,7 +146,7 @@ special keys are between square brackets.
 Find temperatures in the text, without any markers. In the future this may be
 extended to any unit.
 
-For example, the temperature here will be parsed not as text, but as an inline
+For example, the temperature here will be parsed[^2] not as text, but as an inline
 quantity.
 ```cooklang
 Preheat the #oven to 180 ºC.
@@ -152,8 +159,11 @@ comunicating that in some cases.
 ```cooklang
 @eggs{2-4}
 @tomato sauce{200-300%ml}            -- works with units
-@water{1.5-2%l}                      -- with floats too
+@water{1.5-2%l}                      -- with decimal numbers too
 @flour{100%g} ... @&flour{200-400%g} -- the total will be 300-500 g
 ```
 
-[^1]: This is work in progress in cooklang but supported here.
+[^1]: This is work in progress in `cooklang` but supported here.
+
+[^2]: Currently this is done in the analysis pass. So in the AST there is no
+concept of inline quantities.

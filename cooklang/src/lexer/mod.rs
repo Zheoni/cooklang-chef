@@ -82,21 +82,6 @@ pub enum TokenKind {
     Eof,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LiteralKind {}
-
-pub fn tokenize(input: &str) -> impl Iterator<Item = Token> + '_ {
-    let mut cursor = Cursor::new(input);
-    std::iter::from_fn(move || {
-        let token = cursor.advance_token();
-        if token.kind != TokenKind::Eof {
-            Some(token)
-        } else {
-            None
-        }
-    })
-}
-
 fn is_newline(c: char, first: char) -> bool {
     c == '\n' || (c == '\r' && first == '\n')
 }
@@ -376,6 +361,18 @@ pub(crate) use T;
 mod tests {
     use super::*;
     use TokenKind::*;
+
+    fn tokenize(input: &str) -> impl Iterator<Item = Token> + '_ {
+        let mut cursor = Cursor::new(input);
+        std::iter::from_fn(move || {
+            let token = cursor.advance_token();
+            if token.kind != TokenKind::Eof {
+                Some(token)
+            } else {
+                None
+            }
+        })
+    }
 
     macro_rules! t {
         ($input:expr, $token_kinds:expr) => {

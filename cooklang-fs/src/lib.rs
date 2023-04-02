@@ -1,3 +1,10 @@
+//! `cooklang-rs` helper crate.
+//!
+//! Utilities to deal with referencing recipe, images and data related to
+//! recipes that are in other files.
+//!
+//! It implements an index into the file system ([FsIndex]) to efficiently
+//! get recipes from a path. Also, get related images from a recipe.
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -6,6 +13,10 @@ use std::{
 
 use camino::{Utf8Path, Utf8PathBuf};
 
+/// Index of a directory for cooklang recipes
+///
+/// The index is lazy, so it will only search for things it needs when asked,
+/// not when created.
 #[derive(Debug)]
 pub struct FsIndex {
     base_path: Utf8PathBuf,
@@ -98,6 +109,7 @@ impl TryFrom<walkdir::DirEntry> for DirEntry {
 }
 
 impl FsIndex {
+    /// Create a new index
     pub fn new(base_path: impl AsRef<std::path::Path>, max_depth: usize) -> Result<Self, Error> {
         let base_path = Utf8Path::from_path(base_path.as_ref())
             .ok_or_else(|| Error::NonUtf8(NonUtf8(base_path.as_ref().into())))?;
@@ -120,22 +132,15 @@ impl FsIndex {
         })
     }
 
-    pub fn all(
-        base_path: impl AsRef<std::path::Path>,
-        max_depth: usize,
-    ) -> impl Iterator<Item = DirEntry> {
-        walkdir::WalkDir::new(base_path.as_ref())
-            .max_depth(max_depth)
-            .sort_by_file_name()
-            .into_iter()
-            .filter_map(|e| e.ok().and_then(|e| DirEntry::try_from(e).ok()))
-            .filter(|e| e.file_type.is_dir() || is_cooklang_file(e))
-    }
-
+    /// Check if the index contains a recipe
     pub fn contains(&self, recipe: &str) -> bool {
         self.get(recipe).is_ok()
     }
 
+    /// Get a recipe from the index
+    ///
+    /// The input recipe name can be just a name or a path relative
+    /// to the base path of the index.
     #[tracing::instrument(name = "fs_index_get", skip(self))]
     pub fn get(&self, recipe: &str) -> Result<RecipeEntry, Error> {
         let path = Utf8Path::new(recipe);
@@ -177,6 +182,19 @@ impl FsIndex {
         self.cache.borrow_mut().mark_non_existent(recipe);
         Err(Error::NotFound(recipe.to_string()))
     }
+}
+
+/// Get all recipes from a path with a depth limit
+pub fn all_recipes(
+    base_path: impl AsRef<std::path::Path>,
+    max_depth: usize,
+) -> impl Iterator<Item = DirEntry> {
+    walkdir::WalkDir::new(base_path.as_ref())
+        .max_depth(max_depth)
+        .sort_by_file_name()
+        .into_iter()
+        .filter_map(|e| e.ok().and_then(|e| DirEntry::try_from(e).ok()))
+        .filter(|e| e.file_type.is_dir() || is_cooklang_file(e))
 }
 
 fn is_cooklang_file(dir_entry: &DirEntry) -> bool {
@@ -259,6 +277,12 @@ pub struct Image {
     pub path: Utf8PathBuf,
 }
 
+/// Valid image extensions
+pub const IMAGE_EXTENSIONS: &[&str] = &["jpeg", "jpg", "png", "heic", "gif", "webp"];
+
+/// Get a list of the images of the recipe
+///
+/// See [IMAGE_EXTENSIONS].
 pub fn recipe_images(path: &Utf8Path) -> Vec<Image> {
     let Some(dir) = path.parent() else { return vec![]; };
     let mut images = walkdir::WalkDir::new(dir)
@@ -268,7 +292,6 @@ pub fn recipe_images(path: &Utf8Path) -> Vec<Image> {
         .filter_map(|e| Utf8PathBuf::from_path_buf(e.path().to_path_buf()).ok())
         .filter(|e| !e.is_dir())
         .filter_map(|image_path| {
-            const EXTENSIONS: &[&str] = &["jpeg", "jpg", "png", "heic", "gif", "webp"];
             let parts = image_path
                 .file_name()
                 .unwrap()
@@ -284,7 +307,7 @@ pub fn recipe_images(path: &Utf8Path) -> Vec<Image> {
                 &[ext, step_index, section_index, name] => {
                     let step_index = step_index.parse::<usize>();
                     let section_index = section_index.parse::<usize>();
-                    (EXTENSIONS.contains(&ext)
+                    (IMAGE_EXTENSIONS.contains(&ext)
                         && name == recipe_name
                         && step_index.is_ok()
                         && section_index.is_ok())
@@ -295,14 +318,14 @@ pub fn recipe_images(path: &Utf8Path) -> Vec<Image> {
                 }
                 &[ext, step_index, name] => {
                     let step_index = step_index.parse::<usize>();
-                    (EXTENSIONS.contains(&ext) && name == recipe_name && step_index.is_ok())
+                    (IMAGE_EXTENSIONS.contains(&ext) && name == recipe_name && step_index.is_ok())
                         .then_some(Image {
                             indexes: Some((0, step_index.unwrap())),
                             path: image_path,
                         })
                 }
                 &[ext, name] => {
-                    (EXTENSIONS.contains(&ext) && name == recipe_name).then_some(Image {
+                    (IMAGE_EXTENSIONS.contains(&ext) && name == recipe_name).then_some(Image {
                         indexes: None,
                         path: image_path,
                     })
@@ -328,6 +351,10 @@ pub enum RecipeImageError {
     },
 }
 
+/// Check that all images for a recipe actually can reference it.
+///
+/// For example the image `Recipe.14.jpeg` references step 15th, but the
+/// recipe may not have 15 steps, so this function returns an error.
 pub fn check_recipe_images<D>(
     images: &[Image],
     recipe: &cooklang::Recipe<D>,
@@ -359,42 +386,3 @@ pub fn check_recipe_images<D>(
         Err(errors)
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     fn mock_fs() -> FsIndex {
-//         let mut fs = FsIndex::empty("");
-//         macro_rules! e {
-//             ($path:expr) => {
-//                 let path = Path::new($path);
-//                 fs.insert(
-//                     path.file_stem().unwrap().to_string_lossy().as_ref(),
-//                     path,
-//                     path.components().count(),
-//                 );
-//             };
-//         }
-//         e!("recipe.cook");
-//         e!("a/recipe.cook");
-//         e!("a/b/other.cook");
-//         e!("a/b/c/recipe.cook");
-//         e!("d/other.cook");
-//         fs
-//     }
-
-//     #[test]
-//     fn test_get() {
-//         let fs = mock_fs();
-
-//         assert_eq!(fs.get("recipe").unwrap().path(), "recipe.cook");
-//         assert_eq!(fs.get("other").unwrap().path(), "d/other.cook");
-//         assert_eq!(fs.get("a/recipe").unwrap().path(), "a/recipe.cook");
-//         assert_eq!(fs.get("a/recipe.cook").unwrap().path(), "a/recipe.cook");
-//         assert_eq!(fs.get("a/b/c/recipe").unwrap().path(), "a/b/c/recipe.cook");
-
-//         assert!(fs.get("croissant").is_err());
-//         assert!(fs.get("a/b/recipe").is_err());
-//     }
-// }

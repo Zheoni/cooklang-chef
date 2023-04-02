@@ -1,3 +1,8 @@
+//! Format a recipe for humans to read
+//!
+//! It uses colors controlled by `concolor` and `yansi`, so enable or
+//! disable them at your own like.
+
 use std::{collections::HashMap, io, time::Duration};
 
 use cooklang::{

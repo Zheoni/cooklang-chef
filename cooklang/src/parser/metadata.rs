@@ -7,7 +7,9 @@ pub struct MetadataEntry<'input> {
     pub value: ast::Text<'input>,
 }
 
-pub fn metadata_entry<'input>(line: &mut LineParser<'_, 'input>) -> Option<MetadataEntry<'input>> {
+pub(crate) fn metadata_entry<'input>(
+    line: &mut LineParser<'_, 'input>,
+) -> Option<MetadataEntry<'input>> {
     // Parse
     line.consume(T![meta])?;
     let key_pos = line.current_offset();

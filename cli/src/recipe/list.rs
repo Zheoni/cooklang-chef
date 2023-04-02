@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{builder::ArgPredicate, Args};
 use cooklang::CooklangParser;
-use cooklang_fs::{DirEntry, FsIndex};
+use cooklang_fs::{all_recipes, DirEntry};
 use termtree::Tree;
 use yansi::Paint;
 
@@ -39,7 +39,7 @@ pub struct ListArgs {
 }
 
 pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
-    let iter = FsIndex::all(&ctx.base_dir, ctx.config.max_depth);
+    let iter = all_recipes(&ctx.base_dir, ctx.config.max_depth);
     if args.tree {
         let mut iter = iter.peekable();
         let root = iter.next().unwrap();

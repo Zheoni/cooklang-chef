@@ -1,3 +1,5 @@
+//! Support for unit conversion
+
 use std::{collections::HashMap, ops::RangeInclusive, sync::Arc};
 
 use enum_map::EnumMap;
@@ -17,6 +19,14 @@ use self::{
 pub mod builder;
 pub mod units_file;
 
+/// Main struct to perform conversions
+///
+/// This holds information about all the known units and how to convert them.
+///
+/// [Converter::default] changes with the feature `bundled_units`:
+/// - When enabled, it will have the bundled units. These are the basic unit for
+///   most of the recipes you will need (in English).
+/// - When disabled, empty.
 #[derive(Debug, Clone)]
 pub struct Converter {
     all_units: Vec<Arc<Unit>>,
@@ -29,26 +39,37 @@ pub struct Converter {
 }
 
 impl Converter {
+    /// Start to create a new [Converter]
     pub fn builder() -> ConverterBuilder {
         ConverterBuilder::new()
     }
 
+    /// Get the default unit [System]
     pub fn default_system(&self) -> System {
         self.default_system
     }
 
+    /// Get the total number of known units.
+    ///
+    /// This is now all the known unit names, just different units.
     pub fn unit_count(&self) -> usize {
         self.all_units.len()
     }
 
+    /// Get a detailed count of the known units. See [UnitCount].
     pub fn unit_count_detailed(&self) -> UnitCount {
         UnitCount::new(self)
     }
 
+    /// Get an iterator of all the known units.
     pub fn all_units(&self) -> impl Iterator<Item = &Unit> {
         self.all_units.iter().map(|u| u.as_ref())
     }
 
+    /// Check if a unit is oneof the possible conversions in it's units system.
+    ///
+    /// When a unit is a "best" unit, the converter may choose it when trying
+    /// to get the best match for a value.
     pub fn is_best_unit(&self, unit: &Unit) -> bool {
         let unit_id = self
             .unit_index
@@ -85,18 +106,31 @@ impl Default for Converter {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct UnitIndex(HashMap<Arc<str>, usize>);
+pub(crate) struct UnitIndex(HashMap<Arc<str>, usize>);
 
-pub type UnitQuantityIndex = EnumMap<PhysicalQuantity, Vec<usize>>;
+pub(crate) type UnitQuantityIndex = EnumMap<PhysicalQuantity, Vec<usize>>;
 
+/// A unit
+///
+/// Conversion will be `val * [Self::ratio] + [Self::difference]`
+///
+/// It implements [Display](std::fmt::Display). It will use [Self::symbol] or,
+/// if alternate (`#`) is given, it will try the first name.
 #[derive(Debug, Clone, Serialize)]
 pub struct Unit {
+    /// All the names that may be used to format the unit
     pub names: Vec<Arc<str>>,
+    /// All the symbols (abbreviations), like `ml` for `millilitres`
     pub symbols: Vec<Arc<str>>,
+    /// Custom aliases to parse the unit from a different string
     pub aliases: Vec<Arc<str>>,
+    /// Conversion ratio
     pub ratio: f64,
+    /// Difference offset to the conversion ratio
     pub difference: f64,
+    /// The [PhysicalQuantity] this unit belongs to
     pub physical_quantity: PhysicalQuantity,
+    /// The unit [System] this unit belongs to, if any
     pub system: Option<System>,
     #[serde(skip)]
     expand_si: bool,
@@ -109,6 +143,11 @@ impl Unit {
         self.names.iter().chain(&self.symbols).chain(&self.aliases)
     }
 
+    /// Get the symbol that represent this unit. The process is:
+    /// - First symbol (if any)
+    /// - Or first name (if any)
+    /// - Or first alias (if any)
+    /// - **panics**
     pub fn symbol(&self) -> &str {
         self.symbols
             .first()
@@ -120,7 +159,11 @@ impl Unit {
 
 impl std::fmt::Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.symbol())
+        if f.alternate() && !self.names.is_empty() {
+            write!(f, "{}", self.names[0])
+        } else {
+            write!(f, "{}", self.symbol())
+        }
     }
 }
 
@@ -165,6 +208,9 @@ pub enum PhysicalQuantity {
 }
 
 impl Converter {
+    /// Perform a conversion with so generic help of the [ConvertFrom] trait.
+    ///
+    /// Just a convenience method of calling [Self::convert2]
     pub fn convert<'f, 't, F: ConvertFrom<'f>>(
         &self,
         from: F,
@@ -172,11 +218,12 @@ impl Converter {
     ) -> Result<F::Output, ConvertError> {
         let (value, unit) = from.into_convert_value_unit()?;
         let to = to.into();
-        let (value, output_unit) = self.convert_impl(value, unit, to)?;
+        let (value, output_unit) = self.convert2(value, unit, to)?;
         Ok(F::output(value, output_unit))
     }
 
-    fn convert_impl<'a>(
+    /// Perform a conversion
+    pub fn convert2<'a>(
         &'a self,
         value: ConvertValue,
         unit: ConvertUnit,
@@ -249,7 +296,7 @@ impl Converter {
         convert_f64(value, from, to)
     }
 
-    pub fn get_unit<'a>(&'a self, unit: &ConvertUnit) -> Result<&'a Arc<Unit>, UnknownUnit> {
+    pub(crate) fn get_unit<'a>(&'a self, unit: &ConvertUnit) -> Result<&'a Arc<Unit>, UnknownUnit> {
         let id = match unit {
             ConvertUnit::Unit(u) => self.unit_index.get_unit_id(u.symbol())?,
             ConvertUnit::UnitId(id) => *id,
@@ -266,6 +313,7 @@ pub(crate) fn convert_f64(value: f64, from: &Unit, to: &Unit) -> f64 {
     (norm / to.ratio) - to.difference
 }
 
+/// Error when try to convert an unknown unit
 #[derive(Debug, Error)]
 #[error("Unknown unit: '{0}'")]
 pub struct UnknownUnit(String);
@@ -310,12 +358,14 @@ impl BestConversions {
     }
 }
 
+/// Input value for [Converter::convert]
 #[derive(PartialEq, Clone, Debug)]
 pub enum ConvertValue {
     Number(f64),
     Range(RangeInclusive<f64>),
 }
 
+/// Input unit for [Converter::convert]
 #[derive(Debug, Clone, Copy)]
 pub enum ConvertUnit<'a> {
     Unit(&'a Arc<Unit>),
@@ -323,6 +373,7 @@ pub enum ConvertUnit<'a> {
     Key(&'a str),
 }
 
+/// Input target for [Converter::convert]
 #[derive(Debug, Clone, Copy)]
 pub enum ConvertTo<'a> {
     SameSystem,
@@ -375,6 +426,7 @@ impl<'a> From<&'a Arc<Unit>> for ConvertTo<'a> {
     }
 }
 
+/// Convenience trait for input in [Converter::convert]
 pub trait ConvertFrom<'a> {
     fn into_convert_value_unit(self) -> Result<(ConvertValue, ConvertUnit<'a>), ConvertError>;
 
@@ -468,6 +520,7 @@ impl PartialOrd<Self> for ConvertValue {
     }
 }
 
+/// Errors from converting
 #[derive(Debug, Error)]
 pub enum ConvertError {
     #[error("Tried to convert a value with no unit: {0}")]
@@ -515,13 +568,18 @@ impl Converter {
     }
 }
 
+/// Detailed count of units
 pub struct UnitCount {
+    /// Total number of units
     pub all: usize,
+    /// Number of units by system
     pub by_system: EnumMap<System, usize>,
+    /// Number of units by quantity
     pub by_quantity: EnumMap<PhysicalQuantity, usize>,
 }
 
 impl UnitCount {
+    /// Calcualte the unit count
     pub fn new(converter: &Converter) -> Self {
         Self {
             all: converter.all_units.len(),
@@ -542,6 +600,7 @@ impl UnitCount {
 }
 
 impl crate::ScaledRecipe<'_> {
+    /// Convert a [ScaledRecipe](crate::ScaledRecipe) to another [System] in place.
     pub fn convert(&mut self, to: System, converter: &Converter) -> Result<(), ConvertError> {
         for igr in &mut self.ingredients {
             if let Some(q) = &mut igr.quantity {

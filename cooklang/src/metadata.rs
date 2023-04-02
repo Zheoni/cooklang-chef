@@ -1,3 +1,5 @@
+//! Metadata of a recipe
+
 use std::{borrow::Cow, ops::RangeInclusive};
 
 pub use indexmap::IndexMap;

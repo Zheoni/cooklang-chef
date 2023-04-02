@@ -1,3 +1,5 @@
+//! Format a recipe as cooklang
+
 use std::{borrow::Cow, fmt::Write, io};
 
 use cooklang::{
@@ -126,7 +128,11 @@ struct ComponentFormatter<'a> {
 
 impl<'a> ComponentFormatter<'a> {
     fn format(self, w: &mut String) {
-        w.push(self.kind.as_char());
+        w.push(match self.kind {
+            ComponentKind::Ingredient => '@',
+            ComponentKind::Cookware => '#',
+            ComponentKind::Timer => '~',
+        });
         for m in self.modifiers {
             w.push(m.as_char());
         }

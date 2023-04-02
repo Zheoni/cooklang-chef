@@ -1,8 +1,11 @@
 # cooklang-rs
 
-> ⚠️ Every part of this repo is still work in progress and may change at any time
-
 A superset of [cooklang](https://cooklang.org/) and related tools.
+
+> ⚠️ This is still work in progress ⚠️
+>
+> Almost everything work, but it is still work in progress and can change at any
+> time.
 
 ## What is this
 I wanted a couple more feature that cooklang did not have, so I extended the

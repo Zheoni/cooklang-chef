@@ -1,15 +1,20 @@
+//! Cooklang aile configuration parser
 use std::collections::HashMap;
 
 use pest::Parser;
-use pest_derive::Parser;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{error::RichError, span::Span};
 
-#[derive(Parser)]
-#[grammar = "aile/grammar.pest"]
-struct AileConfParser;
+// So [parser::Rule] is not public
+mod parser {
+    use pest_derive::Parser;
+    #[derive(Parser)]
+    #[grammar = "aile/grammar.pest"]
+    pub struct AileConfParser;
+}
+use parser::{AileConfParser, Rule};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AileConf<'a> {
@@ -30,6 +35,7 @@ pub struct Ingredient<'a> {
     pub names: Vec<&'a str>,
 }
 
+/// Parse an [AileConf]
 pub fn parse(input: &str) -> Result<AileConf, AileConfError> {
     let pairs =
         AileConfParser::parse(Rule::shopping_list, input).map_err(|e| AileConfError::Parse {
@@ -82,6 +88,7 @@ pub fn parse(input: &str) -> Result<AileConf, AileConfError> {
     Ok(AileConf { categories })
 }
 
+/// Write an [AileConf] in the cooklang supported format.
 pub fn write(conf: &AileConf, mut write: impl std::io::Write) -> std::io::Result<()> {
     let w = &mut write;
     for category in &conf.categories {

@@ -2,7 +2,9 @@ use crate::{ast, lexer::T};
 
 use super::LineParser;
 
-pub fn section<'input>(line: &mut LineParser<'_, 'input>) -> Option<Option<ast::Text<'input>>> {
+pub(crate) fn section<'input>(
+    line: &mut LineParser<'_, 'input>,
+) -> Option<Option<ast::Text<'input>>> {
     line.consume(T![=])?;
     line.consume_while(|t| t == T![=]);
     let name_pos = line.current_offset();

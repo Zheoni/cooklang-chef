@@ -1,3 +1,5 @@
+//! Support for recipe scaling
+
 use thiserror::Error;
 
 use crate::{
@@ -6,6 +8,7 @@ use crate::{
     Recipe,
 };
 
+/// Configures the scaling
 #[derive(Debug, Clone, Copy)]
 pub struct ScaleTarget {
     base: u32,
@@ -14,6 +17,13 @@ pub struct ScaleTarget {
 }
 
 impl ScaleTarget {
+    /// Creates a new [ScaleTarget].
+    /// - `base` is the number of servings the recipe was initially written for.
+    /// - `target` is the wanted number of servings.
+    /// - `declared_servigs` is a slice with all the servings of the recipe metadata.
+    ///
+    /// Invalid parameters don't error here, but may do so in the
+    /// scaling process.
     pub fn new(base: u32, target: u32, declared_servings: &[u32]) -> Self {
         ScaleTarget {
             base,
@@ -22,44 +32,70 @@ impl ScaleTarget {
         }
     }
 
+    /// Get the scaling factor calculated
     pub fn factor(&self) -> f64 {
         self.target as f64 / self.base as f64
     }
 
+    /// Get the index into a [ScalableValue::ByServings]
     pub fn index(&self) -> Option<usize> {
         self.index
     }
 
+    /// Get the target servings
     pub fn target_servings(&self) -> u32 {
         self.target
     }
 }
 
+/// Possible scaled states of a recipe
 #[derive(Debug)]
 pub enum Scaled {
+    /// The recipe was scaled to its based servings
+    ///
+    /// This is the values written in text or if there are many values
+    /// for a component, the first one.
     DefaultScaling,
+    /// Not scaled
+    ///
+    /// All the values stay the same, even if there are many values for a
+    /// component.
     SkippedSacaling,
+    /// Scaled to a custom target
     Scaled(ScaledData),
 }
 
+/// Data from scaling a recipe
 #[derive(Debug)]
 pub struct ScaledData {
+    /// What the target was
     pub target: ScaleTarget,
+    /// The
     pub ingredients: Vec<ScaleOutcome>,
     pub cookware: Vec<ScaleOutcome>,
     pub timers: Vec<ScaleOutcome>,
 }
 
+/// Possible outcomes from scaling a component
 #[derive(Debug, Clone)]
 pub enum ScaleOutcome {
+    /// Success
     Scaled,
+    /// Not changed becuse it doen't have to be changed
     Fixed,
+    /// It has no quantity, so it can't be scaled
     NoQuantity,
+    /// Error scaling
     Error(ScaleError),
 }
 
+/// A recipe after being scaled
+///
+/// Note that this doesn't implement [Recipe::scale]. A recipe can only be
+/// scaled once.
 pub type ScaledRecipe<'a> = Recipe<'a, Scaled>;
 
+/// Possible errors during scaling process
 #[derive(Debug, Error, Clone)]
 pub enum ScaleError {
     #[error(transparent)]
@@ -79,6 +115,10 @@ pub enum ScaleError {
 }
 
 impl<'a> Recipe<'a> {
+    /// Scale a recipe.
+    ///
+    /// Note that this returns a [ScaledRecipe] wich doesn't implement this
+    /// method. A recipe can only be scaled once.
     pub fn scale(mut self, target: ScaleTarget, converter: &Converter) -> ScaledRecipe<'a> {
         if target.index() == Some(0) {
             return self.default_scaling();
@@ -113,6 +153,7 @@ impl<'a> Recipe<'a> {
         }
     }
 
+    /// Get a [ScaledRecipe] without scaling it.
     pub fn skip_scaling(self) -> ScaledRecipe<'a> {
         ScaledRecipe {
             name: self.name,
@@ -126,6 +167,9 @@ impl<'a> Recipe<'a> {
         }
     }
 
+    /// Scale the recipe to the default values.
+    ///
+    /// This collapses the [ScalableValue::ByServings] to a single value.
     pub fn default_scaling(mut self) -> ScaledRecipe<'a> {
         default_scale_many(&mut self.ingredients, |igr| {
             igr.quantity.as_mut().map(|q| &mut q.value)
@@ -147,6 +191,7 @@ impl<'a> Recipe<'a> {
 }
 
 impl ScaledRecipe<'_> {
+    /// Get the [ScaledData] from a recipe after scaling.
     pub fn scaled_data(&self) -> Option<&ScaledData> {
         if let Scaled::Scaled(data) = &self.data {
             Some(data)
@@ -155,6 +200,7 @@ impl ScaledRecipe<'_> {
         }
     }
 
+    /// Shorthand to check if [Self::scaled_data] is [Scaled::DefaultScaling].
     pub fn is_default_scaled(&self) -> bool {
         matches!(self.data, Scaled::DefaultScaling)
     }

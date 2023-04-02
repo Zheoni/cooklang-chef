@@ -1,3 +1,57 @@
+//! Cooklang parser
+//!
+//! Grammar:
+//! ```txt
+//! recipe     = Newline* (line line_end)* line? Eof
+//! line       = metadata | section | step
+//! line_end   = soft_break | Newline+
+//! soft_break = Newline !Newline
+//!
+//! metadata   = MetadataStart meta_key Colon meta_val
+//! meta_key   = (!(Colon | Newline) ANY)*
+//! meta_value = (!Newline ANY)*
+//!
+//! section    = Eq+ (section_name Eq*)
+//! sect_name  = (!Eq ANY)*
+//!
+//! step       = TextStep? (component | ANY)*
+//!
+//! component  = c_kind modifiers? c_body note?
+//! c_kind     = At | Hash | Tilde
+//! c_body     = c_close | c_long | Word
+//! c_long     = c_l_name c_alias? c_close
+//! c_l_name   = (!(Newline | OpenBrace | Or) ANY)*
+//! c_alias    = Or c_l_name
+//! c_close    = OpenBrace Whitespace? Quantity? Whitespace? CloseBrace
+//!
+//! modifiers  = modifier+
+//! modifier   = At | And | Plus | Minus | Question
+//!
+//! note       = OpenParen (!CloseParen ANY)* CloseParen
+//!
+//! quantity   = num_val Whitespace !(unit_sep | auto_scale | val_sep) unit
+//!            | val (val_sep val)* auto_scale? (unit_sep unit)?
+//!
+//! unit       = (!CloseBrace ANY)*
+//!
+//! val_sep    = Whitespace Or Whitespace
+//! auto_scale = Whitespace Star Whitespace
+//! unit_sep   = Whitespace Percent Whitespace
+//!
+//! val        = num_val | text_val
+//! text_val   = (Word | Whitespace)*
+//! num_val    = mixed_num | frac | range | num
+//! mixed_num  = Int Whitespace frac
+//! frac       = Int Whitespace Slash Whitespace Int
+//! range      = num Whitespace Minus Whitespace Num
+//! num        = Float | Int
+//!
+//!
+//! ANY        = { Any token }
+//! ```
+//! This is more of a guideline, there may be edge cases that this grammar does
+//! not cover.
+
 mod metadata;
 mod quantity;
 mod section;
@@ -21,63 +75,8 @@ use crate::{
 
 use token_stream::{Token, TokenKind, TokenStream};
 
-/// Cooklang parser
-///
-/// Tokens are [TokenKind].
-///
-/// Grammar:
-/// ```txt
-/// recipe     = Newline* (line line_end)* line? Eof
-/// line       = metadata | section | step
-/// line_end   = soft_break | Newline+
-/// soft_break = Newline !Newline
-///
-/// metadata   = MetadataStart meta_key Colon meta_val
-/// meta_key   = (!(Colon | Newline) ANY)*
-/// meta_value = (!Newline ANY)*
-///
-/// section    = Eq+ (section_name Eq*)
-/// sect_name  = (!Eq ANY)*
-///
-/// step       = TextStep? (component | ANY)*
-///
-/// component  = c_kind modifiers? c_body note?
-/// c_kind     = At | Hash | Tilde
-/// c_body     = c_close | c_long | Word
-/// c_long     = c_l_name c_alias? c_close
-/// c_l_name   = (!(Newline | OpenBrace | Or) ANY)*
-/// c_alias    = Or c_l_name
-/// c_close    = OpenBrace Whitespace? Quantity? Whitespace? CloseBrace
-///
-/// modifiers  = modifier+
-/// modifier   = At | And | Plus | Minus | Question
-///
-/// note       = OpenParen (!CloseParen ANY)* CloseParen
-///
-/// quantity   = num_val Whitespace !(unit_sep | auto_scale | val_sep) unit
-///            | val (val_sep val)* auto_scale? (unit_sep unit)?
-///
-/// unit       = (!CloseBrace ANY)*
-///
-/// val_sep    = Whitespace Or Whitespace
-/// auto_scale = Whitespace Star Whitespace
-/// unit_sep   = Whitespace Percent Whitespace
-///
-/// val        = num_val | text_val
-/// text_val   = (Word | Whitespace)*
-/// num_val    = mixed_num | frac | range | num
-/// mixed_num  = Int Whitespace frac
-/// frac       = Int Whitespace Slash Whitespace Int
-/// range      = num Whitespace Minus Whitespace Num
-/// num        = Float | Int
-///
-///
-/// ANY        = { Any token }
-/// ```
-/// This is more of a guideline, there may be edge cases that this grammar does
-/// not cover.
 #[derive(Debug)]
-pub struct Parser<'input, T>
+pub(crate) struct Parser<'input, T>
 where
     T: Iterator<Item = Token>,
 {
@@ -144,6 +143,7 @@ where
     }
 }
 
+/// Parse a recipe into an [Ast](ast::Ast)
 #[tracing::instrument(skip_all, fields(len = input.len()))]
 pub fn parse<'input>(
     input: &'input str,
@@ -207,6 +207,9 @@ pub fn parse<'input>(
     parser.context.finish(Some(ast))
 }
 
+/// Parse the recipe metadata into an [Ast](ast::Ast).
+///
+/// This will skip every line that is not metadata. Is faster than [parse].
 #[tracing::instrument(skip_all, fields(len = input.len()))]
 pub fn parse_metadata<'input>(
     input: &'input str,
@@ -234,7 +237,7 @@ pub fn parse_metadata<'input>(
     parser.context.finish(Some(ast))
 }
 
-pub struct LineParser<'t, 'input> {
+pub(crate) struct LineParser<'t, 'input> {
     base_offset: usize,
     tokens: &'t [Token],
     current: usize,
@@ -279,7 +282,7 @@ impl<'t, 'input> LineParser<'t, 'input> {
     /// context used in the line.
     ///
     /// Panics if is inside a [Self::with_recover] or if any token is left.
-    pub fn finish(self) -> Context<ParserError, ParserWarning> {
+    pub(crate) fn finish(self) -> Context<ParserError, ParserWarning> {
         assert_eq!(
             self.current,
             self.tokens.len(),
@@ -288,7 +291,7 @@ impl<'t, 'input> LineParser<'t, 'input> {
         self.context
     }
 
-    pub fn extension(&self, ext: Extensions) -> bool {
+    pub(crate) fn extension(&self, ext: Extensions) -> bool {
         self.extensions.contains(ext)
     }
 
@@ -299,7 +302,7 @@ impl<'t, 'input> LineParser<'t, 'input> {
     ///
     /// Note that any other state modification such as adding errors to the
     /// context will not be rolled back.
-    pub fn with_recover<F, O>(&mut self, f: F) -> Option<O>
+    pub(crate) fn with_recover<F, O>(&mut self, f: F) -> Option<O>
     where
         F: FnOnce(&mut Self) -> Option<O>,
     {
@@ -391,7 +394,7 @@ impl<'t, 'input> LineParser<'t, 'input> {
     }
 
     /// Peeks the next token without consuming it.
-    pub fn peek(&self) -> TokenKind {
+    pub(crate) fn peek(&self) -> TokenKind {
         self.tokens
             .get(self.current)
             .map(|token| token.kind)
@@ -399,13 +402,13 @@ impl<'t, 'input> LineParser<'t, 'input> {
     }
 
     /// Checks the next token without consuming it.
-    pub fn at(&self, kind: TokenKind) -> bool {
+    pub(crate) fn at(&self, kind: TokenKind) -> bool {
         self.peek() == kind
     }
 
     /// Advance to the next token.
     #[must_use]
-    pub fn next_token(&mut self) -> Option<Token> {
+    pub(crate) fn next_token(&mut self) -> Option<Token> {
         if let Some(token) = self.tokens.get(self.current) {
             self.current += 1;
             Some(*token)
@@ -415,13 +418,13 @@ impl<'t, 'input> LineParser<'t, 'input> {
     }
 
     /// Same as [Self::next_token] but panics if there are no more tokens.
-    pub fn bump_any(&mut self) -> Token {
+    pub(crate) fn bump_any(&mut self) -> Token {
         self.next_token()
             .expect("Expected token, but there was none")
     }
 
     /// Call [Self::next_token] but panics if the next token is not `expected`.
-    pub fn bump(&mut self, expected: TokenKind) -> Token {
+    pub(crate) fn bump(&mut self, expected: TokenKind) -> Token {
         let token = self.bump_any();
         assert_eq!(
             token.kind, expected,
@@ -431,7 +434,7 @@ impl<'t, 'input> LineParser<'t, 'input> {
         token
     }
 
-    pub fn until(&mut self, f: impl Fn(TokenKind) -> bool) -> Option<&'t [Token]> {
+    pub(crate) fn until(&mut self, f: impl Fn(TokenKind) -> bool) -> Option<&'t [Token]> {
         let rest = self.rest();
         let pos = rest.iter().position(|t| f(t.kind))?;
         let s = &rest[..pos];
@@ -439,7 +442,7 @@ impl<'t, 'input> LineParser<'t, 'input> {
         Some(s)
     }
 
-    pub fn consume_while(&mut self, f: impl Fn(TokenKind) -> bool) -> &'t [Token] {
+    pub(crate) fn consume_while(&mut self, f: impl Fn(TokenKind) -> bool) -> &'t [Token] {
         let rest = self.rest();
         let pos = rest.iter().position(|t| !f(t.kind)).unwrap_or(rest.len());
         let s = &rest[..pos];
@@ -447,13 +450,13 @@ impl<'t, 'input> LineParser<'t, 'input> {
         s
     }
 
-    pub fn ws_comments(&mut self) -> &'t [Token] {
+    pub(crate) fn ws_comments(&mut self) -> &'t [Token] {
         self.consume_while(|t| matches!(t, T![ws] | T![line comment] | T![block comment]))
     }
 
     /// Call [Self::next_token] if the next token is `expected`.
     #[must_use]
-    pub fn consume(&mut self, expected: TokenKind) -> Option<Token> {
+    pub(crate) fn consume(&mut self, expected: TokenKind) -> Option<Token> {
         if self.at(expected) {
             Some(self.bump_any())
         } else {
@@ -461,10 +464,10 @@ impl<'t, 'input> LineParser<'t, 'input> {
         }
     }
 
-    pub fn error(&mut self, error: ParserError) {
+    pub(crate) fn error(&mut self, error: ParserError) {
         self.context.error(error);
     }
-    pub fn warn(&mut self, warn: ParserWarning) {
+    pub(crate) fn warn(&mut self, warn: ParserWarning) {
         self.context.warn(warn)
     }
 }
@@ -477,6 +480,7 @@ pub(crate) fn tokens_span(tokens: &[Token]) -> Span {
     Span::new(start, end)
 }
 
+/// Errors generated by [parse] and [parse_metadata].
 #[derive(Debug, Error)]
 pub enum ParserError {
     #[error("Error parsing input: {message}")]
@@ -538,6 +542,7 @@ pub enum ParserError {
     QuantityScalingConflict { bad_bit: Span },
 }
 
+/// Warnings generated by [parse] and [parse_metadata].
 #[derive(Debug, Error)]
 pub enum ParserWarning {
     #[error("Empty metadata value for key: {key}")]

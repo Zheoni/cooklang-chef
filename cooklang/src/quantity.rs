@@ -1,3 +1,5 @@
+//! Quantity model
+
 use std::{borrow::Cow, fmt::Display, ops::RangeInclusive, sync::Arc};
 
 use once_cell::sync::OnceCell;
@@ -9,31 +11,47 @@ use crate::{
     convert::{ConvertError, Converter, PhysicalQuantity, Unit},
 };
 
+/// A quantity used in components such an [Ingredient](crate::model::Ingredient)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Quantity<'a> {
+    /// Value
     pub value: QuantityValue<'a>,
     pub(crate) unit: Option<QuantityUnit<'a>>,
 }
 
+/// A value that can or not be changed by scaling it
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum QuantityValue<'a> {
+    /// Cannot be scaled
     Fixed(Value<'a>),
+    /// Can be scaled
     Scalable(ScalableValue<'a>),
 }
 
+/// A value that can be scaled
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ScalableValue<'a> {
+    /// Scaling is linear to the number of servings
     Linear(Value<'a>),
+    /// Scaling is in defined steps of the number of servings
     ByServings(Vec<Value<'a>>),
 }
 
+/// Base value
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Value<'a> {
+    /// Numeric
     Number(f64),
+    /// Range
     Range(RangeInclusive<f64>),
+    /// Text
+    ///
+    /// It is not possible to operate with this variant.
     Text(Cow<'a, str>),
 }
 
+/// Unit that has the text it has been parsed from and, if recognised,
+/// information about what unit it is.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct QuantityUnit<'a> {
@@ -42,9 +60,12 @@ pub struct QuantityUnit<'a> {
     info: OnceCell<UnitInfo>,
 }
 
+/// Information about the unit
 #[derive(Debug, Clone)]
 pub enum UnitInfo {
+    /// Unit is known
     Known(Arc<Unit>),
+    /// Unknown unit
     Unknown,
 }
 
@@ -89,14 +110,20 @@ impl PartialEq for QuantityUnit<'_> {
 }
 
 impl QuantityUnit<'_> {
+    /// Original text of the unit
     pub fn text(&self) -> &str {
         &self.text
     }
 
+    /// Cached information about the unit.
+    ///
+    /// If [None] is returned it means
+    /// the unit has not been parsed yet. Try with [Self::unit_or_parse].
     pub fn unit(&self) -> Option<&UnitInfo> {
         self.info.get()
     }
 
+    /// Information about the unit
     pub fn unit_or_parse(&self, converter: &Converter) -> &UnitInfo {
         self.info
             .get_or_init(|| UnitInfo::new(&self.text, converter))
@@ -120,6 +147,7 @@ impl UnitInfo {
 }
 
 impl<'a> Quantity<'a> {
+    /// Creates a new quantity
     pub fn new(value: QuantityValue<'a>, unit: Option<Cow<'a, str>>) -> Self {
         Self {
             value,
@@ -130,6 +158,7 @@ impl<'a> Quantity<'a> {
         }
     }
 
+    /// Creates a new quantity and parse the unit
     pub fn new_and_parse(
         value: QuantityValue<'a>,
         unit: Option<Cow<'a, str>>,
@@ -144,7 +173,8 @@ impl<'a> Quantity<'a> {
         }
     }
 
-    pub fn with_known_unit(
+    /// Createa a new quantity with a known unit
+    pub(crate) fn with_known_unit(
         value: QuantityValue<'a>,
         unit_text: Cow<'a, str>,
         unit: Option<Arc<Unit>>,
@@ -161,18 +191,20 @@ impl<'a> Quantity<'a> {
         }
     }
 
-    pub fn unitless(value: QuantityValue<'a>) -> Self {
-        Self { value, unit: None }
-    }
-
+    /// Get the unit
     pub fn unit(&self) -> Option<&QuantityUnit> {
         self.unit.as_ref()
     }
 
+    /// Get the unit text
     pub fn unit_text(&self) -> Option<&str> {
         self.unit.as_ref().map(|u| u.text.as_ref())
     }
 
+    /// Get the unit info.
+    ///
+    /// [None] can mean that it has no unit or that the unit has not been parsed
+    /// yet. See [QuantityUnit::unit_or_parse].
     pub fn unit_info(&self) -> Option<&UnitInfo> {
         self.unit.as_ref().and_then(|u| u.info.get())
     }
@@ -204,6 +236,7 @@ impl<'a> QuantityValue<'a> {
         }
     }
 
+    /// Checks if any of the possible values is text
     pub fn contains_text_value(&self) -> bool {
         match self {
             QuantityValue::Fixed(v) => v.is_text(),
@@ -286,13 +319,14 @@ impl<'a> From<Cow<'a, str>> for Value<'a> {
     }
 }
 
+/// Error during adding of quantities
 #[derive(Debug, Error)]
 pub enum QuantityAddError {
     #[error(transparent)]
     IncompatibleUnits(#[from] IncompatibleUnits),
 
     #[error(transparent)]
-    Value(#[from] TextValueError),
+    TextValue(#[from] TextValueError),
 
     #[error(transparent)]
     Convert(#[from] ConvertError),
@@ -301,6 +335,7 @@ pub enum QuantityAddError {
     NotScaled(#[from] NotScaled),
 }
 
+/// Error that makes quantity units incompatible to be added
 #[derive(Debug, Error)]
 pub enum IncompatibleUnits {
     #[error("Missing unit: one unit is '{found}' but the other quantity is missing an unit")]
@@ -317,6 +352,7 @@ pub enum IncompatibleUnits {
 }
 
 impl Quantity<'_> {
+    /// Checks if two quantities can be added
     pub fn is_compatible(
         &self,
         rhs: &Self,
@@ -368,6 +404,7 @@ impl Quantity<'_> {
         Ok(base)
     }
 
+    /// Try adding two quantities
     pub fn try_add(
         &self,
         rhs: &Self,
@@ -395,11 +432,17 @@ impl Quantity<'_> {
         Ok(qty.into_owned())
     }
 
+    /// Converts the unit to the best possible match in the same unit system.
+    ///
+    /// For example, `1000 ml` would be converted to `1 l`.
     pub fn fit(&mut self, converter: &Converter) {
         use crate::convert::ConvertTo;
 
         // if the unit is known, convert to the best match in the same system
-        if matches!(self.unit_info(), Some(UnitInfo::Known(_))) {
+        if matches!(
+            self.unit().map(|u| u.unit_or_parse(converter)),
+            Some(UnitInfo::Known(_))
+        ) {
             *self = converter
                 .convert(&*self, ConvertTo::SameSystem)
                 .expect("convert to same system failed");
@@ -407,29 +450,33 @@ impl Quantity<'_> {
     }
 }
 
+/// Error when try to operate on a non scaled value
 #[derive(Debug, Error)]
 #[error("Tried to operate on a non scaled value: {0}")]
 pub struct NotScaled(pub ScalableValue<'static>);
 
 impl QuantityValue<'_> {
-    pub fn extract_value(&self) -> Result<&Value, NotScaled> {
+    pub(crate) fn extract_value(&self) -> Result<&Value, NotScaled> {
         match self {
             QuantityValue::Fixed(v) => Ok(v),
             QuantityValue::Scalable(v) => Err(NotScaled(v.clone().into_owned())),
         }
     }
 
+    /// Try adding two [QuantityValue]s.
     pub fn try_add(&self, rhs: &Self) -> Result<Self, QuantityAddError> {
         let value = self.extract_value()?.try_add(rhs.extract_value()?)?;
         Ok(QuantityValue::Fixed(value))
     }
 }
 
+/// Error when try to operate on a text value
 #[derive(Debug, Error, Clone)]
 #[error("Cannot operate on a text value")]
 pub struct TextValueError(pub Value<'static>);
 
 impl Value<'_> {
+    /// Try adding two [Value]s
     pub fn try_add(&self, rhs: &Self) -> Result<Value<'static>, TextValueError> {
         let val = match (self, rhs) {
             (Value::Number(a), Value::Number(b)) => Value::Number(a + b),
