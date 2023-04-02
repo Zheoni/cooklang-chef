@@ -129,7 +129,13 @@ fn many_values<'t, 'input>(line: &mut LineParser<'t, 'input>) -> ast::QuantityVa
             }
             T![*] => {
                 let tok = line.bump_any();
-                auto_scale = Some(tok.span);
+                if values.len() == 1 {
+                    auto_scale = Some(tok.span);
+                } else {
+                    line.error(ParserError::QuantityScalingConflict {
+                        bad_bit: Span::new(values[0].span().end(), tok.span.end()),
+                    });
+                }
                 break;
             }
             _ => break,
@@ -213,12 +219,22 @@ fn mixed_num(line: &mut LineParser) -> Option<f64> {
 }
 
 fn frac(line: &mut LineParser) -> Option<f64> {
+    let start = line.current_offset();
     let a = int(line)?;
     line.ws_comments();
     line.consume(T![/])?;
     line.ws_comments();
     let b = int(line)?;
-    Some(a / b)
+    let end = line.current_offset();
+
+    if b == 0.0 {
+        line.error(ParserError::DivisionByZero {
+            bad_bit: Span::new(start, end),
+        });
+        Some(1.0)
+    } else {
+        Some(a / b)
+    }
 }
 
 fn range(line: &mut LineParser) -> Option<std::ops::RangeInclusive<f64>> {
