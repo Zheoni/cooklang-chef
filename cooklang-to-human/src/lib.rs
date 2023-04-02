@@ -35,7 +35,7 @@ pub fn print_human(
 
 fn header(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     let title_text = format!(
-        " {}{}  ",
+        "  {}{}  ",
         Paint::masked(
             recipe
                 .metadata
@@ -182,7 +182,7 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
         return Ok(());
     }
     writeln!(w, "Ingredients:")?;
-    let mut table = Table::new("  {:<}    {:<} {:<}");
+    let mut table = Table::new("  {:<} {:<}    {:<} {:<}");
     let mut there_is_fixed = false;
     let mut there_is_err = false;
     for (index, igr) in recipe
@@ -223,7 +223,10 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
                 ScaleOutcome::Scaled | ScaleOutcome::NoQuantity => yansi::Style::default(),
             })
             .unwrap_or_default();
-        let mut row = Row::new().with_cell(igr.display_name());
+        let mut row = Row::new()
+            .with_cell(igr.display_name())
+            .with_cell(if igr.is_optional() { "(optional)" } else { "" });
+
         let total_quantity = igr
             .total_quantity(&recipe.ingredients, converter)
             .ok()
@@ -287,8 +290,10 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
                 write!(w, "{step_counter:>2}. ")?;
 
                 let mut step_text = String::new();
-                let mut step_igrs_duplicates: HashMap<&str, Vec<usize>> = HashMap::new();
-                let mut step_igrs: Vec<(&Ingredient, Option<usize>)> = Vec::new();
+
+                // contain all ingredients used in the step (the names), the vec
+                // contains the exact indices used
+                let mut step_igrs_dedup: HashMap<&str, Vec<usize>> = HashMap::new();
                 for item in &step.items {
                     if let Item::Component(Component {
                         kind: ComponentKind::Ingredient,
@@ -296,19 +301,22 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
                     }) = item
                     {
                         let igr = &recipe.ingredients[*index];
-                        step_igrs_duplicates
-                            .entry(&igr.name)
-                            .or_default()
-                            .push(*index);
+                        step_igrs_dedup.entry(&igr.name).or_default().push(*index);
                     }
                 }
-                for group in step_igrs_duplicates.values_mut() {
+                // only keep ingredients with quantities or a single ingredient
+                // without if no one has a quantity
+                for group in step_igrs_dedup.values_mut() {
                     let first = group.first().copied().unwrap();
                     group.retain(|&i| recipe.ingredients[i].quantity.is_some());
                     if group.is_empty() {
                         group.push(first);
                     }
                 }
+
+                // contains the ingreient and index (if any) in the line under
+                // the step that shows the ingredients
+                let mut step_igrs_line: Vec<(&Ingredient, Option<usize>)> = Vec::new();
                 for item in &step.items {
                     match item {
                         Item::Text(text) => step_text += text,
@@ -319,13 +327,12 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
                                     .unwrap();
                                 let pos = write_igr_count(
                                     &mut step_text,
-                                    &step_igrs_duplicates,
+                                    &step_igrs_dedup,
                                     c.index,
                                     &igr.name,
                                 );
-                                // skip references that adds no value to the reader
-                                if pos.is_none() || igr.quantity.is_some() {
-                                    step_igrs.push((igr, pos));
+                                if step_igrs_dedup[igr.name.as_ref()].contains(&c.index) {
+                                    step_igrs_line.push((igr, pos));
                                 }
                             }
                             ComponentKind::Cookware => {
@@ -350,20 +357,23 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
                     }
                 }
                 print_wrapped_with_options(w, &step_text, |o| o.subsequent_indent("    "))?;
-                if step_igrs.is_empty() {
+                if step_igrs_line.is_empty() {
                     writeln!(w, "    [-]")?;
                 } else {
                     let mut igrs_text = String::from("    [");
-                    for (i, (igr, pos)) in step_igrs.iter().enumerate() {
+                    for (i, (igr, pos)) in step_igrs_line.iter().enumerate() {
                         write!(&mut igrs_text, "{}", igr.display_name()).unwrap();
                         if let Some(pos) = pos {
                             write_subscript(&mut igrs_text, &pos.to_string());
+                        }
+                        if igr.is_optional() {
+                            write!(&mut igrs_text, " (opt)").unwrap();
                         }
                         if let Some(q) = &igr.quantity {
                             write!(&mut igrs_text, ": {}", Paint::new(quantity_fmt(q)).dimmed())
                                 .unwrap();
                         }
-                        if i != step_igrs.len() - 1 {
+                        if i != step_igrs_line.len() - 1 {
                             igrs_text += ", ";
                         }
                     }
@@ -384,9 +394,11 @@ fn write_igr_count(
     name: &str,
 ) -> Option<usize> {
     let entries = &step_igrs[name];
-    let count = entries.len();
-    if count > 1 {
-        let pos = entries.iter().position(|&i| i == index).unwrap() + 1;
+    if entries.len() <= 1 {
+        return None;
+    }
+    if let Some(mut pos) = entries.iter().position(|&i| i == index) {
+        pos += 1;
         write_subscript(buffer, &pos.to_string());
         Some(pos)
     } else {

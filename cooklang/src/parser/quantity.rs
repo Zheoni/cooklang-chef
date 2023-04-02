@@ -271,17 +271,9 @@ fn float(line: &mut LineParser) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        ast::{QuantityValue, Text, TextFragment},
+        ast::{QuantityValue, Text},
         parser::token_stream::TokenStream,
     };
-
-    impl<'a> Text<'a> {
-        pub(crate) fn from_str(s: &'a str, offset: usize) -> Self {
-            let mut t = Self::empty(offset);
-            t.append_fragment(TextFragment::new(s, offset));
-            t
-        }
-    }
 
     macro_rules! t {
         ($input:literal) => {

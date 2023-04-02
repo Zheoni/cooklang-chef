@@ -150,7 +150,7 @@ impl RichError for AnalysisError {
                 "A non reference ingredient with the same name defined before cannot be found"
             ),
             AnalysisError::ConflictingReferenceQuantities { .. } => help!(
-                "If the ingredient is not defined in a step, its references cannot have a quantity"
+                "If the ingredient is not defined in a step and has a quantity, its references cannot have a quantity"
             ),
             AnalysisError::UnknownTimerUnit { .. } => {
                 help!("With the ADVANCED_UNITS extensions, timers are required to have a time unit")

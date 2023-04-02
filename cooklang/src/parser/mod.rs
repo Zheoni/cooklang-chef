@@ -183,7 +183,13 @@ pub fn parse<'input>(
             if !last_line_is_empty && extensions.contains(Extensions::MULTINE_STEPS) {
                 if let Some(ast::Line::Step { items, is_text }) = lines.last_mut() {
                     let parsed_step = step(&mut line, *is_text);
-                    items.extend(parsed_step.items);
+                    if !parsed_step.items.is_empty() {
+                        items.push(ast::Item::Text(ast::Text::from_str(
+                            " ",
+                            items.last().unwrap().span().end(),
+                        )));
+                        items.extend(parsed_step.items);
+                    }
                     let mut ctx = line.finish();
                     parser.context.append(&mut ctx);
                     continue;

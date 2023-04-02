@@ -30,6 +30,15 @@ pub enum Item<'a> {
     Component(Box<Located<Component<'a>>>),
 }
 
+impl Item<'_> {
+    pub fn span(&self) -> Span {
+        match self {
+            Item::Text(t) => t.span(),
+            Item::Component(c) => c.span(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, PartialEq)]
 pub enum Component<'a> {
     Ingredient(Ingredient<'a>),
@@ -86,6 +95,12 @@ impl<'a> Text<'a> {
             fragments: vec![],
             offset,
         }
+    }
+
+    pub(crate) fn from_str(s: &'a str, offset: usize) -> Self {
+        let mut t = Self::empty(offset);
+        t.append_fragment(TextFragment::new(s, offset));
+        t
     }
 
     pub(crate) fn append_fragment(&mut self, fragment: TextFragment<'a>) {

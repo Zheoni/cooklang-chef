@@ -311,6 +311,10 @@ impl<'a, 'r> Walker<'a, 'r> {
 
             if let Some(referenced_index) = same_name {
                 let referenced = &self.content.ingredients[referenced_index];
+
+                // inherit hidden and optional from definition
+                new_igr.modifiers |= referenced.modifiers & (Modifiers::HIDDEN | Modifiers::OPT);
+
                 // When the ingredient is not defined in a step, only the definition
                 // or the references can have quantities.
                 // This is to avoid confusion when calculating the total amount.
