@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
 use cooklang::Extensions;
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -26,9 +26,9 @@ pub struct Config {
 #[serde(default)]
 pub struct Load {
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub units: Vec<Utf8PathBuf>,
+    pub units: Vec<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub aile: Option<Utf8PathBuf>,
+    pub aile: Option<PathBuf>,
 }
 
 impl Load {
@@ -91,7 +91,11 @@ impl Config {
             self.max_depth = d;
         }
         if !args.units.is_empty() {
-            self.load.units = args.units.clone();
+            self.load.units = args
+                .units
+                .iter()
+                .filter_map(|p| p.canonicalize().ok())
+                .collect();
         }
     }
 
@@ -99,7 +103,7 @@ impl Config {
         self.load
             .aile
             .as_ref()
-            .map(|a| resolve_path(&ctx.config_path, a.as_std_path()))
+            .map(|a| resolve_path(&ctx.config_path, a))
             .or_else(|| {
                 let local = ctx.base_dir.as_std_path().join(COOK_DIR).join(AUTO_AILE);
                 local.is_file().then_some(local)
@@ -116,7 +120,7 @@ impl Config {
                 .load
                 .units
                 .iter()
-                .map(|p| resolve_path(config_path, p.as_std_path()))
+                .map(|p| resolve_path(config_path, p))
                 .collect();
         }
 
