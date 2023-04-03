@@ -30,7 +30,9 @@ call it `cook` to avoid using the same name as the original `CookCLI`.
 
 ## Installing
 ### Prebuilt binaries
-> Not available now
+For now, prebuilt binaries are not distributed. However, maybe in
+[the releases page](https://github.com/Zheoni/cooklang-rs/releases) you
+can find one for Windows.
 
 ### Compiling the CLI
 1. Install the rust compiler and `cargo`, the best way is with
