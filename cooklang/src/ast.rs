@@ -268,15 +268,15 @@ bitflags! {
     #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Modifiers: u32 {
         /// refers to a recipe with the same name
-        const RECIPE = 0b00001;
+        const RECIPE = 1 << 0;
         /// references another igr with the same name, if amount given will sum
-        const REF    = 0b00010;
+        const REF    = 1 << 1;
         /// not shown in the ingredient list, only inline
-        const HIDDEN = 0b00100;
+        const HIDDEN = 1 << 2;
         /// mark as optional
-        const OPT    = 0b01000;
+        const OPT    = 1 << 3;
         /// forces to create a new ingredient
-        const NEW    = 0b10000;
+        const NEW    = 1 << 4;
     }
 }
 

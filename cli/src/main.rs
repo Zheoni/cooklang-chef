@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context as _, Result};
 use camino::{Utf8Path, Utf8PathBuf};
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use config::Config;
 use cooklang::{
     convert::{builder::ConverterBuilder, units_file::UnitsFile},
@@ -15,7 +15,6 @@ use tracing::{info, warn};
 mod config;
 mod convert;
 mod recipe;
-mod serve;
 mod shopping_list;
 mod units;
 
@@ -35,8 +34,6 @@ enum Command {
     /// Manage recipe files
     #[command(alias = "r")]
     Recipe(Box<recipe::RecipeArgs>),
-    /// Run a web server that serves of your recipes
-    Serve,
     /// Creates a shopping list from a given list of recipes
     #[command(alias = "list")]
     ShoppingList(shopping_list::ShoppingListArgs),
@@ -50,7 +47,7 @@ enum Command {
     Config,
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Args)]
 pub struct GlobalArgs {
     /// A units TOML file
     #[arg(long, action = clap::ArgAction::Append, global = true)]
@@ -115,7 +112,6 @@ pub fn main() -> Result<()> {
     let _enter = tracing::info_span!("run", cmd = %args.command).entered();
     match args.command {
         Command::Recipe(args) => recipe::run(&ctx, *args),
-        Command::Serve => serve::run(&ctx),
         Command::ShoppingList(args) => shopping_list::run(&ctx, args),
         Command::Units(args) => units::run(ctx.parser()?.converter(), args),
         Command::Convert(args) => convert::run(ctx.parser()?.converter(), args),

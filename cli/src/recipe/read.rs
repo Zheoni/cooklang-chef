@@ -24,13 +24,11 @@ pub struct ReadArgs {
     #[arg(long)]
     pretty: bool,
 
-    /// Do not display warnings
-    #[arg(long)]
-    ignore_warnings: bool,
-
+    /// Scale to a number of servings
     #[arg(short, long, alias = "servings")]
     scale: Option<u32>,
 
+    /// Convert to a unit system
     #[arg(short, long, alias = "system")]
     convert: Option<System>,
 }

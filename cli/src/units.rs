@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use anyhow::Result;
 use clap::{Args, ValueEnum};
 use cooklang::convert::{Converter, Unit};
@@ -91,31 +93,57 @@ pub fn run(converter: &Converter, args: UnitsArgs) -> Result<()> {
         } else {
             println!("{}", converter.unit_count());
         }
-    } else if args.long {
-        let mut table = tabular::Table::new("{:<} {:<} {:<} {:<} {:<} {:<} {:<} {:<}");
-        let mut total = 0;
-        for unit in converter.all_units().filter(filter_units(&args)) {
-            total += 1;
-            table.add_row(
-                tabular::Row::new()
-                    .with_ansi_cell(list(&unit.names, args.all))
-                    .with_ansi_cell(list(&unit.symbols, args.all))
-                    .with_ansi_cell(list(&unit.aliases, true))
-                    .with_ansi_cell(style_quantity(unit.physical_quantity))
-                    .with_ansi_cell(
-                        unit.system
-                            .map(style_system)
-                            .unwrap_or_else(|| Paint::new("-").dimmed().to_string()),
-                    )
-                    .with_ansi_cell(display_best_unit(converter, unit))
-                    .with_cell(unit.ratio)
-                    .with_cell(unit.difference),
-            );
-        }
-        println!("total {total}\n{table}");
     } else {
-        for unit in converter.all_units().filter(filter_units(&args)) {
-            println!("{}", unit.names.first().unwrap());
+        let mut all_units = converter
+            .all_units()
+            .filter(filter_units(&args))
+            .collect::<Vec<_>>();
+
+        if !args.sort.is_empty() {
+            all_units.sort_unstable_by(|a, b| {
+                for sort in &args.sort {
+                    let ord = match sort {
+                        Sort::System => a.system.cmp(&b.system),
+                        Sort::PhysicalQuantity => a.physical_quantity.cmp(&b.physical_quantity),
+                        Sort::Ratio => a.ratio.total_cmp(&b.ratio),
+                        Sort::Best => converter.is_best_unit(b).cmp(&converter.is_best_unit(a)),
+                    };
+
+                    if ord != Ordering::Equal {
+                        return ord;
+                    }
+                }
+                Ordering::Equal
+            });
+        }
+
+        if args.long {
+            let mut table = tabular::Table::new("{:<} {:<} {:<} {:<} {:<} {:<} {:<} {:<}");
+            let mut total = 0;
+
+            for unit in all_units {
+                total += 1;
+                table.add_row(
+                    tabular::Row::new()
+                        .with_ansi_cell(list(&unit.names, args.all))
+                        .with_ansi_cell(list(&unit.symbols, args.all))
+                        .with_ansi_cell(list(&unit.aliases, true))
+                        .with_ansi_cell(style_quantity(unit.physical_quantity))
+                        .with_ansi_cell(
+                            unit.system
+                                .map(style_system)
+                                .unwrap_or_else(|| Paint::new("-").dimmed().to_string()),
+                        )
+                        .with_ansi_cell(display_best_unit(converter, unit))
+                        .with_cell(unit.ratio)
+                        .with_cell(unit.difference),
+                );
+            }
+            println!("total {total}\n{table}");
+        } else {
+            for unit in converter.all_units().filter(filter_units(&args)) {
+                println!("{}", unit.names.first().unwrap());
+            }
         }
     }
 
