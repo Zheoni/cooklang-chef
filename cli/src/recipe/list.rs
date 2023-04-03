@@ -5,7 +5,7 @@ use cooklang_fs::{all_recipes, DirEntry};
 use termtree::Tree;
 use yansi::Paint;
 
-use crate::Context;
+use crate::{Context, COOK_DIR};
 
 #[derive(Debug, Args)]
 pub struct ListArgs {
@@ -39,7 +39,8 @@ pub struct ListArgs {
 }
 
 pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
-    let iter = all_recipes(&ctx.base_dir, ctx.config.max_depth);
+    let iter = all_recipes(&ctx.base_dir, ctx.config.max_depth)
+        .filter(|entry| entry.file_name() != COOK_DIR);
     if args.tree {
         let mut iter = iter.peekable();
         let root = iter.next().unwrap();
@@ -92,8 +93,8 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
         }
         println!("{table}");
     } else {
-        // dont print dirs
         let mut table = tabular::Table::new("{:<} {:<} {:<}");
+        // dont print dirs
         for entry in iter.filter(|e| e.file_type().is_file()) {
             let (name, check, images) = list_label(ctx, &args, entry)?;
             table.add_row(

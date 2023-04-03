@@ -33,14 +33,14 @@ serde_json = "1"
 criterion = "0.4"
 
 [features]
-default = ["bundled_units", "aile"]
+default = ["bundled_units", "aisle"]
 bundled_units = []
-aile = ["dep:pest", "dep:pest_derive"]
+aisle = ["dep:pest", "dep:pest_derive"]
 
 [[bench]]
 name = "parse"
 harness = false
 
 [[test]]
-name = "aile"
-required-features = ["aile"]
+name = "aisle"
+required-features = ["aisle"]

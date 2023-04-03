@@ -16,7 +16,7 @@ pub struct UnitsArgs {
     all: bool,
 
     /// Show unit count only
-    #[arg(short, long)]
+    #[arg(short = 'n', long)]
     count: bool,
 
     /// Filter by unit system

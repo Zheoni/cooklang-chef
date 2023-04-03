@@ -7,14 +7,14 @@
 //! - Rich error report with annotated code spans.
 //! - Unit conversion.
 //! - Recipe scaling.
-//! - A parser for cooklang aile configuration file.
+//! - A parser for cooklang aisle configuration file.
 //!
 //! More information in the [cooklang-rs repo](https://github.com/Zheoni/cooklang-rs).
 
 #![deny(rustdoc::broken_intra_doc_links)]
 
-#[cfg(feature = "aile")]
-pub mod aile;
+#[cfg(feature = "aisle")]
+pub mod aisle;
 mod analysis;
 pub mod ast;
 mod context;

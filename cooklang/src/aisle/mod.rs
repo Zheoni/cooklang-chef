@@ -11,7 +11,7 @@ use crate::{error::RichError, span::Span};
 mod parser {
     use pest_derive::Parser;
     #[derive(Parser)]
-    #[grammar = "aile/grammar.pest"]
+    #[grammar = "aisle/grammar.pest"]
     pub struct AileConfParser;
 }
 use parser::{AileConfParser, Rule};

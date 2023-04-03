@@ -28,12 +28,12 @@ pub struct Load {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub units: Vec<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub aile: Option<PathBuf>,
+    pub aisle: Option<PathBuf>,
 }
 
 impl Load {
     fn is_empty(&self) -> bool {
-        self.units.is_empty() && self.aile.is_none()
+        self.units.is_empty() && self.aisle.is_none()
     }
 }
 
@@ -51,7 +51,7 @@ impl Default for Config {
 }
 
 const CONFIG_NAME: &str = "config";
-const AUTO_AILE: &str = "aile.conf";
+const AUTO_AISLE: &str = "aisle.conf";
 const AUTO_UNITS: &str = "units.toml";
 
 impl Config {
@@ -99,17 +99,17 @@ impl Config {
         }
     }
 
-    pub fn aile(&self, ctx: &Context) -> Option<PathBuf> {
+    pub fn aisle(&self, ctx: &Context) -> Option<PathBuf> {
         self.load
-            .aile
+            .aisle
             .as_ref()
             .map(|a| resolve_path(&ctx.config_path, a))
             .or_else(|| {
-                let local = ctx.base_dir.as_std_path().join(COOK_DIR).join(AUTO_AILE);
+                let local = ctx.base_dir.as_std_path().join(COOK_DIR).join(AUTO_AISLE);
                 local.is_file().then_some(local)
             })
             .or_else(|| {
-                let relative = resolve_path(&ctx.config_path, Path::new(AUTO_AILE));
+                let relative = resolve_path(&ctx.config_path, Path::new(AUTO_AISLE));
                 relative.is_file().then_some(relative)
             })
     }
@@ -226,7 +226,7 @@ pub fn run(ctx: &Context) -> Result<()> {
         .config
         .units(&ctx.config_path, ctx.base_dir.as_std_path())
         .iter()
-        .chain(ctx.config.aile(ctx).iter())
+        .chain(ctx.config.aisle(ctx).iter())
     {
         print!("{} {} ", file.display(), Paint::new("--").dimmed());
         if file.is_file() {

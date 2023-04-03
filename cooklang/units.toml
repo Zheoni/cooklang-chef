@@ -1,3 +1,5 @@
+default_system = "metric"
+
 [si.prefixes]
 kilo = ["kilo"]
 hecto = ["hecto"]

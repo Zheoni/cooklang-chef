@@ -1,7 +1,7 @@
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
-use cooklang::aile::AileConf;
+use cooklang::aisle::AileConf;
 use yansi::Paint;
 
 use crate::write_to_output;
@@ -20,9 +20,13 @@ pub struct ConfArgs {
     #[arg(long)]
     pretty: bool,
 
-    /// Sort the aile file alphabetically
+    /// Sort the aisle file alphabetically
     #[arg(long)]
     sorted: bool,
+
+    /// Only get a count of entries
+    #[arg(short = 'n', long, conflicts_with_all = ["output", "format"])]
+    count: bool,
 }
 
 #[derive(Debug, ValueEnum, Clone, Copy)]
@@ -32,10 +36,20 @@ enum OutputFormat {
     Json,
 }
 
-pub fn run(mut aile: AileConf, args: ConfArgs) -> Result<()> {
+pub fn run(mut aisle: AileConf, args: ConfArgs) -> Result<()> {
+    if args.count {
+        let mut table = tabular::Table::new("{:<}  {:<}")
+            .with_heading(format!("total {}", aisle.categories.len()));
+        for cat in &aisle.categories {
+            table.add_row(tabular::row!(cat.name, cat.ingredients.len()));
+        }
+        println!("{table}");
+        return Ok(());
+    }
+
     if args.sorted {
-        aile.categories.sort_unstable_by_key(|c| c.name);
-        for c in &mut aile.categories {
+        aisle.categories.sort_unstable_by_key(|c| c.name);
+        for c in &mut aisle.categories {
             for i in &mut c.ingredients {
                 i.names.sort_unstable();
             }
@@ -54,13 +68,13 @@ pub fn run(mut aile: AileConf, args: ConfArgs) -> Result<()> {
 
     write_to_output(args.output.as_deref(), |writer| {
         match format {
-            OutputFormat::Human => print_aile_human(&aile, writer)?,
-            OutputFormat::Conf => cooklang::aile::write(&aile, writer)?,
+            OutputFormat::Human => print_aile_human(&aisle, writer)?,
+            OutputFormat::Conf => cooklang::aisle::write(&aisle, writer)?,
             OutputFormat::Json => {
                 if args.pretty {
-                    serde_json::to_writer_pretty(writer, &aile)?;
+                    serde_json::to_writer_pretty(writer, &aisle)?;
                 } else {
-                    serde_json::to_writer(writer, &aile)?;
+                    serde_json::to_writer(writer, &aisle)?;
                 }
             }
         };
@@ -70,9 +84,9 @@ pub fn run(mut aile: AileConf, args: ConfArgs) -> Result<()> {
     Ok(())
 }
 
-fn print_aile_human(aile: &AileConf, mut writer: impl std::io::Write) -> std::io::Result<()> {
+fn print_aile_human(aisle: &AileConf, mut writer: impl std::io::Write) -> std::io::Result<()> {
     let w = &mut writer;
-    for category in aile.categories.iter() {
+    for category in aisle.categories.iter() {
         writeln!(
             w,
             "{}{}{}",
@@ -87,8 +101,8 @@ fn print_aile_human(aile: &AileConf, mut writer: impl std::io::Write) -> std::io
                 for name in iter {
                     write!(w, "{} {name}", Paint::magenta(','))?;
                 }
+                writeln!(w)?;
             }
-            writeln!(w, "  {}", igr.names.join(", "))?;
         }
         writeln!(w)?;
     }

@@ -1,6 +1,6 @@
 //! Shopping list configuration file test
 
-use cooklang::aile::*;
+use cooklang::aisle::*;
 
 const CONF: &str = r#"
 [produce]
