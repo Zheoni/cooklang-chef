@@ -7,7 +7,25 @@ A superset of [cooklang](https://cooklang.org/) and related tools.
 > Almost everything work, but it is still work in progress and can change at any
 > time.
 
-## What is this
+## What is cooklang
+Cooklang is a markup language for cooking recipes. An in depth explanation can
+be found in [cooklang.org](https://cooklang.org/).
+
+An example cooklang recipe:
+```cooklang
+In a large #bowl mix @flour{450%g}, @yeast{2%tsp}, @salt{2%tsp} and
+@warm water{375%ml}.
+
+Cover the dough and leave on counter for ~{2-3%hour}.
+
+Sprinkle work surface with @&flour{10%g} and shape the dough. Sprinkle the top
+with some more @&flour{5%g}.
+
+Bake with a preheated #oven at 230ºC for ~{30%min}.
+```
+![](./images/bread3.png)
+
+## What is this crate
 I wanted a couple more feature that cooklang did not have, so I extended the
 cooklang syntax and semantics a bit.
 
@@ -18,7 +36,10 @@ if you don't like the extensions.
 
 You can see a detailed list of all extensions explained [here](./docs/extensions.md).
 
+Full user documentation [here](./docs/main.md).
+
 Some key features:
+- [**CLI**](./docs/cli.md). All in one program to manage your recipes.
 - **Ingredient references**. You can now refer to ingredients you already used
   before. I think the most important extension to the original cooklang. You can
   read about using references in [this document](./docs/using_references.md).
