@@ -48,6 +48,7 @@ pub enum Error {
     NonUtf8(#[from] NonUtf8),
 }
 
+#[derive(Debug)]
 pub struct RecipeEntry(Utf8PathBuf);
 
 #[derive(Debug, Clone)]
@@ -160,8 +161,8 @@ impl FsIndex {
         let possible_path = self.base_path.join(recipe).with_extension("cook");
         if possible_path.is_file() {
             // Add to cache
-            self.cache.borrow_mut().insert(name, path);
-            return Ok(RecipeEntry(path.into()));
+            self.cache.borrow_mut().insert(name, &possible_path);
+            return Ok(RecipeEntry(possible_path));
         }
 
         // Walk until found or no more files
