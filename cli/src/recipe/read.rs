@@ -1,7 +1,6 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
-use cooklang::scale::ScaleTarget;
 
 use crate::{write_to_output, Context};
 
@@ -55,15 +54,9 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
     let recipe = input.parse(ctx)?;
 
     let mut scaled_recipe = if let Some(scale) = args.scale {
-        let target = if let Some(servings) = recipe.metadata.servings.as_ref() {
-            let Some(base) = servings.first().copied() else { bail!("Empty servings list") };
-            ScaleTarget::new(base, scale, servings)
-        } else {
-            ScaleTarget::new(1, scale, &[])
-        };
-        recipe.scale(target, ctx.parser()?.converter())
+        recipe.scale(scale, ctx.parser()?.converter())
     } else {
-        recipe.default_scaling()
+        recipe.default_scale()
     };
 
     if let Some(system) = args.convert {

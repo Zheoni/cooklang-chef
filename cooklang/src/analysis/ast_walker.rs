@@ -8,20 +8,20 @@ use crate::context::Context;
 use crate::convert::{Converter, PhysicalQuantity};
 use crate::located::Located;
 use crate::metadata::Metadata;
-use crate::quantity::{Quantity, QuantityValue, ScalableValue, UnitInfo, Value};
+use crate::quantity::{Quantity, QuantityValue, UnitInfo, Value};
 use crate::span::Span;
 use crate::{model::*, Extensions, RecipeRefChecker};
 
 use super::{AnalysisError, AnalysisResult, AnalysisWarning};
 
 #[derive(Default, Debug)]
-pub struct RecipeContent<'a> {
-    pub metadata: Metadata<'a>,
-    pub sections: Vec<Section<'a>>,
-    pub ingredients: Vec<Ingredient<'a>>,
-    pub cookware: Vec<Cookware<'a>>,
-    pub timers: Vec<Timer<'a>>,
-    pub inline_quantities: Vec<Quantity<'a>>,
+pub struct RecipeContent {
+    pub metadata: Metadata,
+    pub sections: Vec<Section>,
+    pub ingredients: Vec<Ingredient>,
+    pub cookware: Vec<Cookware>,
+    pub timers: Vec<Timer>,
+    pub inline_quantities: Vec<Quantity>,
 }
 
 #[tracing::instrument(skip_all, target = "cooklang::analysis", fields(ast_lines = ast.lines.len()))]
@@ -30,7 +30,7 @@ pub fn parse_ast<'a>(
     extensions: Extensions,
     converter: &Converter,
     recipe_ref_checker: Option<RecipeRefChecker>,
-) -> AnalysisResult<'a> {
+) -> AnalysisResult {
     let mut context = Context::default();
     let temperature_regex = extensions
         .contains(Extensions::TEMPERATURE)
@@ -71,7 +71,7 @@ struct Walker<'a, 'c> {
     converter: &'c Converter,
     recipe_ref_checker: Option<RecipeRefChecker<'c>>,
 
-    content: RecipeContent<'a>,
+    content: RecipeContent,
 
     define_mode: DefineMode,
     duplicate_mode: DuplicateMode,
@@ -119,7 +119,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                     if !current_section.is_empty() {
                         self.content.sections.push(current_section);
                     }
-                    current_section = Section::new(name.map(|t| t.text_trimmed()));
+                    current_section = Section::new(name.map(|t| t.text_trimmed().into_owned()));
                 }
             }
         }
@@ -167,7 +167,11 @@ impl<'a, 'r> Walker<'a, 'r> {
                     key: key.located_string(),
                 }),
             }
-        } else if let Err(warn) = self.content.metadata.insert(key_t, value_t) {
+        } else if let Err(warn) = self
+            .content
+            .metadata
+            .insert(key_t.into_owned(), value_t.into_owned())
+        {
             self.warn(AnalysisWarning::InvalidMetadataValue {
                 key: key.located_string(),
                 value: value.located_string(),
@@ -176,7 +180,7 @@ impl<'a, 'r> Walker<'a, 'r> {
         }
     }
 
-    fn step(&mut self, is_text: bool, items: Vec<ast::Item<'a>>) -> Step<'a> {
+    fn step(&mut self, is_text: bool, items: Vec<ast::Item<'a>>) -> Step {
         let mut new_items = Vec::new();
 
         let is_text = is_text || self.define_mode == DefineMode::Text;
@@ -194,27 +198,25 @@ impl<'a, 'r> Walker<'a, 'r> {
                                 text_span: text.span(),
                             });
                         }
-
                         continue; // ignore text
                     }
 
                     if let Some(re) = &self.temperature_regex {
-                        if let Some((before, temperature, after)) = find_temperature(t.clone(), re)
-                        {
+                        if let Some((before, temperature, after)) = find_temperature(&t, re) {
                             if !before.is_empty() {
-                                new_items.push(Item::Text(before));
+                                new_items.push(Item::Text(before.to_string()));
                             }
                             new_items
                                 .push(Item::InlineQuantity(self.content.inline_quantities.len()));
                             self.content.inline_quantities.push(temperature);
                             if !after.is_empty() {
-                                new_items.push(Item::Text(after));
+                                new_items.push(Item::Text(after.to_string()));
                             }
                             continue;
                         }
                     }
 
-                    new_items.push(Item::Text(t));
+                    new_items.push(Item::Text(t.into_owned()));
                 }
                 ast::Item::Component(c) => {
                     if is_text {
@@ -271,10 +273,10 @@ impl<'a, 'r> Walker<'a, 'r> {
             });
 
         let mut new_igr = Ingredient {
-            name,
-            alias: ingredient.alias.map(|t| t.text_trimmed()),
+            name: name.into_owned(),
+            alias: ingredient.alias.map(|t| t.text_trimmed().into_owned()),
             quantity: ingredient.quantity.clone().map(|q| self.quantity(q, true)),
-            note: ingredient.note.map(|n| n.text_trimmed()),
+            note: ingredient.note.map(|n| n.text_trimmed().into_owned()),
             modifiers: ingredient.modifiers.clone().take(),
             references_to: None,
             referenced_from: Default::default(),
@@ -286,8 +288,8 @@ impl<'a, 'r> Walker<'a, 'r> {
                 if !(*checker)(&new_igr.name) {
                     self.warn(AnalysisWarning::RecipeNotFound {
                         ref_span: location,
-                        name: new_igr.name.to_string(),
-                    })
+                        name: new_igr.name.clone(),
+                    });
                 }
             }
         }
@@ -419,7 +421,7 @@ impl<'a, 'r> Walker<'a, 'r> {
         let (cookware, _span) = cookware.take_pair();
 
         let new_cookware = Cookware {
-            name: cookware.name.text_trimmed(),
+            name: cookware.name.text_trimmed().into_owned(),
             quantity: cookware.quantity.map(|q| self.value(q.inner, false)),
         };
 
@@ -452,7 +454,7 @@ impl<'a, 'r> Walker<'a, 'r> {
         }
 
         let new_timer = Timer {
-            name: timer.name.map(|t| t.text_trimmed()),
+            name: timer.name.map(|t| t.text_trimmed().into_owned()),
             quantity,
         };
 
@@ -460,19 +462,15 @@ impl<'a, 'r> Walker<'a, 'r> {
         self.content.timers.len() - 1
     }
 
-    fn quantity(
-        &mut self,
-        quantity: Located<ast::Quantity<'a>>,
-        is_ingredient: bool,
-    ) -> Quantity<'a> {
+    fn quantity(&mut self, quantity: Located<ast::Quantity<'a>>, is_ingredient: bool) -> Quantity {
         let ast::Quantity { value, unit, .. } = quantity.take();
         Quantity::new(
             self.value(value, is_ingredient),
-            unit.map(|t| t.text_trimmed()),
+            unit.map(|t| t.text_trimmed().into_owned()),
         )
     }
 
-    fn value(&mut self, value: ast::QuantityValue<'a>, is_ingredient: bool) -> QuantityValue<'a> {
+    fn value(&mut self, value: ast::QuantityValue, is_ingredient: bool) -> QuantityValue {
         if let ast::QuantityValue::Many(v) = &value {
             if let Some(s) = &self.content.metadata.servings {
                 let servings_meta_span = self
@@ -505,15 +503,14 @@ impl<'a, 'r> Walker<'a, 'r> {
         let mut value = QuantityValue::from_ast(value);
 
         if is_ingredient && self.auto_scale_ingredients {
-            value = match value {
-                QuantityValue::Fixed(v) => QuantityValue::Scalable(ScalableValue::Linear(v)),
-                v @ QuantityValue::Scalable(ScalableValue::Linear(_)) => {
+            match value {
+                QuantityValue::Fixed(v) => value = QuantityValue::Linear(v),
+                QuantityValue::Linear(_) => {
                     self.warn(AnalysisWarning::RedundantAutoScaleMarker {
                         quantity_span: Span::new(value_span.end(), value_span.end() + 1),
                     });
-                    v
                 }
-                v @ QuantityValue::Scalable(ScalableValue::ByServings(_)) => v,
+                _ => {}
             };
         }
 
@@ -521,31 +518,16 @@ impl<'a, 'r> Walker<'a, 'r> {
     }
 }
 
-fn find_temperature<'a>(
-    text: Cow<'a, str>,
-    re: &Regex,
-) -> Option<(Cow<'a, str>, Quantity<'a>, Cow<'a, str>)> {
+fn find_temperature<'a>(text: &'a str, re: &Regex) -> Option<(&'a str, Quantity, &'a str)> {
     let Some(caps) = re.captures(&text) else { return None; };
 
     let value = caps[1].replace(',', ".").parse::<f64>().ok()?;
     let unit = caps.get(3).unwrap().range();
-    let unit_text = match &text {
-        Cow::Borrowed(s) => s[unit].into(),
-        Cow::Owned(s) => s[unit].to_owned().into(),
-    };
+    let unit_text = text[unit].to_string();
     let temperature = Quantity::new(QuantityValue::Fixed(Value::Number(value)), Some(unit_text));
 
     let range = caps.get(0).unwrap().range();
-    let (before, after) = match &text {
-        Cow::Borrowed(s) => (
-            Cow::Borrowed(&s[..range.start]),
-            Cow::Borrowed(&s[range.end..]),
-        ),
-        Cow::Owned(s) => (
-            Cow::Owned(s[..range.start].to_owned()),
-            Cow::Owned(s[range.end..].to_owned()),
-        ),
-    };
+    let (before, after) = (&text[..range.start], &text[range.end..]);
 
     Some((before, temperature, after))
 }

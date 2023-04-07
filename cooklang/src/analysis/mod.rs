@@ -11,7 +11,7 @@ mod ast_walker;
 pub use ast_walker::parse_ast;
 pub use ast_walker::RecipeContent;
 
-pub type AnalysisResult<'a> = PassResult<RecipeContent<'a>, AnalysisError, AnalysisWarning>;
+pub type AnalysisResult = PassResult<RecipeContent, AnalysisError, AnalysisWarning>;
 
 #[derive(Debug, Error)]
 pub enum AnalysisError {

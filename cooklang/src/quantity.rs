@@ -1,7 +1,8 @@
 //! Quantity model
 
-use std::{borrow::Cow, fmt::Display, ops::RangeInclusive, sync::Arc};
+use std::{collections::HashMap, fmt::Display, ops::RangeInclusive, sync::Arc};
 
+use enum_map::EnumMap;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -13,33 +14,26 @@ use crate::{
 
 /// A quantity used in components such an [Ingredient](crate::model::Ingredient)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Quantity<'a> {
+pub struct Quantity {
     /// Value
-    pub value: QuantityValue<'a>,
-    pub(crate) unit: Option<QuantityUnit<'a>>,
+    pub value: QuantityValue,
+    pub(crate) unit: Option<QuantityUnit>,
 }
 
 /// A value that can or not be changed by scaling it
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum QuantityValue<'a> {
+pub enum QuantityValue {
     /// Cannot be scaled
-    Fixed(Value<'a>),
-    /// Can be scaled
-    Scalable(ScalableValue<'a>),
-}
-
-/// A value that can be scaled
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ScalableValue<'a> {
+    Fixed(Value),
     /// Scaling is linear to the number of servings
-    Linear(Value<'a>),
+    Linear(Value),
     /// Scaling is in defined steps of the number of servings
-    ByServings(Vec<Value<'a>>),
+    ByServings(Vec<Value>),
 }
 
 /// Base value
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum Value<'a> {
+pub enum Value {
     /// Numeric
     Number(f64),
     /// Range
@@ -47,15 +41,15 @@ pub enum Value<'a> {
     /// Text
     ///
     /// It is not possible to operate with this variant.
-    Text(Cow<'a, str>),
+    Text(String),
 }
 
 /// Unit that has the text it has been parsed from and, if recognised,
 /// information about what unit it is.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct QuantityUnit<'a> {
-    text: Cow<'a, str>,
+pub struct QuantityUnit {
+    text: String,
     #[serde(skip)]
     info: OnceCell<UnitInfo>,
 }
@@ -69,47 +63,29 @@ pub enum UnitInfo {
     Unknown,
 }
 
-impl QuantityValue<'_> {
-    pub fn into_owned(self) -> QuantityValue<'static> {
+impl QuantityValue {
+    /// Checks if any of the possible values is text
+    pub fn contains_text_value(&self) -> bool {
         match self {
-            QuantityValue::Fixed(v) => QuantityValue::Fixed(v.into_owned()),
-            QuantityValue::Scalable(v) => QuantityValue::Scalable(v.into_owned()),
+            QuantityValue::Fixed(v) | QuantityValue::Linear(v) => v.is_text(),
+            QuantityValue::ByServings(v) => v.iter().any(Value::is_text),
         }
     }
 }
 
-impl ScalableValue<'_> {
-    pub fn into_owned(self) -> ScalableValue<'static> {
-        match self {
-            ScalableValue::Linear(v) => ScalableValue::Linear(v.into_owned()),
-            ScalableValue::ByServings(v) => {
-                ScalableValue::ByServings(v.into_iter().map(Value::into_owned).collect())
-            }
-        }
-    }
-}
-
-impl Value<'_> {
-    pub fn into_owned(self) -> Value<'static> {
-        match self {
-            Value::Number(n) => Value::Number(n),
-            Value::Range(r) => Value::Range(r),
-            Value::Text(t) => Value::Text(t.into_owned().into()),
-        }
-    }
-
+impl Value {
     pub fn is_text(&self) -> bool {
         matches!(self, Value::Text(_))
     }
 }
 
-impl PartialEq for QuantityUnit<'_> {
+impl PartialEq for QuantityUnit {
     fn eq(&self, other: &Self) -> bool {
         self.text == other.text
     }
 }
 
-impl QuantityUnit<'_> {
+impl QuantityUnit {
     /// Original text of the unit
     pub fn text(&self) -> &str {
         &self.text
@@ -124,16 +100,10 @@ impl QuantityUnit<'_> {
     }
 
     /// Information about the unit
-    pub fn unit_or_parse(&self, converter: &Converter) -> &UnitInfo {
+    pub fn unit_or_parse(&self, converter: &Converter) -> UnitInfo {
         self.info
             .get_or_init(|| UnitInfo::new(&self.text, converter))
-    }
-
-    pub fn into_owned(self) -> QuantityUnit<'static> {
-        QuantityUnit {
-            text: Cow::Owned(self.text.into_owned()),
-            ..self
-        }
+            .clone()
     }
 }
 
@@ -146,9 +116,9 @@ impl UnitInfo {
     }
 }
 
-impl<'a> Quantity<'a> {
+impl Quantity {
     /// Creates a new quantity
-    pub fn new(value: QuantityValue<'a>, unit: Option<Cow<'a, str>>) -> Self {
+    pub fn new(value: QuantityValue, unit: Option<String>) -> Self {
         Self {
             value,
             unit: unit.map(|text| QuantityUnit {
@@ -160,8 +130,8 @@ impl<'a> Quantity<'a> {
 
     /// Creates a new quantity and parse the unit
     pub fn new_and_parse(
-        value: QuantityValue<'a>,
-        unit: Option<Cow<'a, str>>,
+        value: QuantityValue,
+        unit: Option<String>,
         converter: &Converter,
     ) -> Self {
         Self {
@@ -175,8 +145,8 @@ impl<'a> Quantity<'a> {
 
     /// Createa a new quantity with a known unit
     pub(crate) fn with_known_unit(
-        value: QuantityValue<'a>,
-        unit_text: Cow<'a, str>,
+        value: QuantityValue,
+        unit_text: String,
         unit: Option<Arc<Unit>>,
     ) -> Self {
         Self {
@@ -208,17 +178,10 @@ impl<'a> Quantity<'a> {
     pub fn unit_info(&self) -> Option<&UnitInfo> {
         self.unit.as_ref().and_then(|u| u.info.get())
     }
-
-    pub fn into_owned(self) -> Quantity<'static> {
-        Quantity {
-            value: self.value.into_owned(),
-            unit: self.unit.map(QuantityUnit::into_owned),
-        }
-    }
 }
 
-impl<'a> QuantityValue<'a> {
-    pub(crate) fn from_ast(value: ast::QuantityValue<'a>) -> Self {
+impl QuantityValue {
+    pub(crate) fn from_ast(value: ast::QuantityValue) -> Self {
         match value {
             ast::QuantityValue::Single {
                 value,
@@ -229,26 +192,15 @@ impl<'a> QuantityValue<'a> {
                 value,
                 auto_scale: Some(_),
                 ..
-            } => Self::Scalable(ScalableValue::Linear(value.take())),
-            ast::QuantityValue::Many(v) => Self::Scalable(ScalableValue::ByServings(
-                v.into_iter().map(crate::located::Located::take).collect(),
-            )),
-        }
-    }
-
-    /// Checks if any of the possible values is text
-    pub fn contains_text_value(&self) -> bool {
-        match self {
-            QuantityValue::Fixed(v) => v.is_text(),
-            QuantityValue::Scalable(v) => match v {
-                ScalableValue::Linear(v) => v.is_text(),
-                ScalableValue::ByServings(v) => v.iter().any(Value::is_text),
-            },
+            } => Self::Linear(value.take()),
+            ast::QuantityValue::Many(v) => {
+                Self::ByServings(v.into_iter().map(crate::located::Located::take).collect())
+            }
         }
     }
 }
 
-impl Display for Quantity<'_> {
+impl Display for Quantity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.value)?;
         if let Some(unit) = &self.unit {
@@ -258,20 +210,11 @@ impl Display for Quantity<'_> {
     }
 }
 
-impl Display for QuantityValue<'_> {
+impl Display for QuantityValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            QuantityValue::Fixed(v) => v.fmt(f),
-            QuantityValue::Scalable(v) => v.fmt(f),
-        }
-    }
-}
-
-impl Display for ScalableValue<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ScalableValue::Linear(value) => value.fmt(f),
-            ScalableValue::ByServings(v) => {
+            Self::Fixed(v) | Self::Linear(v) => v.fmt(f),
+            Self::ByServings(v) => {
                 for value in &v[..v.len() - 1] {
                     write!(f, "{}|", value)?;
                 }
@@ -281,7 +224,7 @@ impl Display for ScalableValue<'_> {
     }
 }
 
-impl Display for Value<'_> {
+impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn float(n: f64) -> f64 {
             (n * 1000.0).round() / 1000.0
@@ -295,26 +238,26 @@ impl Display for Value<'_> {
     }
 }
 
-impl Display for QuantityUnit<'_> {
+impl Display for QuantityUnit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.text)
     }
 }
 
-impl From<f64> for Value<'_> {
+impl From<f64> for Value {
     fn from(value: f64) -> Self {
         Self::Number(value)
     }
 }
 
-impl From<RangeInclusive<f64>> for Value<'_> {
+impl From<RangeInclusive<f64>> for Value {
     fn from(value: RangeInclusive<f64>) -> Self {
         Self::Range(value)
     }
 }
 
-impl<'a> From<Cow<'a, str>> for Value<'a> {
-    fn from(value: Cow<'a, str>) -> Self {
+impl From<String> for Value {
+    fn from(value: String) -> Self {
         Self::Text(value)
     }
 }
@@ -340,7 +283,7 @@ pub enum QuantityAddError {
 pub enum IncompatibleUnits {
     #[error("Missing unit: one unit is '{found}' but the other quantity is missing an unit")]
     MissingUnit {
-        found: either::Either<QuantityUnit<'static>, QuantityUnit<'static>>,
+        found: either::Either<QuantityUnit, QuantityUnit>,
     },
     #[error("Different physical quantity: '{a}' '{b}'")]
     DifferentPhysicalQuantities {
@@ -351,25 +294,25 @@ pub enum IncompatibleUnits {
     UnknownDifferentUnits { a: String, b: String },
 }
 
-impl Quantity<'_> {
+impl Quantity {
     /// Checks if two quantities can be added
     pub fn is_compatible(
         &self,
         rhs: &Self,
         converter: &Converter,
-    ) -> Result<Option<&Arc<Unit>>, IncompatibleUnits> {
+    ) -> Result<Option<Arc<Unit>>, IncompatibleUnits> {
         let base = match (&self.unit, &rhs.unit) {
             // No units = ok
             (None, None) => None,
             // Mixed = error
             (None, Some(u)) => {
                 return Err(IncompatibleUnits::MissingUnit {
-                    found: either::Either::Right(u.clone().into_owned()),
+                    found: either::Either::Right(u.to_owned()),
                 });
             }
             (Some(u), None) => {
                 return Err(IncompatibleUnits::MissingUnit {
-                    found: either::Either::Left(u.clone().into_owned()),
+                    found: either::Either::Left(u.to_owned()),
                 });
             }
             // Units -> check
@@ -392,8 +335,8 @@ impl Quantity<'_> {
                         // if units are unknown, their text must be equal
                         if a.text != b.text {
                             return Err(IncompatibleUnits::UnknownDifferentUnits {
-                                a: a.text.clone().into_owned(),
-                                b: b.text.clone().into_owned(),
+                                a: a.text.clone(),
+                                b: b.text.clone(),
                             });
                         }
                         None
@@ -405,17 +348,13 @@ impl Quantity<'_> {
     }
 
     /// Try adding two quantities
-    pub fn try_add(
-        &self,
-        rhs: &Self,
-        converter: &Converter,
-    ) -> Result<Quantity<'static>, QuantityAddError> {
+    pub fn try_add(&self, rhs: &Self, converter: &Converter) -> Result<Quantity, QuantityAddError> {
         // 1. Check if the units are compatible and (maybe) get a common unit
         let convert_to = self.is_compatible(rhs, converter)?;
 
         // 2. Convert rhs to the unit of the first one if needed
         let rhs = if let Some(to) = convert_to {
-            converter.convert(rhs, to)?
+            converter.convert(rhs, &to)?
         } else {
             rhs.to_owned()
         };
@@ -429,7 +368,7 @@ impl Quantity<'_> {
             unit: self.unit.clone(), // unit is mantained
         };
 
-        Ok(qty.into_owned())
+        Ok(qty)
     }
 
     /// Converts the unit to the best possible match in the same unit system.
@@ -453,13 +392,13 @@ impl Quantity<'_> {
 /// Error when try to operate on a non scaled value
 #[derive(Debug, Error)]
 #[error("Tried to operate on a non scaled value: {0}")]
-pub struct NotScaled(pub ScalableValue<'static>);
+pub struct NotScaled(pub QuantityValue);
 
-impl QuantityValue<'_> {
+impl QuantityValue {
     pub(crate) fn extract_value(&self) -> Result<&Value, NotScaled> {
         match self {
-            QuantityValue::Fixed(v) => Ok(v),
-            QuantityValue::Scalable(v) => Err(NotScaled(v.clone().into_owned())),
+            Self::Fixed(v) => Ok(v),
+            Self::Linear(_) | Self::ByServings(_) => Err(NotScaled(self.to_owned())),
         }
     }
 
@@ -473,11 +412,11 @@ impl QuantityValue<'_> {
 /// Error when try to operate on a text value
 #[derive(Debug, Error, Clone)]
 #[error("Cannot operate on a text value")]
-pub struct TextValueError(pub Value<'static>);
+pub struct TextValueError(pub Value);
 
-impl Value<'_> {
+impl Value {
     /// Try adding two [Value]s
-    pub fn try_add(&self, rhs: &Self) -> Result<Value<'static>, TextValueError> {
+    pub fn try_add(&self, rhs: &Self) -> Result<Value, TextValueError> {
         let val = match (self, rhs) {
             (Value::Number(a), Value::Number(b)) => Value::Number(a + b),
             (Value::Number(n), Value::Range(r)) | (Value::Range(r), Value::Number(n)) => {
@@ -487,10 +426,106 @@ impl Value<'_> {
                 Value::Range(a.start() + b.start()..=a.end() + b.end())
             }
             (t @ Value::Text(_), _) | (_, t @ Value::Text(_)) => {
-                return Err(TextValueError(t.clone().into_owned()));
+                return Err(TextValueError(t.to_owned()));
             }
         };
 
         Ok(val)
     }
+}
+
+#[derive(Default, Debug)]
+pub struct GroupedQuantity {
+    known: EnumMap<PhysicalQuantity, Option<Quantity>>,
+    unknown: HashMap<String, Quantity>,
+    no_unit: Option<Quantity>,
+    other: Vec<Quantity>,
+}
+
+impl GroupedQuantity {
+    pub fn add(&mut self, q: &Quantity, converter: &Converter) {
+        macro_rules! add {
+            ($stored:expr, $quantity:ident, $converter:expr, $other:expr) => {
+                match $stored.try_add($quantity, $converter) {
+                    Ok(q) => *$stored = q,
+                    Err(_) => {
+                        $other.push($quantity.clone());
+                        return;
+                    }
+                }
+            };
+        }
+
+        if q.value.contains_text_value() {
+            self.other.push(q.clone());
+            return;
+        }
+        if q.unit.is_none() {
+            if let Some(stored) = &mut self.no_unit {
+                add!(stored, q, converter, self.other);
+            } else {
+                self.no_unit = Some(q.clone());
+            }
+            return;
+        }
+
+        let unit = q.unit.as_ref().unwrap();
+        let info = unit.unit_or_parse(converter);
+        match info {
+            UnitInfo::Known(unit) => {
+                if let Some(stored) = &mut self.known[unit.physical_quantity] {
+                    add!(stored, q, converter, self.other);
+                } else {
+                    self.known[unit.physical_quantity] = Some(q.clone());
+                }
+            }
+            UnitInfo::Unknown => {
+                if let Some(stored) = self.unknown.get_mut(unit.text()) {
+                    add!(stored, q, converter, self.other);
+                } else {
+                    self.unknown.insert(unit.text.clone(), q.clone());
+                }
+            }
+        };
+    }
+
+    pub fn merge(&mut self, other: &Self, converter: &Converter) {
+        for q in other.all_quantities() {
+            self.add(&q, converter)
+        }
+    }
+
+    fn all_quantities(&self) -> impl Iterator<Item = Quantity> + '_ {
+        self.known
+            .values()
+            .filter_map(|q| q.as_ref())
+            .chain(self.unknown.values())
+            .chain(self.other.iter())
+            .chain(self.no_unit.iter())
+            .cloned()
+    }
+
+    pub fn total(&self) -> TotalQuantity {
+        let mut all = self.all_quantities().peekable();
+
+        let Some(first) = all.next()
+        else { return TotalQuantity::None; };
+
+        if all.peek().is_none() {
+            TotalQuantity::Single(first)
+        } else {
+            let mut many = Vec::with_capacity(1 + all.size_hint().0);
+            many.push(first);
+            for q in all {
+                many.push(q);
+            }
+            TotalQuantity::Many(many)
+        }
+    }
+}
+
+pub enum TotalQuantity {
+    None,
+    Single(Quantity),
+    Many(Vec<Quantity>),
 }

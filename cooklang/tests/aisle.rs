@@ -25,47 +25,45 @@ tuna|chicken of the sea
 fn test_shopping_list() {
     let got = parse(CONF).unwrap();
 
-    let expected = AileConf {
-        categories: vec![
-            Category {
-                name: "produce",
-                ingredients: vec![Ingredient {
-                    names: vec!["potatoes"],
-                }],
-            },
-            Category {
-                name: "dairy",
-                ingredients: vec![
-                    Ingredient {
-                        names: vec!["milk"],
-                    },
-                    Ingredient {
-                        names: vec!["butter"],
-                    },
-                ],
-            },
-            Category {
-                name: "deli",
-                ingredients: vec![Ingredient {
-                    names: vec!["chicken"],
-                }],
-            },
-            Category {
-                name: "canned goods",
-                ingredients: vec![Ingredient {
-                    names: vec!["tuna", "chicken of the sea"],
-                }],
-            },
-            Category {
-                name: "empty category",
-                ingredients: vec![],
-            },
-            Category {
-                name: "another",
-                ingredients: vec![],
-            },
-        ],
-    };
+    let expected = vec![
+        Category {
+            name: "produce",
+            ingredients: vec![Ingredient {
+                names: vec!["potatoes"],
+            }],
+        },
+        Category {
+            name: "dairy",
+            ingredients: vec![
+                Ingredient {
+                    names: vec!["milk"],
+                },
+                Ingredient {
+                    names: vec!["butter"],
+                },
+            ],
+        },
+        Category {
+            name: "deli",
+            ingredients: vec![Ingredient {
+                names: vec!["chicken"],
+            }],
+        },
+        Category {
+            name: "canned goods",
+            ingredients: vec![Ingredient {
+                names: vec!["tuna", "chicken of the sea"],
+            }],
+        },
+        Category {
+            name: "empty category",
+            ingredients: vec![],
+        },
+        Category {
+            name: "another",
+            ingredients: vec![],
+        },
+    ];
 
-    assert_eq!(expected, got);
+    assert_eq!(expected, got.categories);
 }

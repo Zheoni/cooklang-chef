@@ -20,6 +20,7 @@ use parser::{AileConfParser, Rule};
 pub struct AileConf<'a> {
     #[serde(borrow)]
     pub categories: Vec<Category<'a>>,
+    len: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -33,6 +34,20 @@ pub struct Category<'a> {
 pub struct Ingredient<'a> {
     #[serde(borrow)]
     pub names: Vec<&'a str>,
+}
+
+impl AileConf<'_> {
+    pub fn reverse(&self) -> HashMap<&str, &str> {
+        let mut map = HashMap::with_capacity(self.len.unwrap_or_default());
+        for cat in &self.categories {
+            for igr in &cat.ingredients {
+                for name in &igr.names {
+                    map.insert(*name, cat.name);
+                }
+            }
+        }
+        map
+    }
 }
 
 /// Parse an [AileConf]
@@ -85,7 +100,10 @@ pub fn parse(input: &str) -> Result<AileConf, AileConfError> {
         categories.push(category);
     }
 
-    Ok(AileConf { categories })
+    Ok(AileConf {
+        categories,
+        len: Some(names_span.len()),
+    })
 }
 
 /// Write an [AileConf] in the cooklang supported format.

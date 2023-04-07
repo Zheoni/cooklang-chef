@@ -4,8 +4,8 @@ use thiserror::Error;
 
 use crate::{
     convert::Converter,
-    quantity::{QuantityValue, ScalableValue, TextValueError, Value},
-    Recipe,
+    quantity::{QuantityValue, TextValueError, Value},
+    Recipe, ScaledRecipe,
 };
 
 /// Configures the scaling
@@ -53,14 +53,9 @@ impl ScaleTarget {
 pub enum Scaled {
     /// The recipe was scaled to its based servings
     ///
-    /// This is the values written in text or if there are many values
+    /// This is the values without scaling or if there are many values
     /// for a component, the first one.
     DefaultScaling,
-    /// Not scaled
-    ///
-    /// All the values stay the same, even if there are many values for a
-    /// component.
-    SkippedSacaling,
     /// Scaled to a custom target
     Scaled(ScaledData),
 }
@@ -89,12 +84,6 @@ pub enum ScaleOutcome {
     Error(ScaleError),
 }
 
-/// A recipe after being scaled
-///
-/// Note that this doesn't implement [Recipe::scale]. A recipe can only be
-/// scaled once.
-pub type ScaledRecipe<'a> = Recipe<'a, Scaled>;
-
 /// Possible errors during scaling process
 #[derive(Debug, Error, Clone)]
 pub enum ScaleError {
@@ -103,25 +92,32 @@ pub enum ScaleError {
 
     #[error("Value not scalable: {reason}")]
     NotScalable {
-        value: ScalableValue<'static>,
+        value: QuantityValue,
         reason: &'static str,
     },
 
     #[error("Value scaling not defined for target servings")]
     NotDefined {
         target: ScaleTarget,
-        value: ScalableValue<'static>,
+        value: QuantityValue,
     },
 }
 
-impl<'a> Recipe<'a> {
+impl Recipe {
     /// Scale a recipe.
     ///
     /// Note that this returns a [ScaledRecipe] wich doesn't implement this
     /// method. A recipe can only be scaled once.
-    pub fn scale(mut self, target: ScaleTarget, converter: &Converter) -> ScaledRecipe<'a> {
+    pub fn scale(mut self, target: u32, converter: &Converter) -> ScaledRecipe {
+        let target = if let Some(servings) = self.metadata.servings.as_ref() {
+            let base = servings.first().copied().unwrap_or(1);
+            ScaleTarget::new(base, target, servings)
+        } else {
+            ScaleTarget::new(1, target, &[])
+        };
+
         if target.index() == Some(0) {
-            return self.default_scaling();
+            return self.default_scale();
         }
         let ingredients = scale_many(target, &mut self.ingredients, |igr| {
             igr.quantity.as_mut().map(|q| &mut q.value)
@@ -153,24 +149,10 @@ impl<'a> Recipe<'a> {
         }
     }
 
-    /// Get a [ScaledRecipe] without scaling it.
-    pub fn skip_scaling(self) -> ScaledRecipe<'a> {
-        ScaledRecipe {
-            name: self.name,
-            metadata: self.metadata,
-            sections: self.sections,
-            ingredients: self.ingredients,
-            cookware: self.cookware,
-            timers: self.timers,
-            inline_quantities: self.inline_quantities,
-            data: Scaled::SkippedSacaling,
-        }
-    }
-
     /// Scale the recipe to the default values.
     ///
     /// This collapses the [ScalableValue::ByServings] to a single value.
-    pub fn default_scaling(mut self) -> ScaledRecipe<'a> {
+    pub fn default_scale(mut self) -> ScaledRecipe {
         default_scale_many(&mut self.ingredients, |igr| {
             igr.quantity.as_mut().map(|q| &mut q.value)
         });
@@ -190,7 +172,7 @@ impl<'a> Recipe<'a> {
     }
 }
 
-impl ScaledRecipe<'_> {
+impl ScaledRecipe {
     /// Get the [ScaledData] from a recipe after scaling.
     pub fn scaled_data(&self) -> Option<&ScaledData> {
         if let Scaled::Scaled(data) = &self.data {
@@ -209,7 +191,7 @@ impl ScaledRecipe<'_> {
 fn scale_many<'a, T: 'a>(
     target: ScaleTarget,
     components: &mut [T],
-    extract: impl Fn(&mut T) -> Option<&mut QuantityValue<'a>>,
+    extract: impl Fn(&mut T) -> Option<&mut QuantityValue>,
 ) -> Vec<ScaleOutcome> {
     let mut outcomes = Vec::with_capacity(components.len());
     for c in components {
@@ -231,7 +213,7 @@ fn scale_many<'a, T: 'a>(
 
 fn default_scale_many<'a, T: 'a>(
     components: &mut [T],
-    extract: impl Fn(&mut T) -> Option<&mut QuantityValue<'a>>,
+    extract: impl Fn(&mut T) -> Option<&mut QuantityValue>,
 ) {
     for c in components {
         if let Some(value) = extract(c) {
@@ -240,61 +222,47 @@ fn default_scale_many<'a, T: 'a>(
     }
 }
 
-impl<'a> QuantityValue<'a> {
-    fn scale(self, target: ScaleTarget) -> Result<(QuantityValue<'a>, ScaleOutcome), ScaleError> {
-        match self {
-            v @ QuantityValue::Fixed(_) => Ok((v, ScaleOutcome::Fixed)),
-            QuantityValue::Scalable(v) => {
-                v.scale(target).map(|(v, o)| (QuantityValue::Fixed(v), o))
-            }
-        }
-    }
-
-    fn default_scale(self) -> Self {
-        match self {
-            v @ QuantityValue::Fixed(_) => v,
-            QuantityValue::Scalable(v) => QuantityValue::Fixed(v.default_scale()),
-        }
-    }
-}
-
-impl<'a> ScalableValue<'a> {
-    fn scale(self, target: ScaleTarget) -> Result<(Value<'a>, ScaleOutcome), ScaleError> {
-        match self {
-            ScalableValue::Linear(v) => Ok((v.scale(target.factor())?, ScaleOutcome::Scaled)),
-            ScalableValue::ByServings(ref v) => {
+impl QuantityValue {
+    fn scale(self, target: ScaleTarget) -> Result<(QuantityValue, ScaleOutcome), ScaleError> {
+        let (value, outcome) = match self {
+            Self::Fixed(v) => (v, ScaleOutcome::Fixed),
+            Self::Linear(v) => (v.scale(target.factor())?, ScaleOutcome::Scaled),
+            Self::ByServings(ref v) => {
                 if let Some(index) = target.index {
                     let Some(value) = v.get(index) else {
-                        return Err(ScaleError::NotDefined { target, value: self.into_owned() });
+                        return Err(ScaleError::NotDefined { target, value: self });
                     };
-                    Ok((value.clone(), ScaleOutcome::Scaled))
+                    (value.clone(), ScaleOutcome::Scaled)
                 } else {
                     return Err(ScaleError::NotScalable {
-                        value: self.into_owned(),
+                        value: self,
                         reason: "tried to scale a value linearly when it has the scaling defined",
                     });
                 }
             }
-        }
+        };
+        Ok((Self::Fixed(value), outcome))
     }
 
-    fn default_scale(self) -> Value<'a> {
+    fn default_scale(self) -> Self {
         match self {
-            ScalableValue::Linear(v) => v,
-            ScalableValue::ByServings(v) => v
-                .first()
-                .expect("scalable value servings list empty")
-                .clone(),
+            v @ Self::Fixed(_) => v,
+            Self::Linear(v) => Self::Fixed(v),
+            Self::ByServings(v) => Self::Fixed(
+                v.first()
+                    .expect("scalable value servings list empty")
+                    .clone(),
+            ),
         }
     }
 }
 
-impl Value<'_> {
-    fn scale(&self, factor: f64) -> Result<Value<'static>, ScaleError> {
+impl Value {
+    fn scale(&self, factor: f64) -> Result<Value, ScaleError> {
         match self.clone() {
             Value::Number(n) => Ok(Value::Number(n * factor)),
             Value::Range(r) => Ok(Value::Range(r.start() * factor..=r.end() * factor)),
-            v @ Value::Text(_) => return Err(TextValueError(v.into_owned()).into()),
+            v @ Value::Text(_) => Err(TextValueError(v).into()),
         }
     }
 }

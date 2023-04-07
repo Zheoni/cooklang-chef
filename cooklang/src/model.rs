@@ -8,38 +8,44 @@ use crate::{
     ast::Modifiers,
     convert::Converter,
     metadata::Metadata,
-    quantity::{Quantity, QuantityAddError, QuantityValue},
+    quantity::{GroupedQuantity, Quantity, QuantityAddError, QuantityValue},
+    scale::ScaleOutcome,
 };
 
 /// A complete recipe
 ///
 /// A recipe can be [Self::scale] (only once) and only after that [Self::convert]
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Recipe<'a, D = ()> {
+pub struct Recipe<D = ()> {
     /// Recipe name
     pub name: String,
     /// Metadata
-    #[serde(borrow)]
-    pub metadata: Metadata<'a>,
+    pub metadata: Metadata,
     /// Each of the sections
     ///
     /// If no sections declared, a section without name
     /// is the default.
-    pub sections: Vec<Section<'a>>,
+    pub sections: Vec<Section>,
     /// All the ingredients
-    pub ingredients: Vec<Ingredient<'a>>,
+    pub ingredients: Vec<Ingredient>,
     /// All the cookware
-    pub cookware: Vec<Cookware<'a>>,
+    pub cookware: Vec<Cookware>,
     /// All the timers
-    pub timers: Vec<Timer<'a>>,
+    pub timers: Vec<Timer>,
     /// All the inline quantities
-    pub inline_quantities: Vec<Quantity<'a>>,
+    pub inline_quantities: Vec<Quantity>,
     #[serde(skip)]
     pub(crate) data: D,
 }
 
-impl<'a> Recipe<'a> {
-    pub(crate) fn from_content(name: String, content: crate::analysis::RecipeContent<'a>) -> Self {
+/// A recipe after being scaled
+///
+/// Note that this doesn't implement [Recipe::scale]. A recipe can only be
+/// scaled once.
+pub type ScaledRecipe = Recipe<crate::scale::Scaled>;
+
+impl Recipe {
+    pub(crate) fn from_content(name: String, content: crate::analysis::RecipeContent) -> Self {
         Recipe {
             name,
             metadata: content.metadata,
@@ -54,17 +60,56 @@ impl<'a> Recipe<'a> {
     }
 }
 
-/// A section holding steps
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
-pub struct Section<'a> {
-    /// Name of the section
-    pub name: Option<Cow<'a, str>>,
-    /// Steps inside
-    pub steps: Vec<Step<'a>>,
+impl ScaledRecipe {
+    pub fn ingredient_list(&self, converter: &Converter) -> IngredientList<'_> {
+        let mut list = Vec::new();
+        let data = self.scaled_data();
+        for (index, ingredient) in self
+            .ingredients
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| !i.is_reference())
+        {
+            let mut grouped = GroupedQuantity::default();
+            for q in ingredient.all_quantities(&self.ingredients) {
+                grouped.add(q, converter);
+            }
+            let outcome: Option<ScaleOutcome> = data
+                .as_ref()
+                .map(|data| {
+                    // Color in list depends on outcome of definition and all references
+                    let mut outcome = &data.ingredients[index]; // temp value
+                    let all_indices =
+                        std::iter::once(index).chain(ingredient.referenced_from().iter().copied());
+                    for index in all_indices {
+                        match &data.ingredients[index] {
+                            e @ ScaleOutcome::Error(_) => return e, // if err, return
+                            e @ ScaleOutcome::Fixed => outcome = e, // if fixed, store
+                            _ => {}
+                        }
+                    }
+                    outcome
+                })
+                .cloned();
+            list.push((ingredient, grouped, outcome));
+        }
+        list
+    }
 }
 
-impl<'a> Section<'a> {
-    pub(crate) fn new(name: Option<Cow<'a, str>>) -> Section<'a> {
+pub type IngredientList<'a> = Vec<(&'a Ingredient, GroupedQuantity, Option<ScaleOutcome>)>;
+
+/// A section holding steps
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct Section {
+    /// Name of the section
+    pub name: Option<String>,
+    /// Steps inside
+    pub steps: Vec<Step>,
+}
+
+impl Section {
+    pub(crate) fn new(name: Option<String>) -> Section {
         Self {
             name,
             steps: Vec::new(),
@@ -78,9 +123,9 @@ impl<'a> Section<'a> {
 
 /// A step holding step [Item]s
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Step<'a> {
+pub struct Step {
     /// [Item]s inside
-    pub items: Vec<Item<'a>>,
+    pub items: Vec<Item>,
     /// Flag that indicates the step is a text step.
     ///
     /// A text step should not increase the step counter, and there are only
@@ -90,9 +135,9 @@ pub struct Step<'a> {
 
 /// A step item
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub enum Item<'a> {
+pub enum Item {
     /// Just plain text
-    Text(Cow<'a, str>),
+    Text(String),
     /// A [Component]
     Component(Component),
     /// An inline quantity.
@@ -103,17 +148,17 @@ pub enum Item<'a> {
 
 /// A recipe ingredient
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Ingredient<'a> {
+pub struct Ingredient {
     /// Name
     ///
     /// This can have the form of a path if the ingredient references a recipe.
-    pub name: Cow<'a, str>,
+    pub name: String,
     /// Alias
-    pub alias: Option<Cow<'a, str>>,
+    pub alias: Option<String>,
     /// Quantity
-    pub quantity: Option<Quantity<'a>>,
+    pub quantity: Option<Quantity>,
     /// Note
-    pub note: Option<Cow<'a, str>>,
+    pub note: Option<String>,
 
     pub(crate) modifiers: Modifiers,
     pub(crate) references_to: Option<usize>,
@@ -121,16 +166,16 @@ pub struct Ingredient<'a> {
     pub(crate) defined_in_step: bool, // TODO maybe move this into analysis?, is not needed in the model
 }
 
-impl Ingredient<'_> {
+impl Ingredient {
     /// Gets the name the ingredient should be displayed with
     pub fn display_name(&self) -> Cow<str> {
-        let mut name = self.name.clone();
+        let mut name = Cow::from(&self.name);
         if self.modifiers.contains(Modifiers::RECIPE) {
             if let Some(idx) = self.name.rfind(std::path::is_separator) {
                 name = self.name.split_at(idx + 1).1.into();
             }
         }
-        self.alias.as_ref().cloned().unwrap_or(name)
+        self.alias.as_ref().map(Cow::from).unwrap_or(name)
     }
 
     /// Access the ingredient modifiers
@@ -170,8 +215,7 @@ impl Ingredient<'_> {
     ) -> Result<Option<Quantity>, QuantityAddError> {
         let mut quantities = self.all_quantities(all_ingredients);
 
-        let Some(total) = quantities.next() else { return Ok(None); };
-        let mut total = total.clone().into_owned();
+        let Some(mut total) = quantities.next().cloned() else { return Ok(None); };
         for q in quantities {
             total = total.try_add(q, converter)?;
         }
@@ -198,25 +242,25 @@ impl Ingredient<'_> {
 
 /// A recipe cookware item
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Cookware<'a> {
+pub struct Cookware {
     /// Name
-    pub name: Cow<'a, str>,
+    pub name: String,
     /// Amount needed
     ///
     /// Note that this is a value, not a quantity, so it doesn't have units.
-    pub quantity: Option<QuantityValue<'a>>,
+    pub quantity: Option<QuantityValue>,
 }
 
 /// A recipe timer
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Timer<'a> {
+pub struct Timer {
     /// Name
-    pub name: Option<Cow<'a, str>>,
+    pub name: Option<String>,
     /// Time quantity
     ///
     /// If created from parsing and the advanced units extension is enabled,
     /// this is guaranteed to have a time unit.
-    pub quantity: Quantity<'a>,
+    pub quantity: Quantity,
 }
 
 /// A component reference

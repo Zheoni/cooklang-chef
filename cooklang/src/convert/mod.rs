@@ -210,18 +210,34 @@ pub enum PhysicalQuantity {
 }
 
 impl Converter {
-    /// Perform a conversion with so generic help of the [ConvertFrom] trait.
+    /// Convert a [Quantity]
     ///
     /// Just a convenience method of calling [Self::convert2]
-    pub fn convert<'f, 't, F: ConvertFrom<'f>>(
+    pub fn convert<'t>(
         &self,
-        from: F,
+        from: &Quantity,
         to: impl Into<ConvertTo<'t>>,
-    ) -> Result<F::Output, ConvertError> {
-        let (value, unit) = from.into_convert_value_unit()?;
+    ) -> Result<Quantity, ConvertError> {
+        let value = match &from.value {
+            crate::quantity::QuantityValue::Fixed(v) => match v {
+                Value::Number(n) => ConvertValue::Number(*n),
+                Value::Range(r) => ConvertValue::Range(r.clone()),
+                Value::Text(t) => return Err(ConvertError::TextValue(t.to_string())),
+            },
+            other => return Err(ConvertError::NotScaled(NotScaled(other.clone()))),
+        };
+        let unit = match from.unit().map(|u| u.text()) {
+            Some(u) => ConvertUnit::Key(u),
+            None => return Err(ConvertError::NoUnit(from.clone())),
+        };
+
         let to = to.into();
         let (value, output_unit) = self.convert2(value, unit, to)?;
-        Ok(F::output(value, output_unit))
+        Ok(Quantity::with_known_unit(
+            value.into(),
+            output_unit.to_string(),
+            Some(output_unit.clone()),
+        ))
     }
 
     /// Perform a conversion
@@ -430,66 +446,13 @@ impl<'a> From<&'a Arc<Unit>> for ConvertTo<'a> {
     }
 }
 
-/// Convenience trait for input in [Converter::convert]
-pub trait ConvertFrom<'a> {
-    fn into_convert_value_unit(self) -> Result<(ConvertValue, ConvertUnit<'a>), ConvertError>;
-
-    type Output;
-    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output;
-}
-
-impl<'a> ConvertFrom<'a> for &'a Quantity<'a> {
-    fn into_convert_value_unit(self) -> Result<(ConvertValue, ConvertUnit<'a>), ConvertError> {
-        let value = match &self.value {
-            crate::quantity::QuantityValue::Fixed(v) => match v {
-                Value::Number(n) => Ok(ConvertValue::Number(*n)),
-                Value::Range(r) => Ok(ConvertValue::Range(r.clone())),
-                Value::Text(t) => Err(ConvertError::TextValue(t.to_string())),
-            },
-            crate::quantity::QuantityValue::Scalable(v) => {
-                Err(ConvertError::NotScaled(NotScaled(v.clone().into_owned())))
-            }
-        }?;
-        let unit = match self.unit().map(|u| u.text()) {
-            Some(u) => Ok(ConvertUnit::Key(u)),
-            None => Err(ConvertError::NoUnit(Quantity::clone(self).into_owned())),
-        }?;
-        Ok((value, unit))
-    }
-
-    type Output = Quantity<'static>;
-    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output {
-        Quantity::with_known_unit(
-            value.into(),
-            unit.symbol().to_string().into(), // ? unnecesary alloc
-            Some(Arc::clone(unit)),
-        )
-    }
-}
-
-impl<'u, V, U> ConvertFrom<'u> for (V, U)
-where
-    V: Into<ConvertValue>,
-    U: Into<ConvertUnit<'u>>,
-{
-    fn into_convert_value_unit(self) -> Result<(ConvertValue, ConvertUnit<'u>), ConvertError> {
-        Ok((self.0.into(), self.1.into()))
-    }
-
-    type Output = (ConvertValue, Unit);
-
-    fn output(value: ConvertValue, unit: &Arc<Unit>) -> Self::Output {
-        (value, unit.as_ref().clone())
-    }
-}
-
-impl From<ConvertValue> for QuantityValue<'_> {
+impl From<ConvertValue> for QuantityValue {
     fn from(value: ConvertValue) -> Self {
         Self::Fixed(value.into())
     }
 }
 
-impl From<ConvertValue> for Value<'_> {
+impl From<ConvertValue> for Value {
     fn from(value: ConvertValue) -> Self {
         match value {
             ConvertValue::Number(n) => Self::Number(n),
@@ -528,7 +491,7 @@ impl PartialOrd<Self> for ConvertValue {
 #[derive(Debug, Error)]
 pub enum ConvertError {
     #[error("Tried to convert a value with no unit: {0}")]
-    NoUnit(Quantity<'static>),
+    NoUnit(Quantity),
 
     #[error("Tried to convert a text value: {0}")]
     TextValue(String),
@@ -558,6 +521,7 @@ impl Converter {
 
     pub(crate) fn temperature_regex(&self) -> Result<&Regex, regex::Error> {
         self.temperature_regex.get_or_try_init(|| {
+            let _guard = tracing::trace_span!("temp_regex").entered();
             let symbols = self
                 .quantity_units(crate::convert::PhysicalQuantity::Temperature)
                 .flat_map(|unit| unit.symbols.iter())
@@ -603,7 +567,7 @@ impl UnitCount {
     }
 }
 
-impl crate::ScaledRecipe<'_> {
+impl crate::ScaledRecipe {
     /// Convert a [ScaledRecipe](crate::ScaledRecipe) to another [System] in place.
     pub fn convert(&mut self, to: System, converter: &Converter) -> Result<(), ConvertError> {
         for igr in &mut self.ingredients {

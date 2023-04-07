@@ -100,7 +100,7 @@ pub fn parse_quantity<'input>(
         _ => {
             line.consume_rest();
             let text = line.text(line.tokens().first().unwrap().span.start(), line.tokens());
-            let text_val = Value::Text(text.text_trimmed());
+            let text_val = Value::Text(text.text_trimmed().into_owned());
             value = ast::QuantityValue::Single {
                 value: Located::new(text_val, text.span()),
                 auto_scale: None,
@@ -117,8 +117,8 @@ pub fn parse_quantity<'input>(
     }
 }
 
-fn many_values<'t, 'input>(line: &mut LineParser<'t, 'input>) -> ast::QuantityValue<'input> {
-    let mut values: Vec<Located<Value<'input>>> = vec![];
+fn many_values(line: &mut LineParser) -> ast::QuantityValue {
+    let mut values: Vec<Located<Value>> = vec![];
     let mut auto_scale = None;
 
     loop {
@@ -163,7 +163,7 @@ fn many_values<'t, 'input>(line: &mut LineParser<'t, 'input>) -> ast::QuantityVa
     }
 }
 
-fn parse_value<'input>(line: &mut LineParser<'_, 'input>) -> Located<Value<'input>> {
+fn parse_value(line: &mut LineParser) -> Located<Value> {
     let start = line.current_offset();
     let val = line.with_recover(numeric_value).unwrap_or_else(|| {
         let offset = line.current_offset();
@@ -178,14 +178,14 @@ fn parse_value<'input>(line: &mut LineParser<'_, 'input>) -> Located<Value<'inpu
                 help: None,
             });
         }
-        Value::Text(text.text_trimmed())
+        Value::Text(text.text_trimmed().into_owned())
     });
     line.ws_comments();
     let end = line.current_offset();
     Located::new(val, Span::new(start, end))
 }
 
-fn numeric_value(line: &mut LineParser) -> Option<Value<'static>> {
+fn numeric_value(line: &mut LineParser) -> Option<Value> {
     line.ws_comments();
     let val = match line.peek() {
         T![int] => line

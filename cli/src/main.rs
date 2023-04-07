@@ -226,3 +226,45 @@ where
         Ok(())
     }
 }
+
+struct Input {
+    text: String,
+    recipe_name: String,
+    file_name: String,
+    path: Option<Utf8PathBuf>,
+}
+
+impl Input {
+    fn parse(&self, ctx: &Context) -> Result<cooklang::Recipe> {
+        let checker = if ctx.global_args.no_recipe_ref_check {
+            None
+        } else {
+            Some(Box::new(|name: &str| ctx.recipe_index.contains(name))
+                as cooklang::RecipeRefChecker)
+        };
+        let r = ctx
+            .parser()?
+            .parse_with_recipe_ref_checker(&self.text, &self.recipe_name, checker);
+
+        unwrap_recipe(r, &self.file_name, &self.text, ctx)
+    }
+}
+
+fn unwrap_recipe(
+    r: cooklang::RecipeResult,
+    file_name: &str,
+    text: &str,
+    ctx: &Context,
+) -> Result<cooklang::Recipe> {
+    if r.invalid() || ctx.global_args.warnings_as_errors && r.has_warnings() {
+        r.into_report()
+            .eprint(file_name, text, ctx.global_args.ignore_warnings)?;
+        bail!("Error parsing recipe");
+    } else {
+        let (recipe, warnings) = r.into_result().unwrap();
+        if !ctx.global_args.ignore_warnings && warnings.has_warnings() {
+            warnings.eprint(file_name, text, false)?;
+        }
+        Ok(recipe)
+    }
+}

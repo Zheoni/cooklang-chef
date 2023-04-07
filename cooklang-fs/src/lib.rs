@@ -269,6 +269,10 @@ impl RecipeContent {
             self.path.file_stem().expect("empty recipe name").as_ref(),
         )
     }
+
+    pub fn text(&self) -> &str {
+        &self.content
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

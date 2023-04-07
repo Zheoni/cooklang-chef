@@ -68,7 +68,7 @@ pub fn run(ctx: &Context, args: ShoppingListArgs) -> Result<()> {
     };
 
     match command {
-        ShoppingListCommands::Create(args) => create::run(ctx, args),
+        ShoppingListCommands::Create(args) => create::run(ctx, aisle, args),
         ShoppingListCommands::Conf(args) => conf::run(aisle, args),
     }
 }

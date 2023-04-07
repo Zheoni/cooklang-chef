@@ -1,6 +1,6 @@
 //! Format a recipe as cooklang
 
-use std::{borrow::Cow, fmt::Write, io};
+use std::{fmt::Write, io};
 
 use cooklang::{
     ast::Modifiers,
@@ -68,9 +68,9 @@ fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> io::Res
                             kind: c.kind,
                             modifiers: igr.modifiers(),
                             name: Some(&igr.name),
-                            alias: igr.alias.as_ref(),
+                            alias: igr.alias.as_deref(),
                             quantity: igr.quantity.as_ref(),
-                            note: igr.note.as_ref(),
+                            note: igr.note.as_deref(),
                         }
                         .format(&mut step_str)
                     }
@@ -91,7 +91,7 @@ fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> io::Res
                         ComponentFormatter {
                             kind: c.kind,
                             modifiers: Modifiers::empty(),
-                            name: t.name.as_ref(),
+                            name: t.name.as_deref(),
                             alias: None,
                             quantity: Some(&t.quantity),
                             note: None,
@@ -120,10 +120,10 @@ fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> io::Res
 struct ComponentFormatter<'a> {
     kind: ComponentKind,
     modifiers: Modifiers,
-    name: Option<&'a Cow<'a, str>>,
-    alias: Option<&'a Cow<'a, str>>,
-    quantity: Option<&'a Quantity<'a>>,
-    note: Option<&'a Cow<'a, str>>,
+    name: Option<&'a str>,
+    alias: Option<&'a str>,
+    quantity: Option<&'a Quantity>,
+    note: Option<&'a str>,
 }
 
 impl<'a> ComponentFormatter<'a> {
@@ -152,15 +152,13 @@ impl<'a> ComponentFormatter<'a> {
             w.push('{');
             match &q.value {
                 cooklang::quantity::QuantityValue::Fixed(v) => write!(w, "{v}").unwrap(),
-                cooklang::quantity::QuantityValue::Scalable(v) => match v {
-                    cooklang::quantity::ScalableValue::Linear(v) => write!(w, "{v}*").unwrap(),
-                    cooklang::quantity::ScalableValue::ByServings(values) => {
-                        write!(w, "{}", &values[0]).unwrap();
-                        for v in &values[1..] {
-                            write!(w, "|{v}").unwrap()
-                        }
+                cooklang::quantity::QuantityValue::Linear(v) => write!(w, "{v}*").unwrap(),
+                cooklang::quantity::QuantityValue::ByServings(values) => {
+                    write!(w, "{}", &values[0]).unwrap();
+                    for v in &values[1..] {
+                        write!(w, "|{v}").unwrap()
                     }
-                },
+                }
             }
             if let Some(unit) = q.unit_text() {
                 write!(w, "%{}", unit).unwrap();

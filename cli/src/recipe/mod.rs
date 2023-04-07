@@ -4,7 +4,7 @@ use anyhow::{bail, Context as _, Result};
 use camino::Utf8PathBuf;
 use clap::{Args, Subcommand};
 
-use crate::Context;
+use crate::{Context, Input};
 
 use self::read::ReadArgs;
 
@@ -88,39 +88,6 @@ impl RecipeInputArgs {
             })
         } else {
             bail!("No name for the recipe")
-        }
-    }
-}
-
-struct Input {
-    text: String,
-    recipe_name: String,
-    file_name: String,
-    path: Option<Utf8PathBuf>,
-}
-
-impl Input {
-    fn parse<'a>(&'a self, ctx: &Context) -> Result<cooklang::Recipe<'a>> {
-        let checker = if ctx.global_args.no_recipe_ref_check {
-            None
-        } else {
-            Some(Box::new(|name: &str| ctx.recipe_index.contains(name))
-                as cooklang::RecipeRefChecker)
-        };
-        let r = ctx
-            .parser()?
-            .parse_with_recipe_ref_checker(&self.text, &self.recipe_name, checker);
-
-        if r.invalid() || ctx.global_args.warnings_as_errors && r.has_warnings() {
-            r.into_report()
-                .eprint(&self.file_name, &self.text, ctx.global_args.ignore_warnings)?;
-            bail!("Error parsing recipe");
-        } else {
-            let (recipe, warnings) = r.into_result().unwrap();
-            if !ctx.global_args.ignore_warnings && warnings.has_warnings() {
-                warnings.eprint(&self.file_name, &self.text, false)?;
-            }
-            Ok(recipe)
         }
     }
 }

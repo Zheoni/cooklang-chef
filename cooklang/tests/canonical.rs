@@ -41,7 +41,7 @@ fn compare_metadata(expected: &Yaml, got: &cooklang::metadata::Metadata) {
         let e_key = e_key.as_str().unwrap();
         let e_value = e_value.as_str().unwrap();
 
-        let got_val = got.map[e_key].as_ref();
+        let got_val = got.map[e_key].as_str();
         assert_eq!(e_value, got_val);
     }
 }
@@ -133,7 +133,7 @@ fn compare_items(expected: &Yaml, got: &cooklang::model::Item, recipe: &cooklang
 fn compare_value(expected: &Yaml, got: &QuantityValue) {
     let value = match got {
         QuantityValue::Fixed(v) => v,
-        QuantityValue::Scalable(_) => {
+        _ => {
             panic!("scalable values not supported by cooklang currently");
         }
     };

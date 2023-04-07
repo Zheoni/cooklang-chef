@@ -1,6 +1,6 @@
 //! Format a recipe as markdown
 
-use std::{borrow::Cow, fmt::Write, io};
+use std::{fmt::Write, io};
 
 use cooklang::{
     convert::Converter,
@@ -59,15 +59,15 @@ fn frontmatter(mut w: impl io::Write, metadata: &Metadata) -> Result<()> {
         #[serde(skip_serializing_if = "Option::is_none")]
         emoji: Option<&'a str>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        author: Option<&'a NameAndUrl<'a>>,
+        author: Option<&'a NameAndUrl>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        source: Option<&'a NameAndUrl<'a>>,
+        source: Option<&'a NameAndUrl>,
         #[serde(skip_serializing_if = "Option::is_none")]
         time: Option<&'a RecipeTime>,
         #[serde(skip_serializing_if = "Option::is_none")]
         servings: Option<&'a [u32]>,
-        #[serde(borrow, flatten)]
-        map: IndexMap<Cow<'a, str>, Cow<'a, str>>,
+        #[serde(flatten)]
+        map: IndexMap<String, String>,
     }
 
     let map = CustomMetadata {

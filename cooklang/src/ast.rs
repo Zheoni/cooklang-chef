@@ -58,7 +58,7 @@ pub struct Ingredient<'a> {
 #[derive(Debug, Serialize, PartialEq)]
 pub struct Cookware<'a> {
     pub name: Text<'a>,
-    pub quantity: Option<Located<QuantityValue<'a>>>,
+    pub quantity: Option<Located<QuantityValue>>,
 }
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Timer<'a> {
@@ -68,17 +68,17 @@ pub struct Timer<'a> {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Quantity<'a> {
-    pub value: QuantityValue<'a>,
+    pub value: QuantityValue,
     pub unit: Option<Text<'a>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub enum QuantityValue<'a> {
+pub enum QuantityValue {
     Single {
-        value: Located<Value<'a>>,
+        value: Located<Value>,
         auto_scale: Option<Span>,
     },
-    Many(Vec<Located<Value<'a>>>),
+    Many(Vec<Located<Value>>),
 }
 
 /* UTILITIES */
@@ -210,7 +210,7 @@ impl Quantity<'_> {
     }
 }
 
-impl QuantityValue<'_> {
+impl QuantityValue {
     pub fn span(&self) -> Span {
         match self {
             QuantityValue::Single {
@@ -249,7 +249,7 @@ impl Recover for Quantity<'_> {
     }
 }
 
-impl Recover for QuantityValue<'_> {
+impl Recover for QuantityValue {
     fn recover() -> Self {
         Self::Single {
             value: Recover::recover(),
@@ -258,7 +258,7 @@ impl Recover for QuantityValue<'_> {
     }
 }
 
-impl Recover for Value<'_> {
+impl Recover for Value {
     fn recover() -> Self {
         Self::Number(1.0)
     }

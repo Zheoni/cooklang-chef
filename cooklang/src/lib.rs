@@ -38,8 +38,7 @@ use bitflags::bitflags;
 use convert::Converter;
 use error::{CooklangError, CooklangWarning, PassResult};
 use metadata::Metadata;
-pub use model::Recipe;
-pub use scale::ScaledRecipe;
+pub use model::{Recipe, ScaledRecipe};
 
 bitflags! {
     /// Extensions bitflags
@@ -119,8 +118,8 @@ impl CooklangParserBuilder {
     }
 }
 
-pub type RecipeResult<'a> = PassResult<Recipe<'a>, CooklangError, CooklangWarning>;
-pub type MetadataResult<'a> = PassResult<Metadata<'a>, CooklangError, CooklangWarning>;
+pub type RecipeResult = PassResult<Recipe, CooklangError, CooklangWarning>;
+pub type MetadataResult = PassResult<Metadata, CooklangError, CooklangWarning>;
 
 pub type RecipeRefChecker<'a> = Box<dyn Fn(&str) -> bool + 'a>;
 
@@ -144,7 +143,7 @@ impl CooklangParser {
     ///
     /// As in cooklang the name is external to the recipe, this must be given
     /// here too.
-    pub fn parse<'a>(&self, input: &'a str, recipe_name: &str) -> RecipeResult<'a> {
+    pub fn parse(&self, input: &str, recipe_name: &str) -> RecipeResult {
         self.parse_with_recipe_ref_checker(input, recipe_name, None)
     }
 
@@ -152,12 +151,12 @@ impl CooklangParser {
     /// reference exists. If the function returns `false` for a recipe reference,
     /// it will be considered an error.
     #[tracing::instrument(name = "parse", skip_all, fields(len = input.len()))]
-    pub fn parse_with_recipe_ref_checker<'a>(
+    pub fn parse_with_recipe_ref_checker(
         &self,
-        input: &'a str,
+        input: &str,
         recipe_name: &str,
         recipe_ref_checker: Option<RecipeRefChecker>,
-    ) -> RecipeResult<'a> {
+    ) -> RecipeResult {
         let mut r = parser::parse(input, self.extensions).into_context_result();
         if r.invalid() {
             return r.discard_output();
@@ -173,7 +172,7 @@ impl CooklangParser {
     ///
     /// This is a bit faster than [Self::parse] if you only want the metadata
     #[tracing::instrument(name = "metadata", skip_all, fields(len = input.len()))]
-    pub fn parse_metadata<'a>(&self, input: &'a str) -> MetadataResult<'a> {
+    pub fn parse_metadata(&self, input: &str) -> MetadataResult {
         let mut r = parser::parse_metadata(input).into_context_result();
         if r.invalid() {
             return r.discard_output();
@@ -187,9 +186,6 @@ impl CooklangParser {
 }
 
 /// Parse a recipe with a default [CooklangParser]
-pub fn parse<'a>(
-    input: &'a str,
-    recipe_name: &str,
-) -> PassResult<Recipe<'a>, CooklangError, CooklangWarning> {
+pub fn parse(input: &str, recipe_name: &str) -> PassResult<Recipe, CooklangError, CooklangWarning> {
     CooklangParser::default().parse(input, recipe_name)
 }

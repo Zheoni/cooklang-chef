@@ -185,30 +185,14 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
     let mut table = Table::new("  {:<} {:<}    {:<} {:<}");
     let mut there_is_fixed = false;
     let mut there_is_err = false;
-    for (index, igr) in recipe
-        .ingredients
-        .iter()
-        .enumerate()
-        .filter(|(_, igr)| !igr.is_hidden() && !igr.is_reference())
-    {
+    let list = recipe.ingredient_list(converter);
+    for (igr, quantity, outcome) in list {
+        if igr.is_hidden() {
+            continue;
+        }
         let mut is_fixed = false;
         let mut is_err = false;
-        let s = recipe
-            .scaled_data()
-            .map(|data| {
-                // Color in list depends on outcome of definition and all references
-                let mut outcome = &data.ingredients[index]; // temp value
-                let all_indices =
-                    std::iter::once(index).chain(igr.referenced_from().iter().copied());
-                for index in all_indices {
-                    match &data.ingredients[index] {
-                        e @ ScaleOutcome::Error(_) => return e, // if err, return
-                        e @ ScaleOutcome::Fixed => outcome = e, // if fixed, store
-                        _ => {}
-                    }
-                }
-                outcome
-            })
+        let s = outcome
             .map(|outcome| match outcome {
                 ScaleOutcome::Fixed => {
                     there_is_fixed = true;
@@ -226,24 +210,23 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
         let mut row = Row::new()
             .with_cell(igr.display_name())
             .with_cell(if igr.is_optional() { "(optional)" } else { "" });
-
-        let total_quantity = igr
-            .total_quantity(&recipe.ingredients, converter)
-            .ok()
-            .flatten();
-        if let Some(quantity) = total_quantity {
-            row.add_ansi_cell(s.paint(quantity_fmt(&quantity)));
-        } else {
-            let list = igr
-                .all_quantities(&recipe.ingredients)
-                .map(quantity_fmt)
-                .reduce(|s, q| format!("{s}, {q}"));
-            if let Some(list) = list {
-                row.add_ansi_cell(s.wrap().paint(list));
-            } else {
+        match quantity.total() {
+            cooklang::quantity::TotalQuantity::None => {
                 row.add_cell("");
             }
+            cooklang::quantity::TotalQuantity::Single(quantity) => {
+                row.add_ansi_cell(s.paint(quantity_fmt(&quantity)));
+            }
+            cooklang::quantity::TotalQuantity::Many(list) => {
+                let list = list
+                    .into_iter()
+                    .map(|q| quantity_fmt(&q))
+                    .reduce(|s, q| format!("{s}, {q}"))
+                    .unwrap();
+                row.add_ansi_cell(s.wrap().paint(list));
+            }
         }
+
         if let Some(note) = &igr.note {
             row.add_cell(format!("({note})"));
         } else {
@@ -331,7 +314,7 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
                                     c.index,
                                     &igr.name,
                                 );
-                                if step_igrs_dedup[igr.name.as_ref()].contains(&c.index) {
+                                if step_igrs_dedup[igr.name.as_str()].contains(&c.index) {
                                     step_igrs_line.push((igr, pos));
                                 }
                             }
