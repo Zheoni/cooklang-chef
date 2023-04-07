@@ -61,7 +61,7 @@ impl Recipe {
 }
 
 impl ScaledRecipe {
-    pub fn ingredient_list(&self, converter: &Converter) -> IngredientList<'_> {
+    pub fn ingredient_list(&self, converter: &Converter) -> IngredientList {
         let mut list = Vec::new();
         let data = self.scaled_data();
         for (index, ingredient) in self
@@ -91,13 +91,13 @@ impl ScaledRecipe {
                     outcome
                 })
                 .cloned();
-            list.push((ingredient, grouped, outcome));
+            list.push((ingredient.clone(), grouped, outcome));
         }
         list
     }
 }
 
-pub type IngredientList<'a> = Vec<(&'a Ingredient, GroupedQuantity, Option<ScaleOutcome>)>;
+pub type IngredientList = Vec<(Ingredient, GroupedQuantity, Option<ScaleOutcome>)>;
 
 /// A section holding steps
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -147,7 +147,7 @@ pub enum Item {
 }
 
 /// A recipe ingredient
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Ingredient {
     /// Name
     ///
@@ -241,7 +241,7 @@ impl Ingredient {
 }
 
 /// A recipe cookware item
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Cookware {
     /// Name
     pub name: String,
@@ -252,7 +252,7 @@ pub struct Cookware {
 }
 
 /// A recipe timer
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Timer {
     /// Name
     pub name: Option<String>,
