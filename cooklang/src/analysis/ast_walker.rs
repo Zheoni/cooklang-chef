@@ -24,7 +24,7 @@ pub struct RecipeContent {
     pub inline_quantities: Vec<Quantity>,
 }
 
-#[tracing::instrument(skip_all, target = "cooklang::analysis", fields(ast_lines = ast.lines.len()))]
+#[tracing::instrument(level = "debug", skip_all, target = "cooklang::analysis", fields(ast_lines = ast.lines.len()))]
 pub fn parse_ast<'a>(
     ast: ast::Ast<'a>,
     extensions: Extensions,

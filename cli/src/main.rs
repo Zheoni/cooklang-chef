@@ -10,7 +10,7 @@ use cooklang::{
 };
 use cooklang_fs::FsIndex;
 use once_cell::sync::OnceCell;
-use tracing::{info, warn};
+use tracing::{debug, warn};
 
 mod config;
 mod convert;
@@ -101,8 +101,15 @@ pub fn main() -> Result<()> {
 
     if args.global_args.debug_trace {
         tracing_subscriber::FmtSubscriber::builder()
+            .compact()
             .with_max_level(tracing::Level::TRACE)
             .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+            .with_ansi(concolor::get(concolor::Stream::Stderr).ansi_color())
+            .init();
+    } else {
+        tracing_subscriber::FmtSubscriber::builder()
+            .compact()
+            .with_target(false)
             .with_ansi(concolor::get(concolor::Stream::Stderr).ansi_color())
             .init();
     }
@@ -147,7 +154,7 @@ pub struct Context {
 const COOK_DIR: &str = ".cooklang";
 const APP_NAME: &str = "cooklang-chef";
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(level = "debug", skip_all)]
 fn configure_context(args: GlobalArgs) -> Result<Context> {
     let base_dir = args
         .path
@@ -180,7 +187,7 @@ impl Context {
     }
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(level = "debug", skip_all)]
 fn configure_parser(
     config: &Config,
     base_path: &Path,
@@ -198,7 +205,7 @@ fn configure_parser(
                 .expect("Failed to add bundled units");
         }
         for file in units {
-            info!("Loading units {}", file.display());
+            debug!("Loading units {}", file.display());
             let text = std::fs::read_to_string(file)?;
             let units = toml::from_str(&text)?;
             builder.add_units_file(units)?;

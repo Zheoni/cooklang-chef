@@ -4,7 +4,7 @@ use anyhow::Result;
 use camino::Utf8Path;
 use cooklang::Extensions;
 use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::debug;
 use yansi::Paint;
 
 use crate::{Context, COOK_DIR};
@@ -67,7 +67,7 @@ impl Config {
             confy::get_configuration_file_path(crate::APP_NAME, Some(CONFIG_NAME))?
         };
 
-        info!("Loading configuration from {}", path.display());
+        debug!("Loading configuration from {}", path.display());
 
         let config = confy::load_path(&path)?;
 

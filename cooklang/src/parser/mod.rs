@@ -144,7 +144,7 @@ where
 }
 
 /// Parse a recipe into an [Ast](ast::Ast)
-#[tracing::instrument(skip_all, fields(len = input.len()))]
+#[tracing::instrument(level = "debug", skip_all, fields(len = input.len()))]
 pub fn parse<'input>(
     input: &'input str,
     extensions: Extensions,
@@ -216,7 +216,7 @@ pub fn parse<'input>(
 /// Parse the recipe metadata into an [Ast](ast::Ast).
 ///
 /// This will skip every line that is not metadata. Is faster than [parse].
-#[tracing::instrument(skip_all, fields(len = input.len()))]
+#[tracing::instrument(level = "debug", skip_all, fields(len = input.len()))]
 pub fn parse_metadata<'input>(
     input: &'input str,
 ) -> PassResult<ast::Ast<'input>, ParserError, ParserWarning> {

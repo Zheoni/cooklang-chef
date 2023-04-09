@@ -142,7 +142,7 @@ impl FsIndex {
     ///
     /// The input recipe name can be just a name or a path relative
     /// to the base path of the index.
-    #[tracing::instrument(name = "fs_index_get", skip(self))]
+    #[tracing::instrument(level = "debug", name = "fs_index_get", skip(self))]
     pub fn get(&self, recipe: &str) -> Result<RecipeEntry, Error> {
         let path = Utf8Path::new(recipe);
         let name = path
