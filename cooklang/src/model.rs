@@ -135,6 +135,7 @@ pub struct Step {
 
 /// A step item
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", content = "value", rename_all = "camelCase")]
 pub enum Item {
     /// Just plain text
     Text(String),
@@ -274,6 +275,7 @@ pub struct Component {
 
 /// Component kind used in [Component]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
 pub enum ComponentKind {
     Ingredient,
     Cookware,

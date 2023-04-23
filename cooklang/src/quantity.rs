@@ -22,6 +22,7 @@ pub struct Quantity {
 
 /// A value that can or not be changed by scaling it
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", content = "value", rename_all = "camelCase")]
 pub enum QuantityValue {
     /// Cannot be scaled
     Fixed(Value),
@@ -33,6 +34,7 @@ pub enum QuantityValue {
 
 /// Base value
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", content = "value", rename_all = "camelCase")]
 pub enum Value {
     /// Numeric
     Number(f64),
