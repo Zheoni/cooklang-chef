@@ -248,7 +248,7 @@ impl<T, E, W> PassResult<T, E, W> {
         self
     }
 
-    pub(crate) fn map<F, O>(self, f: F) -> PassResult<O, E, W>
+    pub fn map<F, O>(self, f: F) -> PassResult<O, E, W>
     where
         F: FnOnce(T) -> O,
     {
@@ -266,11 +266,14 @@ impl<T, E, W> From<E> for PassResult<T, E, W> {
     }
 }
 
-pub trait RichError<Id = ()>: std::error::Error {
+pub trait RichError<Id: Clone = ()>: std::error::Error {
     fn labels(&self) -> Vec<(Span<Id>, Option<Cow<'static, str>>)> {
         vec![]
     }
     fn help(&self) -> Option<Cow<'static, str>> {
+        None
+    }
+    fn note(&self) -> Option<Cow<'static, str>> {
         None
     }
     fn code(&self) -> Option<&'static str> {
@@ -309,6 +312,7 @@ macro_rules! help {
     };
 }
 pub(crate) use help;
+pub(crate) use help as note;
 
 use crate::span::Span;
 
@@ -367,7 +371,11 @@ fn build_report<'a>(err: &'a dyn RichError, src_code: &str) -> ariadne::Report<'
     }));
 
     if let Some(help) = err.help() {
-        r = r.with_help(help);
+        r.set_help(help);
+    }
+
+    if let Some(note) = err.note() {
+        r.set_note(note);
     }
 
     r.finish()
@@ -426,6 +434,15 @@ impl RichError for CooklangError {
             CooklangError::NoFilename { .. } => {
                 help!("The recipe name is needed and comes from the file name")
             }
+        }
+    }
+
+    fn note(&self) -> Option<Cow<'static, str>> {
+        match self {
+            CooklangError::Parser(e) => e.note(),
+            CooklangError::Analysis(e) => e.note(),
+            CooklangError::Io(_) => None,
+            CooklangError::NoFilename { .. } => None,
         }
     }
 

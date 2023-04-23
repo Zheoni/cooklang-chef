@@ -405,6 +405,18 @@ impl<'a, 'r> Walker<'a, 'r> {
             }
         }
 
+        // REF cannot appear in certain combinations
+        if new_igr.modifiers.contains(Modifiers::REF)
+            && new_igr
+                .modifiers
+                .intersects(Modifiers::NEW | Modifiers::HIDDEN | Modifiers::OPT)
+        {
+            self.error(AnalysisError::ConflictingModifiers {
+                modifiers: located_ingredient.modifiers.clone(),
+            });
+            new_igr.modifiers = Modifiers::empty();
+        }
+
         self.ingredient_locations.push(located_ingredient);
         let new_index = self.content.ingredients.len();
         if let Some(referenced_index) = new_igr.references_to {

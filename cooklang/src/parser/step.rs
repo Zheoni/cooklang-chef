@@ -201,7 +201,7 @@ fn ingredient<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Ingredie
         Located::new(Modifiers::empty(), modifiers_span)
     } else {
         let modifiers_span = tokens_span(modifiers_tokens);
-        let mut m = modifiers_tokens
+        let m = modifiers_tokens
             .iter()
             .try_fold(Modifiers::empty(), |acc, m| {
                 let new_m = match m.kind {
@@ -214,12 +214,9 @@ fn ingredient<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Ingredie
                 };
 
                 if acc.contains(new_m) {
-                    line.error(ParserError::InvalidModifiers {
+                    line.error(ParserError::DuplicateModifiers {
                         modifiers_span,
-                        reason: format!("duplicate modifier '{}'", line.as_str(*m)).into(),
-                        help: Some(
-                            "Modifier order does not matter, but duplicates are not allowed",
-                        ),
+                        dup: line.as_str(*m).to_string(),
                     });
                     Err(())
                 } else {
@@ -227,18 +224,6 @@ fn ingredient<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Ingredie
                 }
             })
             .unwrap_or(Modifiers::empty());
-
-        // REF cannot appear in certain combinations
-        if m.contains(Modifiers::REF)
-            && m.intersects(Modifiers::NEW | Modifiers::HIDDEN | Modifiers::OPT)
-        {
-            line.error(ParserError::InvalidModifiers {
-                modifiers_span,
-                reason: "unsuported combination with reference".into(),
-                help: Some("Reference ('&') modifier can only be combined with recipe ('@')"),
-            });
-            m = Modifiers::empty();
-        }
 
         Located::new(m, modifiers_span)
     };
