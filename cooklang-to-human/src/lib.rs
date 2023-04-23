@@ -55,12 +55,6 @@ fn header(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             .bold()
     )?;
 
-    if let Some(slug) = &recipe.metadata.slug {
-        let default_slug = cooklang::metadata::slugify(&recipe.name);
-        if *slug != default_slug {
-            write!(w, " {}", Paint::new(format!("({slug})")).dimmed())?;
-        }
-    }
     writeln!(w)?;
     if !recipe.metadata.tags.is_empty() {
         let mut tags = String::new();

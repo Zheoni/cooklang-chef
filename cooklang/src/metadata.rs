@@ -22,7 +22,6 @@ pub(crate) use regex;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
 pub struct Metadata {
-    pub slug: Option<String>,
     pub description: Option<String>,
     pub tags: Vec<String>,
     pub emoji: Option<String>,
@@ -56,7 +55,6 @@ impl Metadata {
     pub(crate) fn insert(&mut self, key: String, value: String) -> Result<(), MetadataError> {
         self.map.insert(key.clone(), value.clone());
         match key.as_str() {
-            "slug" => self.slug = Some(slugify(&value)),
             "description" => self.description = Some(value),
             "tag" | "tags" => {
                 let new_tags = value
@@ -194,7 +192,7 @@ pub enum MetadataError {
     ParseIntError(#[from] std::num::ParseIntError),
 }
 
-const TAG_LEN: RangeInclusive<usize> = 3..=32;
+const TAG_LEN: RangeInclusive<usize> = 1..=32;
 fn is_valid_tag(tag: &str) -> bool {
     let re = regex!(r"^\p{Ll}[\p{Ll}\d]*(-[\p{Ll}\d]+)*$");
 
