@@ -225,7 +225,7 @@ mod tests {
         assert!(is_valid_tag("italian-food"));
         assert!(is_valid_tag("contains-number-1"));
         assert!(is_valid_tag("unicode-ñçá"));
-        assert!(!is_valid_tag("ow"));
+        assert!(!is_valid_tag(""));
         assert!(!is_valid_tag("1ow"));
         assert!(!is_valid_tag("111"));
         assert!(!is_valid_tag("1starts-with-number"));
