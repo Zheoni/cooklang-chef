@@ -1,18 +1,13 @@
 use anyhow::Result;
 use clap::{builder::ArgPredicate, Args};
 use cooklang::CooklangParser;
-use cooklang_fs::{all_recipes, DirEntry};
-use termtree::Tree;
+use cooklang_fs::{all_recipes, RecipeEntry};
 use yansi::Paint;
 
-use crate::{Context, COOK_DIR};
+use crate::Context;
 
 #[derive(Debug, Args)]
 pub struct ListArgs {
-    /// Show the output as a tree
-    #[arg(short, long)]
-    tree: bool,
-
     /// Check recipes for correctness
     #[arg(short, long, default_value_if("long", ArgPredicate::IsPresent, "true"))]
     check: bool,
@@ -39,23 +34,14 @@ pub struct ListArgs {
 }
 
 pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
-    let iter = all_recipes(&ctx.base_dir, ctx.config.max_depth)
-        .filter(|entry| entry.file_name() != COOK_DIR);
-    if args.tree {
-        let mut iter = iter.peekable();
-        let root = iter.next().unwrap();
-        let tree = build_tree(&mut iter, root, ctx, &args)?;
-        // dont print base dir
-        for l in tree.leaves {
-            print!("{l}");
-        }
-    } else if args.count {
+    let iter = all_recipes(&ctx.base_dir, ctx.config.max_depth);
+    if args.count {
         let mut count = 0;
         let mut with_warnings = 0;
         let mut with_errors = 0;
         let mut with_images = 0;
         let mut total_images = 0;
-        for entry in iter.filter(|e| e.file_type().is_file()) {
+        for entry in iter {
             count += 1;
             if args.check || args.images {
                 let entry = cooklang_fs::RecipeEntry::try_from(entry)
@@ -95,7 +81,7 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
     } else {
         let mut table = tabular::Table::new("{:<} {:<} {:<}");
         // dont print dirs
-        for entry in iter.filter(|e| e.file_type().is_file()) {
+        for entry in iter {
             let (name, check, images) = list_label(ctx, &args, entry)?;
             table.add_row(
                 tabular::Row::new()
@@ -110,62 +96,11 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
     Ok(())
 }
 
-fn build_tree(
-    iter: &mut std::iter::Peekable<impl Iterator<Item = cooklang_fs::DirEntry>>,
-    entry: cooklang_fs::DirEntry,
+fn list_label(
     ctx: &Context,
     args: &ListArgs,
-) -> Result<Tree<String>> {
-    let mut root = Tree::new(tree_label(ctx, args, &entry)?);
-    if entry.file_type().is_dir() {
-        while let Some(inner_entry) = iter.peek() {
-            if inner_entry.depth() <= entry.depth() {
-                break;
-            }
-            let inner_entry = iter.next().unwrap();
-            root.push(build_tree(iter, inner_entry, ctx, args)?);
-        }
-        if root.leaves.is_empty() {
-            root.push(Paint::new("empty").italic().dimmed().to_string());
-        }
-    } else if args.images {
-        let images = cooklang_fs::RecipeEntry::try_from(entry)
-            .map(|e| e.images())
-            .ok();
-        if let Some(images) = images {
-            for img in images {
-                root.push(Tree::new(
-                    Paint::new(img.path.file_name().unwrap_or("-"))
-                        .dimmed()
-                        .to_string(),
-                ));
-            }
-        }
-    }
-    Ok(root)
-}
-
-fn tree_label(ctx: &Context, args: &ListArgs, entry: &DirEntry) -> Result<String> {
-    let name = if args.absolute_paths {
-        entry.path().as_str()
-    } else if args.paths {
-        entry.path().strip_prefix(&ctx.base_dir).unwrap().as_str()
-    } else {
-        entry.file_stem()
-    };
-
-    let r = if entry.file_type().is_dir() {
-        Paint::cyan(name).to_string()
-    } else if args.check {
-        let check = check_str(ctx.parser()?, entry);
-        format!("{name} [{check}]")
-    } else {
-        name.to_string()
-    };
-    Ok(r)
-}
-
-fn list_label(ctx: &Context, args: &ListArgs, entry: DirEntry) -> Result<(String, String, String)> {
+    entry: RecipeEntry,
+) -> Result<(String, String, String)> {
     let name = if args.absolute_paths {
         entry.path().to_string()
     } else {
@@ -182,10 +117,10 @@ fn list_label(ctx: &Context, args: &ListArgs, entry: DirEntry) -> Result<(String
                 "{}{}{}",
                 Paint::cyan(parent).italic(),
                 Paint::cyan(std::path::MAIN_SEPARATOR),
-                entry.file_stem()
+                entry.name()
             )
         } else {
-            entry.file_stem().to_string()
+            entry.name().to_string()
         }
     };
 
@@ -213,10 +148,10 @@ fn list_label(ctx: &Context, args: &ListArgs, entry: DirEntry) -> Result<(String
     Ok((name, check, images))
 }
 
-fn check_str(parser: &CooklangParser, entry: &DirEntry) -> Paint<&'static str> {
-    cooklang_fs::RecipeEntry::try_from(entry.clone())
+fn check_str(parser: &CooklangParser, entry: &RecipeEntry) -> Paint<&'static str> {
+    entry
+        .read()
         .ok()
-        .and_then(|e| e.read().ok())
         .map(|e| e.parse(parser).into_report())
         .map(|report| {
             if report.has_errors() {

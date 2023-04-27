@@ -15,6 +15,8 @@ use tracing::{debug, warn};
 mod config;
 mod convert;
 mod recipe;
+#[cfg(feature = "serve")]
+mod serve;
 mod shopping_list;
 mod units;
 
@@ -34,6 +36,9 @@ enum Command {
     /// Manage recipe files
     #[command(alias = "r")]
     Recipe(Box<recipe::RecipeArgs>),
+    #[cfg(feature = "serve")]
+    /// Recipes web server
+    Serve(serve::ServeArgs),
     /// Creates a shopping list from a given list of recipes
     #[command(alias = "list")]
     ShoppingList(shopping_list::ShoppingListArgs),
@@ -119,6 +124,8 @@ pub fn main() -> Result<()> {
     let _enter = tracing::info_span!("run", cmd = %args.command).entered();
     match args.command {
         Command::Recipe(args) => recipe::run(&ctx, *args),
+        #[cfg(feature = "serve")]
+        Command::Serve(args) => serve::run(ctx, args),
         Command::ShoppingList(args) => shopping_list::run(&ctx, args),
         Command::Units(args) => units::run(ctx.parser()?.converter(), args),
         Command::Convert(args) => convert::run(ctx.parser()?.converter(), args),

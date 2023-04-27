@@ -97,11 +97,10 @@ impl Metadata {
                 });
             }
             "servings" => {
-                self.servings = Some(
-                    value
-                        .split('|')
-                        .map(str::trim)
-                        .map(str::parse)
+                let mut servings = value
+                    .split('|')
+                    .map(str::trim)
+                    .map(str::parse)
                     .collect::<Result<Vec<_>, _>>()?;
                 servings.sort_unstable();
                 let l = servings.len();

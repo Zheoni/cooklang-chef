@@ -91,13 +91,26 @@ impl ScaledRecipe {
                     outcome
                 })
                 .cloned();
-            list.push((ingredient.clone(), grouped, outcome));
+            list.push(IngredientListEntry {
+                index,
+                quantity: grouped,
+                outcome,
+            });
         }
         list
     }
 }
 
-pub type IngredientList = Vec<(Ingredient, GroupedQuantity, Option<ScaleOutcome>)>;
+pub type IngredientList = Vec<IngredientListEntry>;
+#[derive(Debug, Clone, Serialize)]
+pub struct IngredientListEntry {
+    /// Index into the recipe ingredients (ingredient definition)
+    pub index: usize,
+    /// Total grouped quantity
+    pub quantity: GroupedQuantity,
+    /// Scale outcome, if scaled to a custom target
+    pub outcome: Option<ScaleOutcome>,
+}
 
 /// A section holding steps
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq)]

@@ -7,7 +7,7 @@ use std::{collections::HashMap, io, time::Duration};
 
 use cooklang::{
     convert::Converter,
-    model::{Component, ComponentKind, Ingredient, Item},
+    model::{Component, ComponentKind, Ingredient, IngredientListEntry, Item},
     quantity::Quantity,
     scale::ScaleOutcome,
     ScaledRecipe,
@@ -180,7 +180,13 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
     let mut there_is_fixed = false;
     let mut there_is_err = false;
     let list = recipe.ingredient_list(converter);
-    for (igr, quantity, outcome) in list {
+    for IngredientListEntry {
+        index,
+        quantity,
+        outcome,
+    } in list
+    {
+        let igr = &recipe.ingredients[index];
         if igr.is_hidden() {
             continue;
         }

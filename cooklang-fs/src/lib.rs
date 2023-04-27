@@ -12,6 +12,7 @@ use std::{
 };
 
 use camino::{Utf8Path, Utf8PathBuf};
+use serde::Serialize;
 
 /// Index of a directory for cooklang recipes
 ///
@@ -110,7 +111,7 @@ impl TryFrom<walkdir::DirEntry> for DirEntry {
 }
 
 impl FsIndex {
-    /// Create a new index
+    /// Create a new lazy index of the given path
     pub fn new(base_path: impl AsRef<std::path::Path>, max_depth: usize) -> Result<Self, Error> {
         let base_path = Utf8Path::from_path(base_path.as_ref())
             .ok_or_else(|| Error::NonUtf8(NonUtf8(base_path.as_ref().into())))?;
@@ -133,9 +134,42 @@ impl FsIndex {
         })
     }
 
+    /// Create a new complete index of the given path
+    pub fn new_indexed(
+        base_path: impl AsRef<std::path::Path>,
+        max_depth: usize,
+    ) -> Result<Self, Error> {
+        let mut index = Self::new(base_path, max_depth)?;
+        index.index_all()?;
+        Ok(index)
+    }
+
+    pub fn base_path(&self) -> &Utf8Path {
+        &self.base_path
+    }
+
     /// Check if the index contains a recipe
     pub fn contains(&self, recipe: &str) -> bool {
         self.get(recipe).is_ok()
+    }
+
+    /// Completes the lazy indexing
+    pub fn index_all(&mut self) -> Result<(), Error> {
+        for entry in self.walker.get_mut() {
+            let entry = entry?;
+            let entry = DirEntry::try_from(entry)?;
+            let Some((entry_name, path)) = process_entry(&entry) else { continue; };
+            self.cache.borrow_mut().insert(entry_name, path);
+        }
+        Ok(())
+    }
+
+    fn into_name_path(recipe: &str) -> Result<(&str, &Utf8Path), Error> {
+        let path = Utf8Path::new(recipe);
+        let name = path
+            .file_stem()
+            .ok_or_else(|| Error::InvalidName(recipe.into()))?;
+        Ok((name, path))
     }
 
     /// Get a recipe from the index
@@ -144,10 +178,7 @@ impl FsIndex {
     /// to the base path of the index.
     #[tracing::instrument(level = "debug", name = "fs_index_get", skip(self))]
     pub fn get(&self, recipe: &str) -> Result<RecipeEntry, Error> {
-        let path = Utf8Path::new(recipe);
-        let name = path
-            .file_stem()
-            .ok_or_else(|| Error::InvalidName(recipe.into()))?;
+        let (name, path) = Self::into_name_path(recipe)?;
 
         // Is in cache?
         if let Some(path) = self.cache.borrow().get(name, path) {
@@ -183,19 +214,53 @@ impl FsIndex {
         self.cache.borrow_mut().mark_non_existent(recipe);
         Err(Error::NotFound(recipe.to_string()))
     }
+
+    /// Remove a recipe from the cache
+    ///
+    /// Remember that the the indexing procedure is lazy, so further calls to
+    /// [FsIndex::get] may discover the removed recipe if it was not indexed
+    /// before.
+    ///
+    /// To avoid this, call [FsIndex::index_all] to index everything before
+    /// removing or [FsIndex::add_recipe].
+    ///
+    /// # Errors
+    /// The only possible is [Error::InvalidName].
+    pub fn remove_recipe(&mut self, recipe: &str) -> Result<(), Error> {
+        let (name, path) = Self::into_name_path(recipe)?;
+        self.cache.get_mut().remove(name, path);
+        Ok(())
+    }
+
+    /// Manually add a recipe to the cache
+    ///
+    /// # Errors
+    /// The only possible is [Error::InvalidName].
+    pub fn add_recipe(&mut self, recipe: &str) -> Result<(), Error> {
+        if self.get(recipe).is_ok() {
+            return Ok(());
+        }
+
+        let (name, path) = Self::into_name_path(recipe)?;
+        self.cache.get_mut().insert(name, path);
+        Ok(())
+    }
 }
 
 /// Get all recipes from a path with a depth limit
 pub fn all_recipes(
     base_path: impl AsRef<std::path::Path>,
     max_depth: usize,
-) -> impl Iterator<Item = DirEntry> {
+) -> impl Iterator<Item = RecipeEntry> {
     walkdir::WalkDir::new(base_path.as_ref())
         .max_depth(max_depth)
         .sort_by_file_name()
         .into_iter()
-        .filter_map(|e| e.ok().and_then(|e| DirEntry::try_from(e).ok()))
-        .filter(|e| e.file_type.is_dir() || is_cooklang_file(e))
+        .filter_map(|e| {
+            e.ok()
+                .and_then(|e| DirEntry::try_from(e).ok())
+                .and_then(|e| RecipeEntry::try_from(e).ok())
+        })
 }
 
 fn is_cooklang_file(dir_entry: &DirEntry) -> bool {
@@ -221,24 +286,44 @@ fn process_entry(dir_entry: &DirEntry) -> Option<(&str, &Utf8Path)> {
 impl Cache {
     fn get(&self, name: &str, path: &Utf8Path) -> Option<Utf8PathBuf> {
         let v = self.recipes.get(name)?;
-        v.iter().find(|&p| p == path).cloned()
+        v.iter()
+            .find(|&p| p == path)
+            .or_else(|| if name == path { v.first() } else { None })
+            .cloned()
     }
 
     fn insert(&mut self, name: &str, path: &Utf8Path) {
-        self.recipes
-            .entry(name.to_string())
-            .or_default()
-            .push(path.into())
+        let recipes = self.recipes.entry(name.to_string()).or_default();
+        let pos = recipes.partition_point(|p| p.components().count() < path.components().count());
+        recipes.insert(pos, path.to_path_buf());
+        self.non_existent.remove(path.as_str());
     }
 
-    fn mark_non_existent(&mut self, recipe: &str) {
-        self.non_existent.insert(recipe.into());
+    fn remove(&mut self, name: &str, path: &Utf8Path) {
+        if let Some(recipes) = self.recipes.get_mut(name) {
+            // can't do swap so "outer" recipes remain first
+            if let Some(index) = recipes.iter().position(|r| r == path) {
+                recipes.remove(index);
+            }
+        }
+    }
+
+    fn mark_non_existent(&mut self, path: &str) {
+        self.non_existent.insert(path.into());
     }
 }
 
 impl RecipeEntry {
     pub fn path(&self) -> &Utf8Path {
         &self.0
+    }
+
+    pub fn name(&self) -> &str {
+        self.0.file_stem().unwrap()
+    }
+
+    pub fn relative_name(&self) -> &str {
+        self.0.as_str().trim_end_matches(".cook")
     }
 
     pub fn read(&self) -> std::io::Result<RecipeContent> {
@@ -276,7 +361,7 @@ impl RecipeContent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Image {
     pub indexes: Option<(usize, usize)>,
     pub path: Utf8PathBuf,
