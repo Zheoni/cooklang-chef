@@ -102,8 +102,12 @@ impl Metadata {
                         .split('|')
                         .map(str::trim)
                         .map(str::parse)
-                        .collect::<Result<_, _>>()?,
-                )
+                    .collect::<Result<Vec<_>, _>>()?;
+                servings.sort_unstable();
+                let l = servings.len();
+                servings.dedup();
+                if servings.len() != l {}
+                self.servings = Some(servings)
             }
             _ => {}
         }
