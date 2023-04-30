@@ -15,7 +15,6 @@
 	import DisplayReport from '$lib/DisplayReport.svelte';
 	import Section from './Section.svelte';
 	import { API } from '$lib/constants';
-	import { initCtx } from './ctx';
 	import Listbox from '$lib/listbox/Listbox.svelte';
 	import { ListboxButton, ListboxLabel } from '@rgossiaux/svelte-headlessui';
 	import ListboxOptions from '$lib/listbox/ListboxOptions.svelte';
@@ -23,6 +22,7 @@
 	import type { GroupedQuantity } from '$lib/types';
 	import Quantity from '$lib/Quantity.svelte';
 	import { ingredientHighlight } from '$lib/ingredientHighlight';
+	import { stepIngredientsView } from '$lib/settings';
 
 	export let data: PageData;
 
@@ -56,15 +56,6 @@
 		);
 	}
 
-	function isEmptyQuantityGroup(group: GroupedQuantity) {
-		return (
-			group.no_unit !== null ||
-			group.other.length > 0 ||
-			Object.values(group.known).some((v) => v !== null) ||
-			Object.values(group.unknown).some((v) => v !== null)
-		);
-	}
-
 	function allQuantities(group: GroupedQuantity) {
 		const all = [];
 		for (const q of Object.values(group.known)) {
@@ -81,8 +72,6 @@
 		}
 		return all;
 	}
-
-	const { stepIngredientsView } = initCtx();
 
 	let state = {
 		moreDataOpen: false,
@@ -148,7 +137,7 @@
 			{@const author = recipe.metadata.author}
 			<Metadata key="Author">
 				{#if author.name !== null && author.url === null}
-					{recipe.metadata.author.name || ''}
+					{recipe.metadata.author.name ?? ''}
 				{:else if author.name === null && author.url !== null}
 					<a href={author.url} class="link italic">author website</a>
 				{:else}
@@ -243,7 +232,7 @@
 			{#if !ingredient.modifiers.includes('HIDDEN')}
 				<li>
 					<span class="capitalize" use:ingredientHighlight={{ ingredient, index: entry.index }}
-						>{ingredient.alias || ingredient.name}</span
+						>{ingredient.alias ?? ingredient.name}</span
 					>{#if all.length > 0}
 						:
 						<span class="text-base-11">

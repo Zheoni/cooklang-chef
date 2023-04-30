@@ -35,7 +35,6 @@ export function connect(trusted = false) {
 		const data = JSON.parse(message.data) as Message;
 		console.log(data);
 		let name = data.path.replace('.cook', '').replace('\\', '/');
-		name = encodeURI(name);
 		const isCurrentRecipe = get(page).url.searchParams.get('r') === name;
 		if (data.type === 'deleted' && isCurrentRecipe) {
 			toast.error('Recipe deleted');
@@ -47,7 +46,7 @@ export function connect(trusted = false) {
 		}
 		invalidate(`${API}/recipe`);
 		invalidate(`${API}/recipe/metadata`);
-		invalidate((url) => url.pathname.endsWith(name));
+		invalidate((url) => decodeURI(url.pathname).endsWith(name));
 	});
 	ws.addEventListener('close', () => {
 		if (trusted) toast.error('Could not set up auto update');

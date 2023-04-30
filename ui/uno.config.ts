@@ -1,7 +1,6 @@
 import { defineConfig } from 'unocss/vite';
 import { presetWebFonts, presetIcons, presetUno, transformerDirectives } from 'unocss';
 import { presetRadix } from 'unocss-preset-radix';
-import { presetForms } from '@julr/unocss-preset-forms';
 
 export default defineConfig({
 	shortcuts: [

@@ -74,7 +74,7 @@
 			<TextStep {step} />
 		{/each}
 	{:else}
-		<ol start={slice.step_count || 1} class="list-decimal ms-6">
+		<ol start={slice.step_count ?? 1} class="list-decimal ms-6">
 			{#each slice.steps as step}
 				<li class="mb-8">
 					<RegularStep {step} {recipe} />

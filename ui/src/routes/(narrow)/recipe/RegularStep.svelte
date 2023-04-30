@@ -5,8 +5,9 @@
 	import { ingredientHighlight, quantityHighlight } from '$lib/ingredientHighlight';
 	import Divider from '$lib/Divider.svelte';
 	import { tooltip } from 'svooltip';
-	import { getCtx as getCtx } from './ctx';
 	import { API } from '$lib/constants';
+	import { stepIngredientsView } from '$lib/settings';
+
 	export let step: SliceStep;
 	export let recipe: Recipe;
 
@@ -58,8 +59,6 @@
 
 	$: stepIngredients = buildStepIngredients(recipe, items);
 	$: stepIngredientsArray = Array.from(stepIngredients.entries()); // TODO unnecesary copy
-
-	const { stepIngredientsView } = getCtx();
 </script>
 
 <div class="flex gap-2 flex-col-reverse lg:flex-row">
@@ -92,7 +91,7 @@
 									html: true,
 									visibility:
 										entry.ingredient.quantity !== null && $stepIngredientsView === 'hidden'
-								}}>{entry.ingredient.alias || entry.ingredient.name}</span
+								}}>{entry.ingredient.alias ?? entry.ingredient.name}</span
 							>{#if entry.subscript && $stepIngredientsView !== 'hidden'}
 								<sub>{entry.subscript}</sub>
 							{/if}
@@ -115,7 +114,7 @@
 				{#each stepIngredientsArray as [index, { ingredient, subscript }], arrIndex (index)}
 					<div>
 						<span use:quantityHighlight={{ index }} data-highlight-cls="qhighlight"
-							>{ingredient.alias || ingredient.name}</span
+							>{ingredient.alias ?? ingredient.name}</span
 						>{#if subscript}
 							<sub>{subscript}</sub>
 						{/if}{#if ingredient.modifiers.includes('OPT')}

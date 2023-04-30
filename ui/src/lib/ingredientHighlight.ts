@@ -7,7 +7,7 @@ export function ingredientHighlight(
 		index: number;
 	}
 ) {
-	const ref_group = params.ingredient.references_to || params.index;
+	const ref_group = params.ingredient.references_to ?? params.index;
 	element.setAttribute('data-ingredient-ref-group', ref_group.toString());
 	const selector = `[data-ingredient-ref-group="${ref_group}"`;
 	element.addEventListener('mouseenter', () => {
@@ -35,5 +35,5 @@ export function quantityHighlight(
 }
 
 function cls(el: Element) {
-	return el.getAttribute('data-highlight-cls') || 'highlight';
+	return el.getAttribute('data-highlight-cls') ?? 'highlight';
 }
