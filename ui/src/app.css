@@ -12,5 +12,5 @@ svg.icon {
 }
 
 body {
-	--at-apply: bg-base-1 text-primary-12;
+	--at-apply: bg-base-1 text-primary-12 accent-primary-9;
 }

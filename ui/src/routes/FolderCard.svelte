@@ -9,7 +9,7 @@
 
 <Card as="a" href={`/?${new URLSearchParams({ dir })}`}>
 	<div class="flex flex-col items-center justify-center h-full">
-		<Folder class="text-6xl" />
+		<Folder class="text-6xl text-primary-9" />
 		<div>
 			<h2 class="font-heading text-2xl">{name}</h2>
 		</div>

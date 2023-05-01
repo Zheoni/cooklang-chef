@@ -11,7 +11,7 @@
 <svelte:element
 	this={link ? 'a' : 'div'}
 	data-sveltekit-preload-data="tap"
-	href={link ? `/?${new URLSearchParams({ t: text })}` : null}
+	href={link ? `/?${new URLSearchParams({ tag: text })}` : null}
 	class="tag radix-solid-primary inline-flex h-6 w-auto flex-shrink-0 select-none items-center justify-center overflow-hidden text-ellipsis rounded px-2 text-sm font-bold tracking-wide"
 	style:--color={color}
 	on:click
