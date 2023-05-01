@@ -20,7 +20,7 @@
 	import ListboxOptions from '$lib/listbox/ListboxOptions.svelte';
 	import ListboxOption from '$lib/listbox/ListboxOption.svelte';
 	import type { GroupedQuantity } from '$lib/types';
-	import Quantity from '$lib/Quantity.svelte';
+	import Quantity, { qValueFmt } from '$lib/Quantity.svelte';
 	import { ingredientHighlight } from '$lib/ingredientHighlight';
 	import { stepIngredientsView } from '$lib/settings';
 
@@ -224,28 +224,50 @@
 </details>
 
 <div class="font-serif text-lg content">
-	<h2 class="text-2xl my-2 font-heading">Ingredients</h2>
-	<ul class="list-disc ms-6">
-		{#each recipe.ingredient_list as entry}
-			{@const ingredient = recipe.ingredients[entry.index]}
-			{@const all = allQuantities(entry.quantity)}
-			{#if !ingredient.modifiers.includes('HIDDEN')}
-				<li>
-					<span class="capitalize" use:ingredientHighlight={{ ingredient, index: entry.index }}
-						>{ingredient.alias ?? ingredient.name}</span
-					>{#if all.length > 0}
-						:
-						<span class="text-base-11">
-							{#each all.slice(0, all.length - 1) as q}
-								<Quantity quantity={q} /><span class="text-base-12">{', '}</span>
-							{/each}
-							<Quantity quantity={all[all.length - 1]} />
-						</span>
-					{/if}
-				</li>
-			{/if}
-		{/each}
-	</ul>
+	<div class="md:grid md:grid-cols-2">
+		{#if recipe.ingredient_list.length > 0}
+			<div>
+				<h2 class="text-2xl my-2 font-heading">Ingredients</h2>
+				<ul class="list-disc ms-6">
+					{#each recipe.ingredient_list as entry}
+						{@const ingredient = recipe.ingredients[entry.index]}
+						{@const all = allQuantities(entry.quantity)}
+						{#if !ingredient.modifiers.includes('HIDDEN')}
+							<li>
+								<span
+									class="capitalize"
+									use:ingredientHighlight={{ ingredient, index: entry.index }}
+									>{ingredient.alias ?? ingredient.name}</span
+								>{#if all.length > 0}
+									:
+									<span class="text-base-11">
+										{#each all.slice(0, all.length - 1) as q}
+											<Quantity quantity={q} /><span class="text-base-12">{', '}</span>
+										{/each}
+										<Quantity quantity={all[all.length - 1]} />
+									</span>
+								{/if}
+							</li>
+						{/if}
+					{/each}
+				</ul>
+			</div>
+		{/if}
+		{#if recipe.cookware.length > 0}
+			<div>
+				<h2 class="text-2xl my-2 font-heading">Cookware</h2>
+				<ul class="list-disc ms-6">
+					{#each recipe.cookware as item}
+						<li>
+							<span class="capitalize">{item.name}</span>{#if item.quantity}
+								: <span class="text-base-11">{qValueFmt(item.quantity)}</span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			</div>
+		{/if}
+	</div>
 
 	<div class="flex flex-wrap justify-between">
 		<h2 class="text-2xl my-2 font-heading">Method</h2>
