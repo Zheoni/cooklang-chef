@@ -93,7 +93,7 @@ mod ui {
     use rust_embed::RustEmbed;
 
     #[derive(RustEmbed)]
-    #[folder = "../ui/build/"]
+    #[folder = "./ui/build/"]
     struct Assets;
 
     pub async fn ui(uri: Uri) -> impl axum::response::IntoResponse {

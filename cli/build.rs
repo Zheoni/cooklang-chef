@@ -5,11 +5,11 @@ fn main() {
 }
 
 fn build_ui() {
-    println!("cargo:rerun-if-changed=../ui/src");
+    println!("cargo:rerun-if-changed=./ui/src");
 
     let ok = std::process::Command::new("pnpm.cmd")
         .args(&["run", "build"])
-        .current_dir("../ui/")
+        .current_dir("./ui/")
         .status()
         .expect("failed to build ui")
         .success();
