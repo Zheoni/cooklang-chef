@@ -21,8 +21,10 @@ pub enum AnalysisError {
         value: Located<String>,
         possible_values: Vec<&'static str>,
     },
+
     #[error("Reference not found: {name}")]
     ReferenceNotFound { name: String, reference_span: Span },
+
     #[error("Conflicting ingredient reference quantities: {ingredient_name}")]
     ConflictingReferenceQuantities {
         ingredient_name: String,
@@ -44,6 +46,11 @@ pub enum AnalysisError {
         reason: Cow<'static, str>,
         value_span: Span,
         servings_meta_span: Option<Span>,
+    },
+
+    #[error("Unsuported modifier combination with reference")]
+    ConflictingModifiers {
+        modifiers: Located<crate::ast::Modifiers>,
     },
 }
 
@@ -137,6 +144,7 @@ impl RichError for AnalysisError {
                     vec![label!(value_span)]
                 }
             }
+            AnalysisError::ConflictingModifiers { modifiers } => vec![label![modifiers]],
         }
     }
 
@@ -153,10 +161,39 @@ impl RichError for AnalysisError {
                 "If the ingredient is not defined in a step and has a quantity, its references cannot have a quantity"
             ),
             AnalysisError::UnknownTimerUnit { .. } => {
-                help!("With the ADVANCED_UNITS extensions, timers are required to have a time unit")
+                help!("Add a unit to the timer")
             }
             AnalysisError::BadTimerUnit { .. } => None,
             AnalysisError::ScalableValueManyConflict { .. } => None,
+            AnalysisError::ConflictingModifiers { modifiers } => {
+                use crate::ast::Modifiers;
+                let extra = if modifiers.contains(Modifiers::OPT) {
+                    Some("optional")
+                } else if modifiers.contains(Modifiers::HIDDEN) {
+                    Some("hidden")
+                } else {
+                    None
+                };
+
+                if let Some(extra) = extra {
+                    help!(format!("Mark the definition as {extra}, or make this a definition for this to be {extra}."))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn note(&self) -> Option<Cow<'static, str>> {
+        use crate::error::note;
+        match self {
+            AnalysisError::ConflictingModifiers { .. } => {
+                note!("Reference ('&') modifier can only be combined with recipe ('@')")
+            }
+            AnalysisError::UnknownTimerUnit { .. } => {
+                note!("With the ADVANCED_UNITS extensions, timers are required to have a time unit")
+            }
+            _ => None,
         }
     }
 
@@ -227,10 +264,7 @@ impl RichError for AnalysisWarning {
         use crate::error::help;
         match self {
             AnalysisWarning::UnknownSpecialMetadataKey { .. } => {
-                help!("Possible values are 'duplicate' and 'reference'")
-            }
-            AnalysisWarning::InvalidMetadataValue { .. } => {
-                help!("Rich information for this metadata will not be available")
+                help!("Possible values are 'define', 'duplicate' and 'auto scale'")
             }
             AnalysisWarning::TemperatureRegexCompile { .. } => {
                 help!("Check the temperature symbols defined in the units.toml file")
@@ -241,11 +275,24 @@ impl RichError for AnalysisWarning {
             AnalysisWarning::RedundantReferenceModifier { .. } => {
                 help!("Be careful as every ingredient is already marked to be a reference")
             }
+            AnalysisWarning::RecipeNotFound { .. } => {
+                help!("Names must match exactly except for upper and lower case")
+            }
+            _ => None,
+        }
+    }
+
+    fn note(&self) -> Option<Cow<'static, str>> {
+        use crate::error::note;
+        match self {
+            AnalysisWarning::InvalidMetadataValue { .. } => {
+                note!("Rich information for this metadata will not be available")
+            }
             AnalysisWarning::RecipeNotFound { name, .. } => {
                 if name.chars().any(std::path::is_separator) {
-                    help!("This is treated as a path relative to the base directory")
+                    note!("This is treated as a path relative to the base directory")
                 } else {
-                    help!("Names must match exactly except for upper and lower case")
+                    None
                 }
             }
             _ => None,

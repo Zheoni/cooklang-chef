@@ -55,8 +55,6 @@ fn frontmatter(mut w: impl io::Write, metadata: &Metadata) -> Result<()> {
     #[derive(serde::Serialize)]
     struct CustomMetadata<'a> {
         #[serde(skip_serializing_if = "Option::is_none")]
-        slug: Option<&'a str>,
-        #[serde(skip_serializing_if = "Option::is_none")]
         emoji: Option<&'a str>,
         #[serde(skip_serializing_if = "Option::is_none")]
         author: Option<&'a NameAndUrl>,
@@ -71,8 +69,7 @@ fn frontmatter(mut w: impl io::Write, metadata: &Metadata) -> Result<()> {
     }
 
     let map = CustomMetadata {
-        slug: metadata.slug.as_deref(),
-        emoji: metadata.slug.as_deref(),
+        emoji: metadata.emoji.as_deref(),
         author: metadata.author.as_ref(),
         source: metadata.source.as_ref(),
         time: metadata.time.as_ref(),

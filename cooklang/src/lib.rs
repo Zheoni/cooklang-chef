@@ -150,7 +150,7 @@ impl CooklangParser {
     /// Same as [Self::parse] but with a function that checks if a recipe
     /// reference exists. If the function returns `false` for a recipe reference,
     /// it will be considered an error.
-    #[tracing::instrument(name = "parse", skip_all, fields(len = input.len()))]
+    #[tracing::instrument(level = "debug", name = "parse", skip_all, fields(len = input.len()))]
     pub fn parse_with_recipe_ref_checker(
         &self,
         input: &str,
@@ -171,7 +171,7 @@ impl CooklangParser {
     /// Parse only the metadata of a recipe
     ///
     /// This is a bit faster than [Self::parse] if you only want the metadata
-    #[tracing::instrument(name = "metadata", skip_all, fields(len = input.len()))]
+    #[tracing::instrument(level = "debug", name = "metadata", skip_all, fields(len = input.len()))]
     pub fn parse_metadata(&self, input: &str) -> MetadataResult {
         let mut r = parser::parse_metadata(input).into_context_result();
         if r.invalid() {

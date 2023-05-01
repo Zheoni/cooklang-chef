@@ -11,3 +11,4 @@ cooklang = { path = "../cooklang" }
 thiserror = "1"
 tracing = "0.1"
 walkdir = "2"
+serde = { version = "1", features = ["derive"] }

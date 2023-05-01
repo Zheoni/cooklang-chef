@@ -7,7 +7,7 @@ use std::{collections::HashMap, io, time::Duration};
 
 use cooklang::{
     convert::Converter,
-    model::{Component, ComponentKind, Ingredient, Item},
+    model::{Component, ComponentKind, Ingredient, IngredientListEntry, Item},
     quantity::Quantity,
     scale::ScaleOutcome,
     ScaledRecipe,
@@ -55,12 +55,6 @@ fn header(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             .bold()
     )?;
 
-    if let Some(slug) = &recipe.metadata.slug {
-        let default_slug = cooklang::metadata::slugify(&recipe.name);
-        if *slug != default_slug {
-            write!(w, " {}", Paint::new(format!("({slug})")).dimmed())?;
-        }
-    }
     writeln!(w)?;
     if !recipe.metadata.tags.is_empty() {
         let mut tags = String::new();
@@ -186,7 +180,13 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
     let mut there_is_fixed = false;
     let mut there_is_err = false;
     let list = recipe.ingredient_list(converter);
-    for (igr, quantity, outcome) in list {
+    for IngredientListEntry {
+        index,
+        quantity,
+        outcome,
+    } in list
+    {
+        let igr = &recipe.ingredients[index];
         if igr.is_hidden() {
             continue;
         }

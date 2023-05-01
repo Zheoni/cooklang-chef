@@ -144,7 +144,7 @@ where
 }
 
 /// Parse a recipe into an [Ast](ast::Ast)
-#[tracing::instrument(skip_all, fields(len = input.len()))]
+#[tracing::instrument(level = "debug", skip_all, fields(len = input.len()))]
 pub fn parse<'input>(
     input: &'input str,
     extensions: Extensions,
@@ -216,7 +216,7 @@ pub fn parse<'input>(
 /// Parse the recipe metadata into an [Ast](ast::Ast).
 ///
 /// This will skip every line that is not metadata. Is faster than [parse].
-#[tracing::instrument(skip_all, fields(len = input.len()))]
+#[tracing::instrument(level = "debug", skip_all, fields(len = input.len()))]
 pub fn parse_metadata<'input>(
     input: &'input str,
 ) -> PassResult<ast::Ast<'input>, ParserError, ParserWarning> {
@@ -519,12 +519,8 @@ pub enum ParserError {
         extension_name: &'static str,
     },
 
-    #[error("Invalid ingredient modifiers: {reason}")]
-    InvalidModifiers {
-        modifiers_span: Span,
-        reason: Cow<'static, str>,
-        help: Option<&'static str>,
-    },
+    #[error("Duplicate ingredient modifier: {dup}")]
+    DuplicateModifiers { modifiers_span: Span, dup: String },
 
     #[error("Error parsing integer number")]
     ParseInt {
@@ -575,7 +571,7 @@ impl RichError for ParserError {
             }
             ParserError::ComponentPartInvalid { labels, .. } => labels.clone(),
             ParserError::ExtensionNotEnabled { span, .. } => vec![label!(span, "used here")],
-            ParserError::InvalidModifiers { modifiers_span, .. } => vec![label!(modifiers_span)],
+            ParserError::DuplicateModifiers { modifiers_span, .. } => vec![label!(modifiers_span)],
             ParserError::ParseInt { bad_bit, .. } => vec![label!(bad_bit)],
             ParserError::ParseFloat { bad_bit, .. } => vec![label!(bad_bit)],
             ParserError::DivisionByZero { bad_bit } => vec![label!(bad_bit)],
@@ -590,7 +586,7 @@ impl RichError for ParserError {
             ParserError::ExtensionNotEnabled { extension_name, .. } => {
                 help!(format!("Remove the usage or enable the {extension_name} extension"))
             }
-            ParserError::InvalidModifiers { help, .. } => help!(opt help),
+            ParserError::DuplicateModifiers { .. } => help!("Remove duplicate modifiers"),
             ParserError::DivisionByZero { .. } => {
                 help!("Change this please, we don't want an infinite amount of anything")
             }

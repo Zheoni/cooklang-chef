@@ -4,7 +4,7 @@ use anyhow::Result;
 use camino::Utf8Path;
 use cooklang::Extensions;
 use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::debug;
 use yansi::Paint;
 
 use crate::{Context, COOK_DIR};
@@ -20,6 +20,7 @@ pub struct Config {
     pub extensions: Extensions,
     #[serde(skip_serializing_if = "Load::is_empty")]
     pub load: Load,
+    pub editor_command: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -46,6 +47,7 @@ impl Default for Config {
             recipe_ref_check: true,
             max_depth: 3,
             load: Default::default(),
+            editor_command: None,
         }
     }
 }
@@ -67,7 +69,7 @@ impl Config {
             confy::get_configuration_file_path(crate::APP_NAME, Some(CONFIG_NAME))?
         };
 
-        info!("Loading configuration from {}", path.display());
+        debug!("Loading configuration from {}", path.display());
 
         let config = confy::load_path(&path)?;
 

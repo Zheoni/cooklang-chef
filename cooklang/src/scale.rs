@@ -1,5 +1,6 @@
 //! Support for recipe scaling
 
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::{
@@ -72,7 +73,7 @@ pub struct ScaledData {
 }
 
 /// Possible outcomes from scaling a component
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ScaleOutcome {
     /// Success
     Scaled,
@@ -81,7 +82,7 @@ pub enum ScaleOutcome {
     /// It has no quantity, so it can't be scaled
     NoQuantity,
     /// Error scaling
-    Error(ScaleError),
+    Error(#[serde(skip_serializing)] ScaleError),
 }
 
 /// Possible errors during scaling process

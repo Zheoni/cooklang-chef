@@ -24,7 +24,7 @@ pub struct RecipeContent {
     pub inline_quantities: Vec<Quantity>,
 }
 
-#[tracing::instrument(skip_all, target = "cooklang::analysis", fields(ast_lines = ast.lines.len()))]
+#[tracing::instrument(level = "debug", skip_all, target = "cooklang::analysis", fields(ast_lines = ast.lines.len()))]
 pub fn parse_ast<'a>(
     ast: ast::Ast<'a>,
     extensions: Extensions,
@@ -403,6 +403,18 @@ impl<'a, 'r> Walker<'a, 'r> {
                     });
                 }
             }
+        }
+
+        // REF cannot appear in certain combinations
+        if new_igr.modifiers.contains(Modifiers::REF)
+            && new_igr
+                .modifiers
+                .intersects(Modifiers::NEW | Modifiers::HIDDEN | Modifiers::OPT)
+        {
+            self.error(AnalysisError::ConflictingModifiers {
+                modifiers: located_ingredient.modifiers.clone(),
+            });
+            new_igr.modifiers = Modifiers::empty();
         }
 
         self.ingredient_locations.push(located_ingredient);

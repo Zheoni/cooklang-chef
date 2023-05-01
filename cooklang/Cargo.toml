@@ -15,7 +15,7 @@ url = { version = "2.3", features = ["serde"] }
 pest = { version = "2.5", optional = true }
 pest_derive = { version = "2.5", optional = true }
 indexmap = { version = "1.9", features = ["serde"] }
-emojis = "0.5"
+emojis = "0.6"
 toml = "0.7"
 once_cell = "1.17"
 enum-map = { version = "2.4", features = ["serde"] }

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Args;
+use cooklang::model::IngredientListEntry;
 use cooklang::quantity::GroupedQuantity;
 use cooklang::{aisle::AileConf, quantity::Quantity};
 use cooklang::{Recipe, ScaledRecipe};
@@ -53,7 +54,13 @@ pub fn run(ctx: &Context, aisle: AileConf, args: CreateArgs) -> Result<()> {
             recipe.default_scale()
         };
 
-        for (ingredient, quantity, outcome) in recipe.ingredient_list(converter) {
+        for IngredientListEntry {
+            index,
+            quantity,
+            outcome,
+        } in recipe.ingredient_list(converter)
+        {
+            let ingredient = &recipe.ingredients[index];
             all_ingredients
                 .entry(ingredient.display_name().into_owned())
                 .or_default()
