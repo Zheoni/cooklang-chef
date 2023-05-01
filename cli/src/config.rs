@@ -20,6 +20,7 @@ pub struct Config {
     pub extensions: Extensions,
     #[serde(skip_serializing_if = "Load::is_empty")]
     pub load: Load,
+    pub editor_command: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -46,6 +47,7 @@ impl Default for Config {
             recipe_ref_check: true,
             max_depth: 3,
             load: Default::default(),
+            editor_command: None,
         }
     }
 }

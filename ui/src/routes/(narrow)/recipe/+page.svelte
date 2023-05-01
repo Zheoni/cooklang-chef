@@ -9,6 +9,7 @@
 	import External from '~icons/lucide/external-link';
 	import Code from '~icons/lucide/code-2';
 	import FileCode from '~icons/lucide/file-code';
+
 	import StepIngredientsViewIcon from '~icons/lucide/align-vertical-distribute-center';
 	import Metadata from '$lib/Metadata.svelte';
 	import MetadataGroup from '$lib/MetadataGroup.svelte';
@@ -23,6 +24,9 @@
 	import Quantity, { qValueFmt } from '$lib/Quantity.svelte';
 	import { ingredientHighlight } from '$lib/ingredientHighlight';
 	import { stepIngredientsView } from '$lib/settings';
+	import OpenInEditor from '$lib/OpenInEditor.svelte';
+	import { connected } from '$lib/updatesWS';
+	import { fade } from 'svelte/transition';
 
 	export let data: PageData;
 
@@ -102,6 +106,11 @@
 
 		<DisplayReport ansiString={fancy_report} errors={warnings} {srcPath} kind="warning" />
 	</details>
+{/if}
+{#if $connected}
+	<div class="float-right flex flex-wrap gap-2" transition:fade>
+		<OpenInEditor {srcPath} />
+	</div>
 {/if}
 <h1 class="text-6xl font-heading">
 	{#if recipe.metadata.emoji}

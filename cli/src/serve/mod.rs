@@ -18,7 +18,6 @@ use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use clap::Args;
 use cooklang::{error::PassResult, CooklangParser};
 use futures::{sink::SinkExt, stream::StreamExt as _};
-use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc, time::SystemTime};
 use tokio::sync::broadcast;
@@ -41,7 +40,7 @@ pub struct ServeArgs {
 pub async fn run(ctx: Context, args: ServeArgs) -> Result<()> {
     let app = Router::new().nest("/api", api(ctx)?);
     #[cfg(feature = "ui")]
-    let app = app.fallback(ui);
+    let app = app.fallback(ui::ui);
 
     let addr = if args.host {
         SocketAddr::from(([0, 0, 0, 0], 8080))
@@ -89,48 +88,52 @@ async fn shutdown_signal() {
 }
 
 #[cfg(feature = "ui")]
-#[derive(RustEmbed)]
-#[folder = "../ui/build/"]
-struct Assets;
+mod ui {
+    use super::*;
+    use rust_embed::RustEmbed;
 
-#[cfg(feature = "ui")]
-async fn ui(uri: Uri) -> impl axum::response::IntoResponse {
-    use axum::response::IntoResponse;
+    #[derive(RustEmbed)]
+    #[folder = "../ui/build/"]
+    struct Assets;
 
-    const INDEX_HTML: &str = "index.html";
+    pub async fn ui(uri: Uri) -> impl axum::response::IntoResponse {
+        use axum::response::IntoResponse;
 
-    fn index_html() -> impl axum::response::IntoResponse {
-        Assets::get(INDEX_HTML)
-            .map(|content| {
-                let body = axum::body::boxed(axum::body::Full::from(content.data));
-                Response::builder()
-                    .header(axum::http::header::CONTENT_TYPE, "text/html")
-                    .body(body)
-                    .unwrap()
-            })
-            .ok_or(StatusCode::NOT_FOUND)
-    }
+        const INDEX_HTML: &str = "index.html";
 
-    let path = uri.path().trim_start_matches('/');
-
-    if path.is_empty() || path == INDEX_HTML {
-        return Ok(index_html().into_response());
-    }
-
-    match Assets::get(path) {
-        Some(content) => {
-            let body = axum::body::boxed(axum::body::Full::from(content.data));
-            let mime = mime_guess::from_path(path).first_or_octet_stream();
-            Ok(Response::builder()
-                .header(axum::http::header::CONTENT_TYPE, mime.as_ref())
-                .body(body)
-                .unwrap())
+        fn index_html() -> impl axum::response::IntoResponse {
+            Assets::get(INDEX_HTML)
+                .map(|content| {
+                    let body = axum::body::boxed(axum::body::Full::from(content.data));
+                    Response::builder()
+                        .header(axum::http::header::CONTENT_TYPE, "text/html")
+                        .body(body)
+                        .unwrap()
+                })
+                .ok_or(StatusCode::NOT_FOUND)
         }
-        None => {
-            if path.contains('.') {
-                return Err(StatusCode::NOT_FOUND);
+
+        let path = uri.path().trim_start_matches('/');
+
+        if path.is_empty() || path == INDEX_HTML {
+            return Ok(index_html().into_response());
+        }
+
+        match Assets::get(path) {
+            Some(content) => {
+                let body = axum::body::boxed(axum::body::Full::from(content.data));
+                let mime = mime_guess::from_path(path).first_or_octet_stream();
+                Ok(Response::builder()
+                    .header(axum::http::header::CONTENT_TYPE, mime.as_ref())
+                    .body(body)
+                    .unwrap())
             }
-            Ok(index_html().into_response())
+            None => {
+                if path.contains('.') {
+                    return Err(StatusCode::NOT_FOUND);
+                }
+                Ok(index_html().into_response())
+            }
         }
     }
 }
@@ -141,6 +144,7 @@ struct ApiState {
     max_depth: usize,
     recipe_index: AsyncFsIndex,
     updates_stream: broadcast::Receiver<Update>,
+    editor_command: Option<String>,
 }
 
 fn api(ctx: Context) -> Result<Router> {
@@ -173,6 +177,7 @@ fn api(ctx: Context) -> Result<Router> {
         max_depth: config.max_depth,
         recipe_index,
         updates_stream: updates_rx,
+        editor_command: config.editor_command.clone(),
     });
 
     let router = Router::new()
@@ -188,7 +193,6 @@ fn api(ctx: Context) -> Result<Router> {
         .route("/recipe/metadata", get(all_recipes_metadata))
         .route("/recipe/*path", get(recipe))
         .route("/recipe/metadata/*path", get(recipe_metadata))
-        .route("/recipe/open/*path", get(open))
         .route("/recipe/open_editor/*path", get(open_editor))
         .with_state(shared_state)
         .layer(
@@ -448,30 +452,6 @@ async fn recipe_metadata(
     Ok(Json(value))
 }
 
-async fn open(
-    Path(path): Path<String>,
-    State(state): State<Arc<ApiState>>,
-    ConnectInfo(who): ConnectInfo<SocketAddr>,
-) -> Result<(), StatusCode> {
-    if !who.ip().is_loopback() {
-        tracing::info!("Denied open default program request from '{who}': Not loopback ip");
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    check_path(&path)?;
-
-    let entry = state
-        .recipe_index
-        .get(path.to_string())
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    tracing::info!("Opening '{}'", entry.path());
-    tokio::task::spawn_blocking(move || open::that_in_background(entry.path()));
-
-    Ok(())
-}
-
 async fn open_editor(
     Path(path): Path<String>,
     State(state): State<Arc<ApiState>>,
@@ -492,10 +472,23 @@ async fn open_editor(
 
     tracing::info!("Opening editor for '{}'", entry.path());
 
-    // TODO allow customization
-    let editor = if cfg!(windows) { "code.cmd" } else { "code" };
+    // TODO get system editor
+    let editor_cmd = state.editor_command.as_deref().unwrap_or(if cfg!(windows) {
+        "code.cmd -n"
+    } else {
+        "code -n"
+    });
+
+    let args = match shell_words::split(editor_cmd) {
+        Ok(args) if !args.is_empty() => args,
+        _ => {
+            tracing::error!("Error parsing custom editor command");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+    let (editor, args) = (&args[0], &args[1..]);
     if tokio::process::Command::new(editor)
-        .arg("-n")
+        .args(args)
         .arg(entry.path())
         .spawn()
         .is_err()

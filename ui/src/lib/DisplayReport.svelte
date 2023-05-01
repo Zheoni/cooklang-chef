@@ -2,13 +2,10 @@
 
 <script lang="ts">
 	import Converter from 'ansi-to-html';
-	import Code from '~icons/lucide/code-2';
 	import FileCode from '~icons/lucide/file-code';
 
 	import { API } from './constants';
-	import { page } from '$app/stores';
-
-	import toast from '$lib/toast';
+	import OpenInEditor from './OpenInEditor.svelte';
 
 	export let errors: string[];
 	export let ansiString: string | null;
@@ -18,23 +15,6 @@
 	function displayReport(ansiString: string) {
 		const converter = new Converter();
 		return converter.toHtml(ansiString);
-	}
-
-	$: isLoopback =
-		$page.url.hostname === 'localhost' ||
-		$page.url.hostname === '127.0.0.1' ||
-		$page.url.hostname === '[::1]';
-
-	async function openEditor(srcPath: string, where: 'program' | 'editor') {
-		const response = await fetch(
-			`${API}/recipe/${where === 'editor' ? 'open_editor' : 'open'}/${srcPath}`
-		);
-		if (!response.ok) {
-			toast.error('Could not open editor');
-			console.error('Could not open editor:', response.status, response.statusText);
-			return;
-		}
-		toast.success('Recipe opened');
 	}
 </script>
 
@@ -47,15 +27,7 @@
 >
 	<div class="flex m-3 justify-end gap-2">
 		{#if srcPath !== null}
-			{@const srcPath2 = srcPath}
-			{#if isLoopback}
-				<button
-					class="btn radix-solid-primary px-2 py-1 flex items-center gap-1"
-					on:click={() => openEditor(srcPath2, 'editor')}
-				>
-					<Code /> Open in editor
-				</button>
-			{/if}
+			<OpenInEditor {srcPath} />
 			<a
 				class="btn radix-solid-primary px-2 py-1 flex items-center gap-1"
 				href={`${API}/src/${srcPath}`}
