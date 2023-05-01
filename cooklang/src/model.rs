@@ -233,7 +233,7 @@ impl Ingredient {
         for q in quantities {
             total = total.try_add(q, converter)?;
         }
-        total.fit(converter);
+        let _ = total.fit(converter);
 
         Ok(Some(total))
     }

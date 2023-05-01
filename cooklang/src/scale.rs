@@ -125,7 +125,7 @@ impl Recipe {
         });
         self.ingredients.iter_mut().for_each(|i| {
             if let Some(q) = &mut i.quantity {
-                q.fit(converter);
+                let _ = q.fit(converter);
             }
         });
         let cookware = scale_many(target, &mut self.cookware, |ck| ck.quantity.as_mut());
