@@ -12,13 +12,13 @@
 		"format": "prettier --plugin-search-dir . --write ."
 	},
 	"devDependencies": {
-		"@iconify-json/lucide": "^1.1.85",
+		"@iconify-json/lucide": "^1.1.86",
 		"@radix-ui/colors": "^0.1.8",
 		"@rgossiaux/svelte-headlessui": "^1.0.2",
 		"@sveltejs/adapter-static": "^2.0.2",
-		"@sveltejs/kit": "^1.15.9",
-		"@typescript-eslint/eslint-plugin": "^5.59.1",
-		"@typescript-eslint/parser": "^5.59.1",
+		"@sveltejs/kit": "^1.15.10",
+		"@typescript-eslint/eslint-plugin": "^5.59.2",
+		"@typescript-eslint/parser": "^5.59.2",
 		"@unocss/eslint-config": "^0.51.8",
 		"@unocss/reset": "^0.51.8",
 		"@unocss/transformer-directives": "^0.51.8",
@@ -40,7 +40,7 @@
 		"unocss": "^0.51.8",
 		"unocss-preset-radix": "^2.3.0",
 		"unplugin-icons": "^0.16.1",
-		"vite": "^4.3.3"
+		"vite": "^4.3.4"
 	},
 	"type": "module"
 }

@@ -9,6 +9,8 @@
 	import External from '~icons/lucide/external-link';
 	import Code from '~icons/lucide/code-2';
 	import FileCode from '~icons/lucide/file-code';
+	import Scale from '~icons/lucide/scale';
+	import Ruler from '~icons/lucide/ruler';
 
 	import StepIngredientsViewIcon from '~icons/lucide/align-vertical-distribute-center';
 	import Metadata from '$lib/Metadata.svelte';
@@ -17,7 +19,13 @@
 	import Section from './Section.svelte';
 	import { API } from '$lib/constants';
 	import Listbox from '$lib/listbox/Listbox.svelte';
-	import { ListboxButton, ListboxLabel } from '@rgossiaux/svelte-headlessui';
+	import {
+		ListboxButton,
+		ListboxLabel,
+		Popover,
+		PopoverButton,
+		PopoverPanel
+	} from '@rgossiaux/svelte-headlessui';
 	import ListboxOptions from '$lib/listbox/ListboxOptions.svelte';
 	import ListboxOption from '$lib/listbox/ListboxOption.svelte';
 	import type { GroupedQuantity } from '$lib/types';
@@ -26,7 +34,13 @@
 	import { stepIngredientsView } from '$lib/settings';
 	import OpenInEditor from '$lib/OpenInEditor.svelte';
 	import { connected } from '$lib/updatesWS';
-	import { fade } from 'svelte/transition';
+	import { fade, scale } from 'svelte/transition';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { createFloatingActions } from 'svelte-floating-ui';
+	import { flip, offset, shift } from 'svelte-floating-ui/dom';
+	import Divider from '$lib/Divider.svelte';
+	import { scaleOutcomeTooltip } from '$lib/scaleOutcomeTooltip';
 
 	export let data: PageData;
 
@@ -87,6 +101,58 @@
 	};
 
 	$: ({ recipe, images, srcPath, warnings, fancy_report, created, modified } = data);
+
+	$: defaultServings = (recipe.metadata.servings && recipe.metadata.servings[0]) ?? 1;
+	$: urlServings = $page.url.searchParams.get('scale');
+	$: selectedServings = (urlServings !== null && Number(urlServings)) || defaultServings;
+
+	let selectedUnits: Options['units'];
+	$: {
+		const v = $page.url.searchParams.get('units');
+		if (v === 'metric' || v === 'imperial') selectedUnits = v;
+		else selectedUnits = null;
+	}
+
+	const [floatingRef, floatingContent] = createFloatingActions({
+		strategy: 'absolute',
+		placement: 'bottom',
+		middleware: [offset(6), flip(), shift({ crossAxis: true })]
+	});
+
+	type Options = {
+		servings: number;
+		units: 'metric' | 'imperial' | null;
+	};
+
+	let lastTimeout: number | null = null;
+	function navToOptions(options: Options, delay: boolean) {
+		if (lastTimeout) {
+			clearTimeout(lastTimeout);
+		}
+		lastTimeout = setTimeout(
+			() => {
+				const params = new URLSearchParams($page.url.searchParams);
+				if (options.servings === defaultServings) {
+					params.delete('scale');
+				} else {
+					params.set('scale', options.servings.toString());
+				}
+				if (options.units) {
+					params.set('units', options.units);
+				} else {
+					params.delete('units');
+				}
+				goto(`?${params}`, { keepFocus: true, noScroll: true });
+			},
+			delay ? 500 : 0
+		);
+	}
+
+	let scalePopover: HTMLDivElement | null;
+	$: navToOptions(
+		{ servings: selectedServings, units: selectedUnits },
+		scalePopover?.isConnected ?? false
+	);
 </script>
 
 <svelte:head>
@@ -135,7 +201,27 @@
 	<MetadataGroup>
 		<Utensils slot="icon" />
 		<Metadata key="Servings">
-			{recipe.metadata.servings.join(', ')}
+			<div class="flex divide-x divide-base-6">
+				{#each recipe.metadata.servings as serving}
+					{@const selected = serving === selectedServings}
+					<div class="px-1">
+						<button
+							class="px-2 h-fit rounded border-2 decoration-2"
+							class:border-primary-7={selected}
+							class:border-transparent={!selected}
+							on:click={() => (selectedServings = serving)}>{serving}</button
+						>
+					</div>
+				{/each}
+				{#if !recipe.metadata.servings.includes(selectedServings)}
+					<div class="px-1">
+						<i class="i-lucide-arrow-right text-primary-11" />
+						<div class="px-2 h-fit rounded border border-dashed border-primary-7 inline-block">
+							{selectedServings}
+						</div>
+					</div>
+				{/if}
+			</div>
 		</Metadata>
 	</MetadataGroup>
 {/if}
@@ -199,7 +285,7 @@
 {/if}
 
 <details bind:open={state.moreDataOpen}>
-	<summary>More data</summary>
+	<summary class="w-fit">More data</summary>
 
 	{#if created || modified}
 		<MetadataGroup>
@@ -232,6 +318,109 @@
 	</MetadataGroup>
 </details>
 
+<div class="flex justify-end items-center gap-2">
+	<Listbox
+		value={selectedUnits ?? 'default'}
+		on:change={(e) => {
+			if (e.detail === 'metric' || e.detail === 'imperial') selectedUnits = e.detail;
+			else selectedUnits = null;
+		}}
+	>
+		<svelte:fragment slot="button">
+			<ListboxButton class="btn-square-9 radix-solid-primary">
+				<Ruler />
+			</ListboxButton>
+		</svelte:fragment>
+		<svelte:fragment slot="label">
+			<ListboxLabel class="sr-only">Convert recipe units</ListboxLabel>
+		</svelte:fragment>
+		<ListboxOptions>
+			{#each ['default', 'metric', 'imperial'] as system}
+				<ListboxOption value={system}>
+					<span class="capitalize">{system}</span>
+				</ListboxOption>
+			{/each}
+		</ListboxOptions>
+	</Listbox>
+
+	<Popover let:open class="flex items-center">
+		<PopoverButton class="btn-square-9 radix-solid-primary" use={[floatingRef]}>
+			<Scale /><span class="sr-only">Scale</span>
+		</PopoverButton>
+
+		{#if open}
+			<div
+				transition:scale={{ duration: 150, start: 0.9 }}
+				class="absolute origin-top"
+				bind:this={scalePopover}
+			>
+				<PopoverPanel
+					static
+					use={[floatingContent]}
+					class="bg-base-2 border border-base-7 w-fit min-w-52 rounded-xl p-1 shadow z-100"
+				>
+					<div class="flex items-center justify-center gap-6 flex-nowrap mt-4 mb-2">
+						<button
+							class="i-lucide-minus p-2 -m-2"
+							on:click={() => (selectedServings = Math.max(selectedServings - 1, 0))}
+							class:text-primary-11={selectedServings > 0}
+							disabled={selectedServings <= 0}
+						/>
+						<input
+							type="number"
+							bind:value={selectedServings}
+							min="0"
+							max="99"
+							class="dark px-4 py-2 bg-base-3 text-primary-11 border border-base-6 rounded text-2xl font-bold w-15 text-center"
+						/>
+						<button
+							class="i-lucide-plus p-2 -m-2"
+							on:click={() => (selectedServings = Math.min(selectedServings + 1, 99))}
+							class:text-primary-11={selectedServings < 99}
+							disabled={selectedServings >= 99}
+						/>
+					</div>
+
+					<div class="flex flex-row flex-wrap gap-2 justify-center my-2">
+						{#each [0.5, 2, 4] as mul}
+							{#if selectedServings * mul >= 1}
+								<button
+									class="btn radix-solid-primary px-2 py-1"
+									on:click={() => (selectedServings = Math.floor(selectedServings * mul))}
+								>
+									x{mul}
+								</button>
+							{/if}
+						{/each}
+					</div>
+
+					{#if recipe.metadata.servings}
+						<Divider />
+						<div class="text-sm text-base-11 mt-2 ms-1">Presets</div>
+						<div class="flex flex-row flex-wrap gap-2 justify-center">
+							{#each recipe.metadata.servings as serving}
+								<button
+									class="btn radix-solid-primary px-2 py-1"
+									on:click={() => (selectedServings = serving)}
+								>
+									{serving}
+								</button>
+							{/each}
+						</div>
+					{/if}
+
+					<div class="flex mb-1 me-1 gap-2">
+						<button
+							class="ms-auto text-base-11 text-sm"
+							on:click={() => (selectedServings = defaultServings)}>Reset</button
+						>
+					</div>
+				</PopoverPanel>
+			</div>
+		{/if}
+	</Popover>
+</div>
+
 <div class="font-serif text-lg content">
 	<div class="md:grid md:grid-cols-2">
 		{#if recipe.ingredient_list.length > 0}
@@ -242,7 +431,7 @@
 						{@const ingredient = recipe.ingredients[entry.index]}
 						{@const all = allQuantities(entry.quantity)}
 						{#if !ingredient.modifiers.includes('HIDDEN')}
-							<li>
+							<li use:scaleOutcomeTooltip={entry.outcome} class="w-fit">
 								<span
 									class="capitalize"
 									use:ingredientHighlight={{ ingredient, index: entry.index }}
@@ -312,5 +501,12 @@
 	}
 	.content :global(.highlight) {
 		--at-apply: bg-primary-4 outline relative z-1;
+	}
+
+	input[type='number']::-webkit-inner-spin-button,
+	input[type='number']::-webkit-outer-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+		outline: none !important;
 	}
 </style>

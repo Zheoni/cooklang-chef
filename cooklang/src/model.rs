@@ -16,7 +16,7 @@ use crate::{
 ///
 /// A recipe can be [Self::scale] (only once) and only after that [Self::convert]
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Recipe<D = ()> {
+pub struct Recipe<D: Serialize = ()> {
     /// Recipe name
     pub name: String,
     /// Metadata
@@ -34,7 +34,7 @@ pub struct Recipe<D = ()> {
     pub timers: Vec<Timer>,
     /// All the inline quantities
     pub inline_quantities: Vec<Quantity>,
-    #[serde(skip)]
+    #[serde(skip_deserializing)]
     pub(crate) data: D,
 }
 
@@ -233,7 +233,7 @@ impl Ingredient {
         for q in quantities {
             total = total.try_add(q, converter)?;
         }
-        total.fit(converter);
+        let _ = total.fit(converter);
 
         Ok(Some(total))
     }

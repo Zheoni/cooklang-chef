@@ -14,3 +14,11 @@ svg.icon {
 body {
 	--at-apply: bg-base-1 text-primary-12 accent-primary-9;
 }
+
+.scale-error {
+	--at-apply: text-red-12 decoration-red-11 underline decoration-wavy;
+}
+
+.scale-fixed {
+	--at-apply: text-yellow-12 decoration-yellow-11 underline decoration-wavy;
+}

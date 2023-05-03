@@ -445,7 +445,7 @@ pub enum RecipeImageError {
 ///
 /// For example the image `Recipe.14.jpeg` references step 15th, but the
 /// recipe may not have 15 steps, so this function returns an error.
-pub fn check_recipe_images<D>(
+pub fn check_recipe_images<D: serde::Serialize>(
     images: &[Image],
     recipe: &cooklang::Recipe<D>,
 ) -> Result<(), Vec<RecipeImageError>> {

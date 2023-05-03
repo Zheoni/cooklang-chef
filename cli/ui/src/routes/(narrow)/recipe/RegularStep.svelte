@@ -7,6 +7,7 @@
 	import { tooltip } from 'svooltip';
 	import { API } from '$lib/constants';
 	import { stepIngredientsView } from '$lib/settings';
+	import { extractOutcome, scaleOutcomeTooltip } from '$lib/scaleOutcomeTooltip';
 
 	export let step: SliceStep;
 	export let recipe: Recipe;
@@ -112,7 +113,7 @@
 			<Divider class="my-4" />
 			<div class="stepIngredients" class:compact={$stepIngredientsView === 'compact'}>
 				{#each stepIngredientsArray as [index, { ingredient, subscript }], arrIndex (index)}
-					<div>
+					<div use:scaleOutcomeTooltip={extractOutcome(recipe, index)}>
 						<span use:quantityHighlight={{ index }} data-highlight-cls="qhighlight"
 							>{ingredient.alias ?? ingredient.name}</span
 						>{#if subscript}

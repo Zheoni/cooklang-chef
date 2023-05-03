@@ -258,6 +258,18 @@ impl<T, E, W> PassResult<T, E, W> {
             errors: self.errors,
         }
     }
+
+    pub fn try_map<F, O, E2>(self, f: F) -> Result<PassResult<O, E, W>, E2>
+    where
+        F: FnOnce(T) -> Result<O, E2>,
+    {
+        let output = self.output.map(f).transpose()?;
+        Ok(PassResult {
+            output,
+            warnings: self.warnings,
+            errors: self.errors,
+        })
+    }
 }
 
 impl<T, E, W> From<E> for PassResult<T, E, W> {

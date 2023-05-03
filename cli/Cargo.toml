@@ -42,12 +42,13 @@ notify = { version = "5.1", optional = true }
 debounced = { version = "0.1", optional = true }
 tokio-stream = { version = "0.1", optional = true }
 futures = { version = "0.3", optional = true }
-rust-embed = { version = "6.6.1", features = ["compression"], optional = true }
-mime_guess = { version = "2.0.4", optional = true }
-shell-words = { version = "1.1.0", optional = true }
+rust-embed = { version = "6.6", features = ["compression"], optional = true }
+mime_guess = { version = "2.0", optional = true }
+shell-words = { version = "1.1", optional = true }
+open = { version = "4.1", optional = true }
 
 
 [features]
 default = ["ui"]
-ui = ["serve","dep:mime_guess", "dep:rust-embed"]
+ui = ["serve", "dep:mime_guess", "dep:rust-embed", "dep:open"]
 serve = ["dep:tokio", "dep:axum", "dep:notify", "dep:debounced", "dep:tokio-stream", "dep:futures", "dep:tower", "dep:tower-http", "dep:shell-words"]

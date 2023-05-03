@@ -376,7 +376,7 @@ impl Quantity {
     /// Converts the unit to the best possible match in the same unit system.
     ///
     /// For example, `1000 ml` would be converted to `1 l`.
-    pub fn fit(&mut self, converter: &Converter) {
+    pub fn fit(&mut self, converter: &Converter) -> Result<(), ConvertError> {
         use crate::convert::ConvertTo;
 
         // if the unit is known, convert to the best match in the same system
@@ -384,10 +384,9 @@ impl Quantity {
             self.unit().map(|u| u.unit_or_parse(converter)),
             Some(UnitInfo::Known(_))
         ) {
-            *self = converter
-                .convert(&*self, ConvertTo::SameSystem)
-                .expect("convert to same system failed");
+            *self = converter.convert(&*self, ConvertTo::SameSystem)?;
         }
+        Ok(())
     }
 }
 

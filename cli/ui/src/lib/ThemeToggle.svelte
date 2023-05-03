@@ -17,15 +17,8 @@
 
 <Listbox value={$adjustedColorScheme} on:change={(e) => adjustedColorScheme.set(e.detail)}>
 	<svelte:fragment slot="button">
-		<ListboxButton as="div">
-			<button
-				class="btn-square-9 m-1 text-xl"
-				class:btn-light={$adjustedColorScheme === 'light'}
-				class:btn-dark={$adjustedColorScheme === 'dark'}
-				class:btn-system={$adjustedColorScheme === 'system'}
-			>
-				<svelte:component this={$colorScheme === 'light' ? Sun : Moon} />
-			</button>
+		<ListboxButton class={() => `theme-btn btn-${$adjustedColorScheme}`}>
+			<svelte:component this={$colorScheme === 'light' ? Sun : Moon} />
 		</ListboxButton>
 	</svelte:fragment>
 	<svelte:fragment slot="label">
@@ -70,19 +63,23 @@
 		--at-apply: bg-indigo-3;
 	}
 
-	.btn-light {
+	:global(.theme-btn) {
+		--at-apply: btn-square-9 m-1 text-xl;
+	}
+
+	:global(.btn-light) {
 		--at-apply: radix-solid-primary;
 	}
 
-	.btn-dark {
+	:global(.btn-dark) {
 		--at-apply: radix-solid-indigo;
 	}
 
-	.btn-system {
+	:global(.btn-system) {
 		--at-apply: text-green-11 hover:bg-green-4;
 	}
 
-	:global(.dark) .btn-system {
+	:global(.dark) :global(.btn-system) {
 		--at-apply: text-indigo-11 hover:bg-indigo-4;
 	}
 </style>

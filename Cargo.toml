@@ -9,6 +9,6 @@ members = [
 ]
 
 [profile.release]
-# lto = true
-# strip = true
-# opt-level = "z"
+lto = "thin"
+strip = true
+# opt-level = "s"
