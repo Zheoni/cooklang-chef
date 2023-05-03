@@ -7,7 +7,9 @@ fn main() {
 fn build_ui() {
     println!("cargo:rerun-if-changed=./ui/src");
 
-    let ok = std::process::Command::new("pnpm.cmd")
+    let pnpm = if cfg!(windows) { "pnpm.cmd" } else { "pnpm" };
+
+    let ok = std::process::Command::new(pnpm)
         .args(&["run", "build"])
         .current_dir("./ui/")
         .status()

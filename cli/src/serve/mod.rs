@@ -27,12 +27,17 @@ use tracing::info;
 
 #[derive(Debug, Args)]
 pub struct ServeArgs {
-    /// Host your recipes to the internet
+    /// Allow external connections
     #[arg(long)]
     host: bool,
 
+    /// Set http server port
+    #[arg(long, default_value_t = 8080)]
+    port: u16,
+
+    /// Open browser on start
     #[cfg(feature = "ui")]
-    #[arg(long, default_value_t = true)]
+    #[arg(long, default_value_t = false)]
     open: bool,
 }
 
@@ -43,10 +48,21 @@ pub async fn run(ctx: Context, args: ServeArgs) -> Result<()> {
     let app = app.fallback(ui::ui);
 
     let addr = if args.host {
-        SocketAddr::from(([0, 0, 0, 0], 8080))
+        SocketAddr::from(([0, 0, 0, 0], args.port))
     } else {
-        SocketAddr::from(([127, 0, 0, 1], 8080))
+        SocketAddr::from(([127, 0, 0, 1], args.port))
     };
+
+    #[cfg(feature = "ui")]
+    if args.open {
+        let port = args.port;
+        tokio::task::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            if let Err(e) = open::that(format!("http://localhost:{port}")) {
+                tracing::error!("Could not open the web browser: {e}");
+            }
+        });
+    }
 
     info!("Listening on {addr}");
 
