@@ -24,7 +24,7 @@
 
 {#if isLoopback}
 	<button
-		class="btn radix-solid-primary px-2 py-1 flex items-center gap-1"
+		class="btn radix-solid-primary px-2 py-1 gap-1 flex! items-center"
 		on:click={() => openEditor(srcPath)}
 	>
 		<Code /> Open in editor

@@ -9,7 +9,10 @@ use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::quantity::{NotScaled, Quantity, QuantityValue, Value};
+use crate::{
+    quantity::{Quantity, QuantityValue, Value},
+    Recipe,
+};
 
 use self::{
     builder::ConverterBuilder,
@@ -218,25 +221,41 @@ impl Converter {
         from: &Quantity,
         to: impl Into<ConvertTo<'t>>,
     ) -> Result<Quantity, ConvertError> {
-        let value = match &from.value {
-            crate::quantity::QuantityValue::Fixed(v) => match v {
-                Value::Number(n) => ConvertValue::Number(*n),
-                Value::Range(r) => ConvertValue::Range(r.clone()),
-                Value::Text(t) => return Err(ConvertError::TextValue(t.to_string())),
-            },
-            other => return Err(ConvertError::NotScaled(NotScaled(other.clone()))),
-        };
+        let to = to.into();
         let unit = match from.unit().map(|u| u.text()) {
             Some(u) => ConvertUnit::Key(u),
             None => return Err(ConvertError::NoUnit(from.clone())),
         };
 
-        let to = to.into();
-        let (value, output_unit) = self.convert2(value, unit, to)?;
+        let (value, unit) = match &from.value {
+            QuantityValue::Fixed(v) => {
+                let (value, unit) = self.convert2(v.try_into()?, unit, to)?;
+                let q_value = QuantityValue::Fixed(value.into());
+                (q_value, unit)
+            }
+            QuantityValue::Linear(v) => {
+                let (value, unit) = self.convert2(v.try_into()?, unit, to)?;
+                let q_value = QuantityValue::Linear(value.into());
+                (q_value, unit)
+            }
+            QuantityValue::ByServings(values) => {
+                let mut new_values = Vec::with_capacity(values.len());
+                let mut new_unit = None;
+                for v in values {
+                    let (value, unit) = self.convert2(v.try_into()?, unit, to)?;
+                    new_values.push(value.into());
+                    new_unit = Some(unit);
+                }
+                let q_value = QuantityValue::ByServings(new_values);
+                let unit = new_unit.expect("QuantityValue::ByServings empty");
+                (q_value, unit)
+            }
+        };
+
         Ok(Quantity::with_known_unit(
-            value.into(),
-            output_unit.to_string(),
-            Some(output_unit.clone()),
+            value,
+            unit.to_string(),
+            Some(unit.clone()),
         ))
     }
 
@@ -446,18 +465,24 @@ impl<'a> From<&'a Arc<Unit>> for ConvertTo<'a> {
     }
 }
 
-impl From<ConvertValue> for QuantityValue {
-    fn from(value: ConvertValue) -> Self {
-        Self::Fixed(value.into())
-    }
-}
-
 impl From<ConvertValue> for Value {
     fn from(value: ConvertValue) -> Self {
         match value {
             ConvertValue::Number(n) => Self::Number(n),
             ConvertValue::Range(r) => Self::Range(r),
         }
+    }
+}
+
+impl TryFrom<&Value> for ConvertValue {
+    type Error = ConvertError;
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        let value = match value {
+            Value::Number(n) => ConvertValue::Number(*n),
+            Value::Range(r) => ConvertValue::Range(r.clone()),
+            Value::Text(t) => return Err(ConvertError::TextValue(t.to_string())),
+        };
+        Ok(value)
     }
 }
 
@@ -495,9 +520,6 @@ pub enum ConvertError {
 
     #[error("Tried to convert a text value: {0}")]
     TextValue(String),
-
-    #[error(transparent)]
-    NotScaled(#[from] NotScaled),
 
     #[error("Mixed physical quantities: {from} {to}")]
     MixedQuantities {
@@ -567,8 +589,8 @@ impl UnitCount {
     }
 }
 
-impl crate::ScaledRecipe {
-    /// Convert a [ScaledRecipe](crate::ScaledRecipe) to another [System] in place.
+impl<D: Serialize> Recipe<D> {
+    /// Convert a [Recipe] to another [System] in place.
     pub fn convert(&mut self, to: System, converter: &Converter) -> Result<(), ConvertError> {
         for igr in &mut self.ingredients {
             if let Some(q) = &mut igr.quantity {

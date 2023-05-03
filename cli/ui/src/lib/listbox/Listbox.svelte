@@ -15,7 +15,7 @@
 	});
 </script>
 
-<Listbox bind:value let:open on:change class="font-sans text-base z-100">
+<Listbox bind:value let:open on:change class="font-sans text-base">
 	<div use:floatingRef>
 		<slot name="button" />
 	</div>

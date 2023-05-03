@@ -365,6 +365,7 @@ async fn all_recipes_metadata(State(state): State<Arc<ApiState>>) -> Json<Vec<se
 #[derive(Deserialize)]
 struct RecipeQuery {
     scale: Option<u32>,
+    units: Option<cooklang::convert::System>,
 }
 
 async fn recipe(
@@ -389,13 +390,19 @@ async fn recipe(
     let recipe = state
         .parser
         .parse(&content, entry.name())
-        .map(|recipe| {
-            if let Some(servings) = query.scale {
+        .try_map(|recipe| -> Result<_, StatusCode> {
+            let mut scaled = if let Some(servings) = query.scale {
                 recipe.scale(servings, state.parser.converter())
             } else {
                 recipe.default_scale()
+            };
+            if let Some(system) = query.units {
+                scaled
+                    .convert(system, state.parser.converter())
+                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             }
-        })
+            Ok(scaled)
+        })?
         .map(|r| {
             let ingredient_list = r.ingredient_list(state.parser.converter());
             let mut val = serde_json::to_value(r).unwrap();

@@ -10,7 +10,7 @@ use crate::{
 };
 
 /// Configures the scaling
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub struct ScaleTarget {
     base: u32,
     target: u32,
@@ -50,7 +50,8 @@ impl ScaleTarget {
 }
 
 /// Possible scaled states of a recipe
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
 pub enum Scaled {
     /// The recipe was scaled to its based servings
     ///
@@ -62,7 +63,7 @@ pub enum Scaled {
 }
 
 /// Data from scaling a recipe
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ScaledData {
     /// What the target was
     pub target: ScaleTarget,

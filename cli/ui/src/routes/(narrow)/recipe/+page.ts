@@ -17,7 +17,12 @@ export const load = (async ({ fetch, url }) => {
 	if (path === null) {
 		throw redirect(301, '/');
 	}
-	const apiUrl = `${API}/recipe/${path}`;
+	const apiParams = new URLSearchParams();
+	const scale = url.searchParams.get('scale');
+	if (scale) apiParams.set('scale', scale);
+	const units = url.searchParams.get('units');
+	if (units) apiParams.set('units', units);
+	const apiUrl = `${API}/recipe/${path}?${apiParams}`;
 	const resp = await fetch(apiUrl);
 	return await fetchRecipe(resp);
 }) satisfies PageLoad;
@@ -25,6 +30,9 @@ export const load = (async ({ fetch, url }) => {
 async function fetchRecipe(resp: Response) {
 	if (resp.status === 404) {
 		throw error(404, 'Recipe not found');
+	}
+	if (!resp.ok) {
+		throw error(400);
 	}
 	const data = (await resp.json()) as Resp;
 	if (!is_valid(data.recipe)) {

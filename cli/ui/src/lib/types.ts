@@ -7,6 +7,7 @@ export type Recipe = {
 	timers: Timer[];
 	inline_quantities: Quantity[];
 	ingredient_list: IngredientListEntry[];
+	data: Scale;
 };
 
 export type Metadata = {
@@ -87,6 +88,22 @@ export type GroupedQuantity = {
 export type PhysicalQuantity = 'volume' | 'mass' | 'length' | 'temperature' | 'time';
 
 export type ScaleOutcome = 'Scaled' | 'Fixed' | 'NoQuantity' | 'Error';
+
+export type Scale =
+	| {
+			type: 'DefaultScaling';
+	  }
+	| {
+			type: 'Scaled';
+			target: {
+				base: number;
+				index: number | null;
+				target: number;
+			};
+			ingredients: ScaleOutcome[];
+			cookware: ScaleOutcome[];
+			timers: ScaleOutcome[];
+	  };
 
 /* Other */
 export type Image = { path: string; indexes: [number, number] | null };

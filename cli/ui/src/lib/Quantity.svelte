@@ -1,12 +1,13 @@
 <script lang="ts" context="module">
 	import type { Quantity, QuantityValue, Value } from './types';
 
+	const num = Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
 	export function valueToString(val: Value) {
 		switch (val.type) {
 			case 'number':
-				return val.value.toString();
+				return num.format(val.value);
 			case 'range':
-				return `${val.value.start}-${val.value.end}`;
+				return `${num.format(val.value.start)}-${num.format(val.value.end)}`;
 			case 'text':
 				return val.value;
 		}
