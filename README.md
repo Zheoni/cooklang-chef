@@ -40,9 +40,18 @@ Full user documentation [here](./docs/main.md).
 
 Some key features:
 - [**CLI**](./docs/cli.md). All in one program to manage your recipes.
+
+- **Web UI**. The [CLI](./docs/cli.md) comes with an embedded web UI.
+  - Scale and convert the quantities.
+  - Hot reload of recipes. Just edit the `.cook` file and save.
+  - Open the `.cook` file in a code editor.
+  
+  ![](./images/webui.png)
+
 - **Ingredient references**. You can now refer to ingredients you already used
   before. I think the most important extension to the original cooklang. You can
   read about using references in [this document](./docs/using_references.md).
+
 - **Good error reporting**. Error reports are a top priority. Specially those 
   related to parsing cooklang files.
 

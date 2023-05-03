@@ -26,7 +26,16 @@ call it `cook` to avoid using the same name as the original `CookCLI`.
     ```sh
     chef serve --open
     ```
+    This starts a web server and opens it in the default web browser. You can
+    edit the recipe files and it will automatically update the web on save.
+    The web server also exposes a REST API for the recipes.
 
+    ![](../images/webui.png)
+    
+    This is intended for personal or home use for a couple or reasons:
+    - No strict protection is used.
+    - There is no caching, so every request the recipe file is read from the
+    disk and parsed.
 
 ## Installing
 ### Prebuilt binaries
@@ -97,6 +106,7 @@ warnings_as_errors = false  # treat any warning as an error
 recipe_ref_check = true     # check recipe references
 max_depth = 3               # max depth to search for recipe references
 extensions = 'all'          # enabled extensions
+editor_command = "code -n"  # code editor to open from the web ui
 
 [load]
 units = ["path/to/a/units/file"]
