@@ -17,14 +17,14 @@ call it `cook` to avoid using the same name as the original `CookCLI`.
     ```
     ![](../images/list.png)
 
-- List known units:
-    ```sh
-    chef units --long
-    ```
-
 - Quick conversions
     ```sh
     chef convert 3 cups metric
+    ```
+
+- Web UI
+    ```sh
+    chef serve --open
     ```
 
 
@@ -36,7 +36,9 @@ can find one for Windows.
 
 ### Compiling the CLI
 1. Install the rust compiler and `cargo`, the best way is with
-[rustup](https://rustup.rs/).
+    [rustup](https://rustup.rs/).
+
+    Also, if you want to compile the web UI, you need to install [node](https://nodejs.org/) and [pnpm](https://pnpm.io/).
 2. Clone [this repo](https://github.com/Zheoni/cooklang-rs).
     ```sh
     git clone https://github.com/Zheoni/cooklang-rs
@@ -46,17 +48,30 @@ can find one for Windows.
     ```sh
     cd cli
     ```
-4. To install it, run:
+4. To install it run **ONE** of the following:
     ```sh
+    # enable everything
     cargo install --path .
+
+    # no `serve` cmd (and no web UI)
+    cargo install --path . --no-default-features
+
+    # `serve` cmd but no web UI only the rest API
+    cargo install --path . --no-default-features --features "serve"
     ```
+
+    By default the web UI and the `serve` command will be enabled, you can skip compiling the web UI with:
+    ```sh
+    cargo install --path . --no-default-features --features 
+    ```
+
     This will install the cli in the `cargo` install dir, in your home dir.
     If you followed the instructions when using `rustup`, this dir should be
     in your `PATH` and the binary accesible.
 
 5. Test it:
     ```sh
-    chef --version
+    chef help
     ```
     This should print a usage guide.
 
@@ -88,7 +103,7 @@ units = ["path/to/a/units/file"]
 aisle = "path/to/aisle.conf/file
 ```
 
-`extensions` can be `all`, `none` or a map to extensions like this one
+`extensions` can be `'all'`, `'none'` or a map to extensions like this one
 ```toml
 [extensions]
 MULTINE_STEPS = true
