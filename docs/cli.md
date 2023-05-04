@@ -57,7 +57,15 @@ can find one for Windows.
     ```sh
     cd cli
     ```
-4. To install it run **ONE** of the following:
+4. Build the web UI
+
+    *This is only required if you want to include it in the binary.*
+    ```sh
+    cd ui
+    pnpm install
+    pnpm run build
+    ```
+5. To install it run **ONE** of the following:
     ```sh
     # enable everything
     cargo install --path .
@@ -69,16 +77,14 @@ can find one for Windows.
     cargo install --path . --no-default-features --features "serve"
     ```
 
-    By default the web UI and the `serve` command will be enabled, you can skip compiling the web UI with:
-    ```sh
-    cargo install --path . --no-default-features --features 
-    ```
+    If the `ui` feature is enabled and there is no `ui/build` dir, it will
+    result in a compile error.
 
     This will install the cli in the `cargo` install dir, in your home dir.
     If you followed the instructions when using `rustup`, this dir should be
     in your `PATH` and the binary accesible.
 
-5. Test it:
+6. Test it:
     ```sh
     chef help
     ```

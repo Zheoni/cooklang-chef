@@ -3,7 +3,12 @@ name = "cooklang"
 version = "0.1.0"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
-
+description = "Cooklang parser with opt-in extensions"
+license = "MIT"
+keywords = ["cooklang", "cooking", "recipes"]
+categories = ["parser-implementations"]
+repository = "https://github.com/Zheoni/cooklang-rs"
+readme = "README.md"
 
 [dependencies]
 bitflags = { version = "2", features = ["serde"] }
@@ -21,9 +26,7 @@ once_cell = "1.17"
 enum-map = { version = "2.4", features = ["serde"] }
 humantime = "2"
 tracing = "0.1"
-# TODO change to regular dependency when ariadne updates concolor
-ariadne = { git = "https://github.com/Zheoni/ariadne", branch = "update-concolor", features = ["concolor"] }
-# ariadne = { version = "0.2", features = ["concolor"] }
+ariadne = { version = "0.2.0", features = ["concolor"] }
 either = "1.8"
 finl_unicode = { version = "1.2", features = ["categories"], default-features = false }
 

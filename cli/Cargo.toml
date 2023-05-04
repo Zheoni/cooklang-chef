@@ -2,7 +2,19 @@
 name = "cooklang-chef"
 version = "0.1.0"
 edition = "2021"
-publish = false
+authors = ["Zheoni <zheoni@outlook.es>"]
+description = "CLI to manage cooklang recipes"
+license = "MIT"
+keywords = ["cooklang", "cooking", "recipes", "cli", "chef"]
+categories = ["command-line-utilities", "parser-implementations"]
+repository = "https://github.com/Zheoni/cooklang-rs"
+readme = "README.md"
+include = [
+    "/src",
+    "/Cargo.toml",
+    "/README.md",
+    "/ui/build",
+]
 
 [[bin]]
 path = "src/main.rs"
@@ -16,11 +28,11 @@ tabular = { version = "0.2", features = ["ansi-cell"] }
 serde_json = "1"
 strum = { version = "0.24", features = ["derive"] }
 toml = "0.7"
-cooklang = { path = "../cooklang" }
-cooklang-fs = { path = "../cooklang-fs" }
-cooklang-to-human = { path = "../cooklang-to-human" }
-cooklang-to-cooklang = { path = "../cooklang-to-cooklang" }
-cooklang-to-md = { path = "../cooklang-to-md" }
+cooklang = { version ="0.1.0", path = "../cooklang" }
+cooklang-fs = { version ="0.1.0", path = "../cooklang-fs" }
+cooklang-to-human = { version ="0.1.0", path = "../cooklang-to-human" }
+cooklang-to-cooklang = { version ="0.1.0", path = "../cooklang-to-cooklang" }
+cooklang-to-md = { version ="0.1.0", path = "../cooklang-to-md" }
 textwrap = { version = "0.16", features = ["terminal_size"] }
 humantime = "2.1"
 tracing = "0.1"

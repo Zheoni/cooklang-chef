@@ -12,3 +12,7 @@ members = [
 lto = "thin"
 strip = true
 # opt-level = "s"
+
+# TODO remove in new ariadne release
+[patch.crates-io]
+ariadne = { git = "https://github.com/Zheoni/ariadne", branch = "update-concolor" }

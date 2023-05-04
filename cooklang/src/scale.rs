@@ -38,7 +38,7 @@ impl ScaleTarget {
         self.target as f64 / self.base as f64
     }
 
-    /// Get the index into a [ScalableValue::ByServings]
+    /// Get the index into a [QuantityValue::ByServings]
     pub fn index(&self) -> Option<usize> {
         self.index
     }
@@ -153,7 +153,7 @@ impl Recipe {
 
     /// Scale the recipe to the default values.
     ///
-    /// This collapses the [ScalableValue::ByServings] to a single value.
+    /// This collapses the [QuantityValue::ByServings] to a single value.
     pub fn default_scale(mut self) -> ScaledRecipe {
         default_scale_many(&mut self.ingredients, |igr| {
             igr.quantity.as_mut().map(|q| &mut q.value)

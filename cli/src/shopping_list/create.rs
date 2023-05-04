@@ -18,7 +18,7 @@ pub struct CreateArgs {
     /// Recipe to add to the list
     ///
     /// Name or path to the file. It will use the default scaling of the recipe.
-    /// To use a custom scaling, add '*<servings>' at the end.
+    /// To use a custom scaling, add `*<servings>` at the end.
     recipes: Vec<String>,
 
     /// Output file, none for stdout.
