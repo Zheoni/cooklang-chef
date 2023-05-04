@@ -1,7 +1,7 @@
 //! A [cooklang](https://cooklang.org/) parser with opt-in extensions.
 //!
 //! The extensions creates a superset of the original cooklang language and can
-//! be turned off. To see a detailed list go to [extensions](_extensions).
+//! be turned off. To see a detailed list go to [extensions](https://github.com/Zheoni/cooklang-rs/blob/main/docs/extensions.md).
 //!
 //! Also includes:
 //! - Rich error report with annotated code spans.
@@ -29,11 +29,6 @@ pub mod quantity;
 pub mod scale;
 mod span;
 
-#[cfg(doc)]
-pub mod _extensions {
-    #![doc = include_str!("../../docs/extensions.md")]
-}
-
 use bitflags::bitflags;
 use convert::Converter;
 use error::{CooklangError, CooklangWarning, PassResult};
@@ -43,7 +38,7 @@ pub use model::{Recipe, ScaledRecipe};
 bitflags! {
     /// Extensions bitflags
     ///
-    /// This allows to enable or disable the extensions. See [extensions](_extensions)
+    /// This allows to enable or disable the extensions. See [extensions](https://github.com/Zheoni/cooklang-rs/blob/main/docs/extensions.md)
     /// for a detailed explanation of all of them.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
     pub struct Extensions: u32 {
