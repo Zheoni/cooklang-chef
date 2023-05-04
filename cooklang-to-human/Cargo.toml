@@ -1,6 +1,6 @@
 [package]
 name = "cooklang-to-human"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "Format cooklang in a human friendly way"
@@ -13,7 +13,7 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cooklang = { version ="0.1.0", path = "../cooklang" }
+cooklang = { version = "0.1.1", path = "../cooklang" }
 textwrap = { version = "0.16", features = ["terminal_size"] }
 tabular = { version = "0.2", features = ["ansi-cell"] }
 yansi = "0.5"

@@ -416,7 +416,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ariadne",
  "bitflags 2.2.1",
@@ -443,7 +443,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-chef"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -484,7 +484,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-fs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "camino",
  "cooklang",
@@ -496,7 +496,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-cooklang"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cooklang",
  "textwrap",
@@ -504,7 +504,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-human"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cooklang",
  "humantime",
@@ -516,7 +516,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-md"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cooklang",
  "once_cell",

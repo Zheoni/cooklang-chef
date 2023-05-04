@@ -1,6 +1,6 @@
 [package]
 name = "cooklang-fs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "Utilities for cooklang recipes in a file system"
@@ -14,7 +14,7 @@ readme = "README.md"
 
 [dependencies]
 camino = { version = "1", features = ["serde1"] }
-cooklang = { version ="0.1.0", path = "../cooklang" }
+cooklang = { version = "0.1.1", path = "../cooklang" }
 thiserror = "1"
 tracing = "0.1"
 walkdir = "2"
