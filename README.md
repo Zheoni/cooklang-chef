@@ -2,11 +2,6 @@
 
 A superset of [cooklang](https://cooklang.org/) and related tools.
 
-> ⚠️ This is still work in progress ⚠️
->
-> Almost everything work, but it is still work in progress and can change at any
-> time.
-
 ## What is cooklang
 Cooklang is a markup language for cooking recipes. An in depth explanation can
 be found in [cooklang.org](https://cooklang.org/).
@@ -40,6 +35,13 @@ Full user documentation [here](./docs/main.md).
 
 Some key features:
 - [**CLI**](./docs/cli.md). All in one program to manage your recipes.
+  Install it with[^1]:
+  ```sh
+  cargo install cooklang-chef
+  ```
+[^1]: This method currently has a problem. A dependency has a bug which is solved
+but pending a release. Until then error colors won't work. If that is a big
+problem for you, manually [cloning the repo and compiling will work](./docs/cli.md#compiling-the-cli).
 
 - **Web UI**. The [CLI](./docs/cli.md) comes with an embedded web UI.
   - Scale and convert the quantities.
