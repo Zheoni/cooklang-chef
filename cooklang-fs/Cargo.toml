@@ -14,7 +14,7 @@ readme = "README.md"
 
 [dependencies]
 camino = { version = "1", features = ["serde1"] }
-cooklang = { version = "0.1.1", path = "../cooklang" }
+cooklang = { version = "0.1", path = "../cooklang" }
 thiserror = "1"
 tracing = "0.1"
 walkdir = "2"
