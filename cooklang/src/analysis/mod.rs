@@ -48,9 +48,10 @@ pub enum AnalysisError {
         servings_meta_span: Option<Span>,
     },
 
-    #[error("Unsuported modifier combination with reference: {}", modifiers.inner)]
+    #[error("Unsuported modifier combination with reference: {}", conflict)]
     ConflictingModifiersInReference {
         modifiers: Located<crate::ast::Modifiers>,
+        conflict: crate::ast::Modifiers,
         implicit: bool,
     },
 
@@ -177,17 +178,10 @@ impl RichError for AnalysisError {
             AnalysisError::UnknownTimerUnit { .. } => {
                 help!("Add a unit to the timer")
             }
-            AnalysisError::ConflictingModifiersInReference { modifiers, implicit } => {
+            AnalysisError::ConflictingModifiersInReference { implicit, conflict, .. } => {
                 use crate::ast::Modifiers;
-                let extra = if modifiers.contains(Modifiers::OPT) {
-                    Some("optional")
-                } else if modifiers.contains(Modifiers::HIDDEN) {
-                    Some("hidden")
-                } else {
-                    None
-                };
-
-                if let Some(extra) = extra {
+                if !conflict.contains(Modifiers::NEW | Modifiers::REF) {
+                    let extra = conflict.iter_names().map(|(s, _)| s.to_lowercase()).collect::<Vec<_>>().join(", ");
                     if *implicit {
                         help!(format!("Mark the definition as {extra} or add new ('+') to this."))
                     } else {
@@ -231,28 +225,25 @@ impl RichError for AnalysisWarning {
             AnalysisWarning::UnknownSpecialMetadataKey { key } => vec![label!(key)],
             AnalysisWarning::TextDefiningIngredients { text_span } => vec![label!(text_span)],
             AnalysisWarning::TextValueInReference { quantity_span } => vec![label!(quantity_span)],
-            AnalysisWarning::IncompatibleUnits { a, b, source } => {
-                match source {
-                    crate::quantity::IncompatibleUnits::MissingUnit { found } => {
-                        let m = "this is missing a unit";
-                        let f = "matching this one";
-                        match found {
-                            either::Either::Left(_) => vec![label!(b, m), label!(a, f)],
-                            either::Either::Right(_) => vec![label!(a, m), label!(b, f)],
-                        }
-                    }
-                    crate::quantity::IncompatibleUnits::DifferentPhysicalQuantities {
-                        a: a_q,
-                        b: b_q,
-                    } => {
-                        vec![label!(b, b_q.to_string()), label!(a, a_q.to_string())]
-                    }
-                    crate::quantity::IncompatibleUnits::UnknownDifferentUnits { .. } => {
-                        vec![label!(a, "this unit"), label!(b, "differs from this")]
+            AnalysisWarning::IncompatibleUnits { a, b, source } => match source {
+                crate::quantity::IncompatibleUnits::MissingUnit { found } => {
+                    let m = "this is missing a unit";
+                    let f = "matching this one";
+                    match found {
+                        either::Either::Left(_) => vec![label!(b, m), label!(a, f)],
+                        either::Either::Right(_) => vec![label!(a, m), label!(b, f)],
                     }
                 }
-                // vec![label!(a), label!(b)]
-            }
+                crate::quantity::IncompatibleUnits::DifferentPhysicalQuantities {
+                    a: a_q,
+                    b: b_q,
+                } => {
+                    vec![label!(b, b_q.to_string()), label!(a, a_q.to_string())]
+                }
+                crate::quantity::IncompatibleUnits::UnknownDifferentUnits { .. } => {
+                    vec![label!(a, "this unit"), label!(b, "differs from this")]
+                }
+            },
             AnalysisWarning::InvalidMetadataValue { key, value, .. } => vec![
                 label!(key, "this key"),
                 label!(value, "does not understand this value"),

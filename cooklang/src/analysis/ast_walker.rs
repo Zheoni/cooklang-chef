@@ -274,26 +274,6 @@ impl<'a, 'r> Walker<'a, 'r> {
             defined_in_step: self.define_mode != DefineMode::Components,
         };
 
-        if new_igr.modifiers.contains(Modifiers::RECIPE) {
-            if let Some(checker) = &self.recipe_ref_checker {
-                if !(*checker)(&new_igr.name) {
-                    self.warn(AnalysisWarning::RecipeNotFound {
-                        ref_span: location,
-                        name: new_igr.name.clone(),
-                    });
-                }
-            }
-        }
-
-        if (self.duplicate_mode == DuplicateMode::Reference
-            || self.define_mode == DefineMode::Steps)
-            && new_igr.modifiers.contains(Modifiers::REF)
-        {
-            self.warn(AnalysisWarning::RedundantReferenceModifier {
-                modifiers: ingredient.modifiers.clone(),
-            });
-        }
-
         if let Some((references_to, implicit)) =
             self.resolve_reference(&mut new_igr, location, located_ingredient.modifiers.span())
         {
@@ -384,6 +364,19 @@ impl<'a, 'r> Walker<'a, 'r> {
                 if quantity.value.contains_text_value() {
                     self.warn(AnalysisWarning::TextValueInReference {
                         quantity_span: ingredient.quantity.unwrap().span(),
+                    });
+                }
+            }
+        }
+
+        if new_igr.modifiers.contains(Modifiers::RECIPE)
+            && !new_igr.modifiers.contains(Modifiers::REF)
+        {
+            if let Some(checker) = &self.recipe_ref_checker {
+                if !(*checker)(&new_igr.name) {
+                    self.warn(AnalysisWarning::RecipeNotFound {
+                        ref_span: location,
+                        name: new_igr.name.clone(),
                     });
                 }
             }
@@ -538,6 +531,26 @@ impl<'a, 'r> Walker<'a, 'r> {
             !other.modifiers().contains(Modifiers::REF) && new_name == other.name().to_lowercase()
         });
 
+        if (self.duplicate_mode == DuplicateMode::Reference
+            || self.define_mode == DefineMode::Steps)
+            && new.modifiers().contains(Modifiers::REF)
+            && !new.modifiers().contains(Modifiers::NEW)
+        {
+            self.warn(AnalysisWarning::RedundantReferenceModifier {
+                modifiers: Located::new(*new.modifiers(), modifiers_location),
+            });
+        }
+
+        if new.modifiers().contains(Modifiers::NEW | Modifiers::REF) {
+            self.context
+                .error(AnalysisError::ConflictingModifiersInReference {
+                    modifiers: Located::new(*new.modifiers(), modifiers_location),
+                    conflict: *new.modifiers(),
+                    implicit: false,
+                });
+            return None;
+        }
+
         let treat_as_reference = !new.modifiers().contains(Modifiers::NEW)
             && (new.modifiers().contains(Modifiers::REF)
                 || self.define_mode == DefineMode::Steps
@@ -550,29 +563,34 @@ impl<'a, 'r> Walker<'a, 'r> {
                 // Set of inherited modifiers from the definition
                 let inherited = *referenced.modifiers() & C::inherit_modifiers();
                 // Set of conflict modifiers
-                let mut conflict = *new.modifiers() & C::conflict_modifiers();
-                // remove inherited from conflict
-                // C::inherit_modifiers() & C::conclict_modifiers() is the set
-                // of that is only allowed when the definition has it
-                conflict.remove(inherited);
+                //   - any modifiers not inherited
+                //   - is not ref
+                // OR
+                //   - is new, new is always a conflict with ref
+                // except ref and new, the only modifiers a reference can have is those inherited
+                // from the definition
+                let conflict = (*new.modifiers() & !inherited & !Modifiers::REF)
+                    | (*new.modifiers() & Modifiers::NEW);
 
+                // Apply inherited
                 *new.modifiers() |= inherited;
 
+                // is implicit if we are here (is a reference) and the reference modifier is not set
                 let implicit = !new.modifiers().contains(Modifiers::REF);
 
                 new.set_reference(references_to, &mut self.content);
 
                 if !conflict.is_empty() {
-                    self.context
-                        .error(AnalysisError::ConflictingModifiersInReference {
-                            modifiers: Located::new(*new.modifiers(), modifiers_location),
-                            implicit,
-                        });
+                    self.error(AnalysisError::ConflictingModifiersInReference {
+                        modifiers: Located::new(*new.modifiers(), modifiers_location),
+                        conflict,
+                        implicit,
+                    });
                 }
 
                 return Some((references_to, implicit));
             } else {
-                self.context.error(AnalysisError::ReferenceNotFound {
+                self.error(AnalysisError::ReferenceNotFound {
                     name: new.name().to_string(),
                     reference_span: location,
                 });
@@ -588,12 +606,7 @@ trait RefComponent: Sized {
     fn name(&self) -> &str;
     fn all(content: &mut RecipeContent) -> &mut [Self];
 
-    fn inherit_modifiers() -> Modifiers {
-        Modifiers::HIDDEN | Modifiers::OPT
-    }
-    fn conflict_modifiers() -> Modifiers {
-        Modifiers::NEW | Modifiers::HIDDEN | Modifiers::OPT
-    }
+    fn inherit_modifiers() -> Modifiers;
 
     fn set_reference(&mut self, references_to: usize, content: &mut RecipeContent) {
         *self.modifiers() |= Modifiers::REF;
@@ -623,6 +636,10 @@ impl RefComponent for Ingredient {
     fn all(content: &mut RecipeContent) -> &mut [Self] {
         &mut content.ingredients
     }
+
+    fn inherit_modifiers() -> Modifiers {
+        Modifiers::HIDDEN | Modifiers::OPT | Modifiers::RECIPE
+    }
 }
 
 impl RefComponent for Cookware {
@@ -640,6 +657,10 @@ impl RefComponent for Cookware {
 
     fn all(content: &mut RecipeContent) -> &mut [Self] {
         &mut content.cookware
+    }
+
+    fn inherit_modifiers() -> Modifiers {
+        Modifiers::HIDDEN | Modifiers::OPT
     }
 }
 

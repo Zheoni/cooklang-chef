@@ -312,6 +312,22 @@ fn cookware<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Cookware<'
     });
     let modifiers = parse_modifiers(line, modifiers_tokens, modifiers_pos);
 
+    if modifiers.contains(Modifiers::RECIPE) {
+        let pos = modifiers_tokens
+            .iter()
+            .find(|t| t.kind == T![@])
+            .map(|t| t.span)
+            .expect("no recipe token in modifiers with recipe");
+
+        line.error(ParserError::ComponentPartInvalid {
+            container: COOKWARE,
+            what: "modifiers",
+            reason: "recipe modifier not allowed in cookware",
+            labels: vec![(pos, Some("remove this".into()))],
+            help: None,
+        });
+    }
+
     Some(ast::Cookware {
         name,
         alias,
