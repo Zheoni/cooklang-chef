@@ -28,6 +28,7 @@ pub fn print_human(
     header(w, recipe)?;
     metadata(w, recipe)?;
     ingredients(w, recipe, converter)?;
+    cookware(w, recipe)?;
     steps(w, recipe)?;
 
     Ok(())
@@ -248,6 +249,39 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
         writeln!(w)?;
     }
     writeln!(w)
+}
+
+fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
+    if recipe.cookware.is_empty() {
+        return Ok(());
+    }
+    writeln!(w, "Cookware:")?;
+    let mut table = Table::new("  {:<} {:<}    {:<} {:<}");
+    for item in recipe
+        .cookware
+        .iter()
+        .filter(|cw| !cw.is_reference() && !cw.is_hidden())
+    {
+        let mut row = Row::new()
+            .with_cell(item.display_name())
+            .with_cell(if item.is_optional() { "(optional)" } else { "" });
+
+        if let Some(q) = &item.quantity {
+            row.add_cell(q.to_string());
+        } else {
+            row.add_cell("");
+        }
+
+        if let Some(note) = &item.note {
+            row.add_cell(format!("({note})"));
+        } else {
+            row.add_cell("");
+        }
+
+        table.add_row(row);
+    }
+    writeln!(w, "{table}")?;
+    Ok(())
 }
 
 fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {

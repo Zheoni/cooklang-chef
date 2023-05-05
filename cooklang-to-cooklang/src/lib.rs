@@ -78,9 +78,9 @@ fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> io::Res
                         let cw = &recipe.cookware[c.index];
                         ComponentFormatter {
                             kind: c.kind,
-                            modifiers: Modifiers::empty(),
+                            modifiers: cw.modifiers(),
                             name: Some(&cw.name),
-                            alias: None,
+                            alias: cw.alias.as_deref(),
                             quantity: cw.quantity.clone().map(|v| Quantity::new(v, None)).as_ref(),
                             note: None,
                         }

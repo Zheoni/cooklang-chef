@@ -52,6 +52,10 @@ pub fn print_md(
 }
 
 fn frontmatter(mut w: impl io::Write, metadata: &Metadata) -> Result<()> {
+    if metadata.map.is_empty() {
+        return Ok(());
+    }
+
     #[derive(serde::Serialize)]
     struct CustomMetadata<'a> {
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -91,29 +95,30 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
 
     writeln!(w, "## Ingredients")?;
 
-    for ingredient in recipe
-        .ingredients
-        .iter()
-        .filter(|i| !i.is_hidden() && !i.is_reference())
-    {
+    for entry in recipe.ingredient_list(converter) {
+        let ingredient = &recipe.ingredients[entry.index];
+        if ingredient.is_hidden() {
+            continue;
+        }
+
         write!(w, "- ")?;
-        if let Some(total_quantity) = ingredient
-            .total_quantity(&recipe.ingredients, converter)
-            .ok()
-            .flatten()
-        {
-            write!(w, "*{total_quantity}* ")?;
-        } else {
-            let list = ingredient
-                .all_quantities(&recipe.ingredients)
-                .map(ToString::to_string)
-                .reduce(|s, q| format!("{s}, {q}"));
-            if let Some(list) = list {
-                write!(w, "*{list}* ")?;
-            }
+        let q = match entry.quantity.total() {
+            cooklang::quantity::TotalQuantity::None => None,
+            cooklang::quantity::TotalQuantity::Single(q) => Some(q.to_string()),
+            cooklang::quantity::TotalQuantity::Many(m) => m
+                .into_iter()
+                .map(|q| q.to_string())
+                .reduce(|s, q| format!("{s}, {q}")),
+        };
+        if let Some(q) = q {
+            write!(w, "*{q}* ")?;
         }
 
         write!(w, "{}", ingredient.display_name())?;
+
+        if ingredient.is_optional() {
+            write!(w, " (optional)")?;
+        }
 
         if let Some(note) = &ingredient.note {
             write!(w, " ({note})")?;
@@ -131,12 +136,25 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     }
 
     writeln!(w, "## Cookware")?;
-    for item in &recipe.cookware {
+    for item in recipe
+        .cookware
+        .iter()
+        .filter(|cw| !cw.is_reference() && !cw.is_hidden())
+    {
         write!(w, "- ")?;
         if let Some(value) = &item.quantity {
             write!(w, "*{value}* ")?;
         }
-        writeln!(w, "{}", item.name)?;
+        write!(w, "{}", item.display_name())?;
+
+        if item.is_optional() {
+            write!(w, " (optional)")?;
+        }
+
+        if let Some(note) = &item.note {
+            write!(w, " ({note})")?;
+        }
+        writeln!(w)?;
     }
 
     writeln!(w)?;

@@ -1,6 +1,6 @@
 [package]
 name = "cooklang-to-cooklang"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "Format cooklang back to cooklang"
@@ -13,5 +13,5 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cooklang = { version = "0.1", path = "../cooklang" }
+cooklang = { version = "0.2", path = "../cooklang" }
 textwrap = { version = "0.16", features = ["terminal_size"] }
