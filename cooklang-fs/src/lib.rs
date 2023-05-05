@@ -285,7 +285,7 @@ fn process_entry(dir_entry: &DirEntry) -> Option<(&str, &Utf8Path)> {
 
 impl Cache {
     fn get(&self, name: &str, path: &Utf8Path) -> Option<Utf8PathBuf> {
-        let v = self.recipes.get(name)?;
+        let v = self.recipes.get(&name.to_lowercase())?;
         v.iter()
             .find(|&p| p == path)
             .or_else(|| if name == path { v.first() } else { None })
@@ -293,14 +293,14 @@ impl Cache {
     }
 
     fn insert(&mut self, name: &str, path: &Utf8Path) {
-        let recipes = self.recipes.entry(name.to_string()).or_default();
+        let recipes = self.recipes.entry(name.to_lowercase()).or_default();
         let pos = recipes.partition_point(|p| p.components().count() < path.components().count());
         recipes.insert(pos, path.to_path_buf());
         self.non_existent.remove(path.as_str());
     }
 
     fn remove(&mut self, name: &str, path: &Utf8Path) {
-        if let Some(recipes) = self.recipes.get_mut(name) {
+        if let Some(recipes) = self.recipes.get_mut(&name.to_lowercase()) {
             // can't do swap so "outer" recipes remain first
             if let Some(index) = recipes.iter().position(|r| r == path) {
                 recipes.remove(index);
