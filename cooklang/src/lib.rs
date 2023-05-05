@@ -43,9 +43,9 @@ bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
     pub struct Extensions: u32 {
         const MULTINE_STEPS        = 1 << 0;
-        const INGREDIENT_MODIFIERS = 1 << 1;
-        const INGREDIENT_NOTE      = 1 << 2;
-        const INGREDIENT_ALIAS     = 1 << 3;
+        const COMPONENT_MODIFIERS  = 1 << 1;
+        const COMPONENT_NOTE       = 1 << 2;
+        const COMPONENT_ALIAS      = 1 << 3;
         const SECTIONS             = 1 << 4;
         const ADVANCED_UNITS       = 1 << 5;
         const MODES                = 1 << 6;
@@ -53,10 +53,10 @@ bitflags! {
         const TEXT_STEPS           = 1 << 8;
         const RANGE_VALUES         = 1 << 9;
 
-        /// Enables [Self::INGREDIENT_MODIFIERS], [Self::INGREDIENT_NOTE] and [Self::INGREDIENT_ALIAS]
-        const INGREDIENT_ALL = Self::INGREDIENT_MODIFIERS.bits()
-                             | Self::INGREDIENT_ALIAS.bits()
-                             | Self::INGREDIENT_NOTE.bits();
+        /// Enables [Self::COMPONENT_MODIFIERS], [Self::COMPONENT_NOTE] and [Self::COMPONENT_ALIAS]
+        const COMPONENT_ALL = Self::COMPONENT_MODIFIERS.bits()
+                             | Self::COMPONENT_ALIAS.bits()
+                             | Self::COMPONENT_NOTE.bits();
     }
 }
 

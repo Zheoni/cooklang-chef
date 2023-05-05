@@ -86,7 +86,7 @@ fn compare_items(expected: &Yaml, got: &cooklang::model::Item, recipe: &cooklang
                 assert_eq!(tyype, "ingredient");
                 assert!(i.alias.is_none());
                 assert!(i.note.is_none());
-                assert!(i.referenced_from().is_empty());
+                assert!(i.relation.referenced_from().is_empty());
                 assert!(!i.is_hidden());
                 assert!(!i.is_optional());
                 assert!(!i.is_recipe());

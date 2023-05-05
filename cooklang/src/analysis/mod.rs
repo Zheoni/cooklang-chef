@@ -48,9 +48,18 @@ pub enum AnalysisError {
         servings_meta_span: Option<Span>,
     },
 
-    #[error("Unsuported modifier combination with reference")]
-    ConflictingModifiers {
+    #[error("Unsuported modifier combination with reference: {}", modifiers.inner)]
+    ConflictingModifiersInReference {
         modifiers: Located<crate::ast::Modifiers>,
+        implicit: bool,
+    },
+
+    #[error("A {container} reference cannot contain: {what}")]
+    ComponentPartNotAllowedInReference {
+        container: &'static str,
+        what: &'static str,
+        to_remove: Span,
+        implicit: bool,
     },
 }
 
@@ -144,7 +153,12 @@ impl RichError for AnalysisError {
                     vec![label!(value_span)]
                 }
             }
-            AnalysisError::ConflictingModifiers { modifiers } => vec![label![modifiers]],
+            AnalysisError::ConflictingModifiersInReference { modifiers, .. } => {
+                vec![label![modifiers]]
+            }
+            AnalysisError::ComponentPartNotAllowedInReference { to_remove, .. } => {
+                vec![label![to_remove, "remove this"]]
+            }
         }
     }
 
@@ -163,9 +177,7 @@ impl RichError for AnalysisError {
             AnalysisError::UnknownTimerUnit { .. } => {
                 help!("Add a unit to the timer")
             }
-            AnalysisError::BadTimerUnit { .. } => None,
-            AnalysisError::ScalableValueManyConflict { .. } => None,
-            AnalysisError::ConflictingModifiers { modifiers } => {
+            AnalysisError::ConflictingModifiersInReference { modifiers, implicit } => {
                 use crate::ast::Modifiers;
                 let extra = if modifiers.contains(Modifiers::OPT) {
                     Some("optional")
@@ -176,22 +188,32 @@ impl RichError for AnalysisError {
                 };
 
                 if let Some(extra) = extra {
-                    help!(format!("Mark the definition as {extra}, or make this a definition for this to be {extra}."))
+                    if *implicit {
+                        help!(format!("Mark the definition as {extra} or add new ('+') to this."))
+                    } else {
+                        help!(format!("Mark the definition as {extra} or remove the reference ('&')."))
+                    }
                 } else {
                     None
                 }
             }
+            _ => None
         }
     }
 
     fn note(&self) -> Option<Cow<'static, str>> {
         use crate::error::note;
         match self {
-            AnalysisError::ConflictingModifiers { .. } => {
-                note!("Reference ('&') modifier can only be combined with recipe ('@')")
-            }
             AnalysisError::UnknownTimerUnit { .. } => {
                 note!("With the ADVANCED_UNITS extensions, timers are required to have a time unit")
+            }
+            AnalysisError::ConflictingModifiersInReference { implicit, .. }
+            | AnalysisError::ComponentPartNotAllowedInReference { implicit, .. } => {
+                if *implicit {
+                    note!("The reference ('&') is implicit.")
+                } else {
+                    None
+                }
             }
             _ => None,
         }

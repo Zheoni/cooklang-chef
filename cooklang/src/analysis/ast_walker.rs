@@ -262,24 +262,15 @@ impl<'a, 'r> Walker<'a, 'r> {
 
         let name = ingredient.name.text_trimmed();
 
-        let same_name = self
-            .content
-            .ingredients
-            .iter()
-            // find the LAST ingredient with the same name
-            .rposition(|igr| {
-                !igr.modifiers.contains(Modifiers::REF)
-                    && igr.name.to_lowercase() == name.to_lowercase()
-            });
-
         let mut new_igr = Ingredient {
             name: name.into_owned(),
             alias: ingredient.alias.map(|t| t.text_trimmed().into_owned()),
             quantity: ingredient.quantity.clone().map(|q| self.quantity(q, true)),
             note: ingredient.note.map(|n| n.text_trimmed().into_owned()),
             modifiers: ingredient.modifiers.clone().take(),
-            references_to: None,
-            referenced_from: Default::default(),
+            relation: ComponentRelation::Definition {
+                referenced_from: Vec::new(),
+            },
             defined_in_step: self.define_mode != DefineMode::Components,
         };
 
@@ -303,95 +294,88 @@ impl<'a, 'r> Walker<'a, 'r> {
             });
         }
 
-        let treat_as_reference = !new_igr.modifiers.contains(Modifiers::NEW)
-            && (new_igr.modifiers.contains(Modifiers::REF)
-                || self.define_mode == DefineMode::Steps
-                || same_name.is_some() && self.duplicate_mode == DuplicateMode::Reference);
+        if let Some((references_to, implicit)) =
+            self.resolve_reference(&mut new_igr, location, located_ingredient.modifiers.span())
+        {
+            let referenced = &self.content.ingredients[references_to];
 
-        if treat_as_reference {
-            new_igr.modifiers |= Modifiers::REF; // mark as ref if not marked before
+            // When the ingredient is not defined in a step, only the definition
+            // or the references can have quantities.
+            // This is to avoid confusion when calculating the total amount.
+            //  - If the user defines the ingredient in a ingredient list with
+            //    a quantity and later references it with a quantity, what does
+            //    the definition quantity mean? total? partial and the reference
+            //    a portion used? Too messy. This situation is prohibited
+            //  - If the user defines the ingredient directly in a step, it's
+            //    quantity is used there, and the total is the sum of itself and
+            //    all of its references. All clear.
+            if referenced.quantity.is_some()
+                && new_igr.quantity.is_some()
+                && !referenced.defined_in_step
+            {
+                let definition_span = self.ingredient_locations[references_to].span();
+                self.context
+                    .error(AnalysisError::ConflictingReferenceQuantities {
+                        ingredient_name: new_igr.name.to_string(),
+                        definition_span,
+                        reference_span: location,
+                    });
+            }
 
-            if let Some(referenced_index) = same_name {
-                let referenced = &self.content.ingredients[referenced_index];
-
-                // inherit hidden and optional from definition
-                new_igr.modifiers |= referenced.modifiers & (Modifiers::HIDDEN | Modifiers::OPT);
-
-                // When the ingredient is not defined in a step, only the definition
-                // or the references can have quantities.
-                // This is to avoid confusion when calculating the total amount.
-                //  - If the user defines the ingredient in a ingredient list with
-                //    a quantity and later references it with a quantity, what does
-                //    the definition quantity mean? total? partial and the reference
-                //    a portion used? Too messy. This situation is prohibited
-                //  - If the user defines the ingredient directly in a step, it's
-                //    quantity is used there, and the total is the sum of itself and
-                //    all of its references. All clear.
-                if referenced.quantity.is_some()
-                    && new_igr.quantity.is_some()
-                    && !referenced.defined_in_step
-                {
-                    let definition_span = self.ingredient_locations[referenced_index].span();
-                    self.context
-                        .error(AnalysisError::ConflictingReferenceQuantities {
-                            ingredient_name: new_igr.name.to_string(),
-                            definition_span,
-                            reference_span: location,
+            if self.extensions.contains(Extensions::ADVANCED_UNITS) {
+                if let Some(new_quantity) = &new_igr.quantity {
+                    let all_quantities = std::iter::once(references_to)
+                        .chain(referenced.relation.referenced_from().iter().copied())
+                        .filter_map(|index| {
+                            self.content.ingredients[index]
+                                .quantity
+                                .as_ref()
+                                .map(|q| (index, q))
                         });
-                }
-
-                if self.extensions.contains(Extensions::ADVANCED_UNITS) {
-                    if let Some(new_quantity) = &new_igr.quantity {
-                        let all_quantities = std::iter::once(referenced_index)
-                            .chain(referenced.referenced_from.iter().copied())
-                            .filter_map(|index| {
-                                self.content.ingredients[index]
-                                    .quantity
-                                    .as_ref()
-                                    .map(|q| (index, q))
+                    for (index, q) in all_quantities {
+                        if let Err(e) = q.is_compatible(new_quantity, self.converter) {
+                            let old_q_loc =
+                                self.ingredient_locations[index].quantity.as_ref().unwrap();
+                            let a = old_q_loc
+                                .unit
+                                .as_ref()
+                                .map(|l| l.span())
+                                .unwrap_or(old_q_loc.span());
+                            let new_q_loc = located_ingredient.quantity.as_ref().unwrap();
+                            let b = new_q_loc
+                                .unit
+                                .as_ref()
+                                .map(|l| l.span())
+                                .unwrap_or(new_q_loc.span());
+                            self.context.warn(AnalysisWarning::IncompatibleUnits {
+                                a,
+                                b,
+                                source: e,
                             });
-                        for (index, q) in all_quantities {
-                            if let Err(e) = q.is_compatible(new_quantity, self.converter) {
-                                let old_q_loc =
-                                    self.ingredient_locations[index].quantity.as_ref().unwrap();
-                                let a = old_q_loc
-                                    .unit
-                                    .as_ref()
-                                    .map(|l| l.span())
-                                    .unwrap_or(old_q_loc.span());
-                                let new_q_loc = located_ingredient.quantity.as_ref().unwrap();
-                                let b = new_q_loc
-                                    .unit
-                                    .as_ref()
-                                    .map(|l| l.span())
-                                    .unwrap_or(new_q_loc.span());
-                                self.context.warn(AnalysisWarning::IncompatibleUnits {
-                                    a,
-                                    b,
-                                    source: e,
-                                });
-                            }
                         }
                     }
                 }
+            }
 
-                if referenced.modifiers.contains(Modifiers::RECIPE)
-                    && !new_igr.modifiers.contains(Modifiers::RECIPE)
-                {
-                    self.context
-                        .warn(AnalysisWarning::ReferenceToRecipeMissing {
-                            modifiers: ingredient.modifiers,
-                            ingredient_span: location,
-                            referenced_span: self.ingredient_locations[referenced_index].span(),
-                        })
-                }
+            if referenced.modifiers.contains(Modifiers::RECIPE)
+                && !new_igr.modifiers.contains(Modifiers::RECIPE)
+            {
+                self.context
+                    .warn(AnalysisWarning::ReferenceToRecipeMissing {
+                        modifiers: ingredient.modifiers,
+                        ingredient_span: location,
+                        referenced_span: self.ingredient_locations[references_to].span(),
+                    })
+            }
 
-                new_igr.references_to = Some(referenced_index);
-            } else {
-                self.error(AnalysisError::ReferenceNotFound {
-                    name: new_igr.name.to_string(),
-                    reference_span: location,
-                });
+            if let Some(note) = &located_ingredient.note {
+                self.context
+                    .error(AnalysisError::ComponentPartNotAllowedInReference {
+                        container: "ingredient",
+                        what: "note",
+                        to_remove: note.span(),
+                        implicit,
+                    })
             }
 
             if let Some(quantity) = &new_igr.quantity {
@@ -405,39 +389,51 @@ impl<'a, 'r> Walker<'a, 'r> {
             }
         }
 
-        // REF cannot appear in certain combinations
-        if new_igr.modifiers.contains(Modifiers::REF)
-            && new_igr
-                .modifiers
-                .intersects(Modifiers::NEW | Modifiers::HIDDEN | Modifiers::OPT)
-        {
-            self.error(AnalysisError::ConflictingModifiers {
-                modifiers: located_ingredient.modifiers.clone(),
-            });
-            new_igr.modifiers = Modifiers::empty();
-        }
-
         self.ingredient_locations.push(located_ingredient);
-        let new_index = self.content.ingredients.len();
-        if let Some(referenced_index) = new_igr.references_to {
-            self.content.ingredients[referenced_index]
-                .referenced_from
-                .push(new_index)
-        };
         self.content.ingredients.push(new_igr);
-
-        new_index
+        self.content.ingredients.len() - 1
     }
 
     fn cookware(&mut self, cookware: Located<ast::Cookware<'a>>) -> usize {
-        let (cookware, _span) = cookware.take_pair();
+        let located_cookware = cookware.clone();
+        let (cookware, location) = cookware.take_pair();
 
-        let new_cookware = Cookware {
+        let mut new_cw = Cookware {
             name: cookware.name.text_trimmed().into_owned(),
+            alias: cookware.alias.map(|t| t.text_trimmed().into_owned()),
             quantity: cookware.quantity.map(|q| self.value(q.inner, false)),
+            note: cookware.note.map(|n| n.text_trimmed().into_owned()),
+            modifiers: cookware.modifiers.clone().take(),
+            relation: ComponentRelation::Definition {
+                referenced_from: Vec::new(),
+            },
         };
 
-        self.content.cookware.push(new_cookware);
+        if let Some((references_to, implicit)) =
+            self.resolve_reference(&mut new_cw, location, located_cookware.modifiers.span())
+        {
+            let _referenced = &self.content.cookware[references_to];
+
+            if let Some(note) = &located_cookware.note {
+                self.error(AnalysisError::ComponentPartNotAllowedInReference {
+                    container: "cookware",
+                    what: "note",
+                    to_remove: note.span(),
+                    implicit,
+                });
+            }
+
+            if let Some(q) = &located_cookware.quantity {
+                self.error(AnalysisError::ComponentPartNotAllowedInReference {
+                    container: "cookware",
+                    what: "quantity",
+                    to_remove: q.span(),
+                    implicit,
+                });
+            }
+        }
+
+        self.content.cookware.push(new_cw);
         self.content.cookware.len() - 1
     }
 
@@ -527,6 +523,123 @@ impl<'a, 'r> Walker<'a, 'r> {
         }
 
         value
+    }
+
+    fn resolve_reference<C: RefComponent>(
+        &mut self,
+        new: &mut C,
+        location: Span,
+        modifiers_location: Span,
+    ) -> Option<(usize, bool)> {
+        let new_name = new.name().to_lowercase();
+
+        // find the LAST component with the same name
+        let same_name = C::all(&mut self.content).iter_mut().rposition(|other| {
+            !other.modifiers().contains(Modifiers::REF) && new_name == other.name().to_lowercase()
+        });
+
+        let treat_as_reference = !new.modifiers().contains(Modifiers::NEW)
+            && (new.modifiers().contains(Modifiers::REF)
+                || self.define_mode == DefineMode::Steps
+                || same_name.is_some() && self.duplicate_mode == DuplicateMode::Reference);
+
+        if treat_as_reference {
+            if let Some(references_to) = same_name {
+                let referenced = &mut C::all(&mut self.content)[references_to];
+
+                // Set of inherited modifiers from the definition
+                let inherited = *referenced.modifiers() & C::inherit_modifiers();
+                // Set of conflict modifiers
+                let mut conflict = *new.modifiers() & C::conflict_modifiers();
+                // remove inherited from conflict
+                // C::inherit_modifiers() & C::conclict_modifiers() is the set
+                // of that is only allowed when the definition has it
+                conflict.remove(inherited);
+
+                *new.modifiers() |= inherited;
+
+                let implicit = !new.modifiers().contains(Modifiers::REF);
+
+                new.set_reference(references_to, &mut self.content);
+
+                if !conflict.is_empty() {
+                    self.context
+                        .error(AnalysisError::ConflictingModifiersInReference {
+                            modifiers: Located::new(*new.modifiers(), modifiers_location),
+                            implicit,
+                        });
+                }
+
+                return Some((references_to, implicit));
+            } else {
+                self.context.error(AnalysisError::ReferenceNotFound {
+                    name: new.name().to_string(),
+                    reference_span: location,
+                });
+            }
+        }
+        None
+    }
+}
+
+trait RefComponent: Sized {
+    fn relation(&mut self) -> &mut ComponentRelation;
+    fn modifiers(&mut self) -> &mut Modifiers;
+    fn name(&self) -> &str;
+    fn all(content: &mut RecipeContent) -> &mut [Self];
+
+    fn inherit_modifiers() -> Modifiers {
+        Modifiers::HIDDEN | Modifiers::OPT
+    }
+    fn conflict_modifiers() -> Modifiers {
+        Modifiers::NEW | Modifiers::HIDDEN | Modifiers::OPT
+    }
+
+    fn set_reference(&mut self, references_to: usize, content: &mut RecipeContent) {
+        *self.modifiers() |= Modifiers::REF;
+        *self.relation() = ComponentRelation::Reference { references_to };
+        let all = Self::all(content);
+        let new_index = all.len();
+        match all[references_to].relation() {
+            ComponentRelation::Definition { referenced_from } => referenced_from.push(new_index),
+            ComponentRelation::Reference { .. } => panic!("Reference to reference"),
+        }
+    }
+}
+
+impl RefComponent for Ingredient {
+    fn relation(&mut self) -> &mut ComponentRelation {
+        &mut self.relation
+    }
+
+    fn modifiers(&mut self) -> &mut Modifiers {
+        &mut self.modifiers
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn all(content: &mut RecipeContent) -> &mut [Self] {
+        &mut content.ingredients
+    }
+}
+
+impl RefComponent for Cookware {
+    fn relation(&mut self) -> &mut ComponentRelation {
+        &mut self.relation
+    }
+
+    fn modifiers(&mut self) -> &mut Modifiers {
+        &mut self.modifiers
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn all(content: &mut RecipeContent) -> &mut [Self] {
+        &mut content.cookware
     }
 }
 

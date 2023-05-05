@@ -79,8 +79,8 @@ impl ScaledRecipe {
                 .map(|data| {
                     // Color in list depends on outcome of definition and all references
                     let mut outcome = &data.ingredients[index]; // temp value
-                    let all_indices =
-                        std::iter::once(index).chain(ingredient.referenced_from().iter().copied());
+                    let all_indices = std::iter::once(index)
+                        .chain(ingredient.relation.referenced_from().iter().copied());
                     for index in all_indices {
                         match &data.ingredients[index] {
                             e @ ScaleOutcome::Error(_) => return e, // if err, return
@@ -173,10 +173,9 @@ pub struct Ingredient {
     pub quantity: Option<Quantity>,
     /// Note
     pub note: Option<String>,
-
+    /// How the cookware is related to others
+    pub relation: ComponentRelation,
     pub(crate) modifiers: Modifiers,
-    pub(crate) references_to: Option<usize>,
-    pub(crate) referenced_from: Vec<usize>,
     pub(crate) defined_in_step: bool, // TODO maybe move this into analysis?, is not needed in the model
 }
 
@@ -213,13 +212,6 @@ impl Ingredient {
         self.modifiers.contains(Modifiers::REF)
     }
 
-    /// Gets a list of the ingredients referencing this one.
-    ///
-    /// Returns a list of indices to [Recipe::ingredients].
-    pub fn referenced_from(&self) -> &[usize] {
-        &self.referenced_from
-    }
-
     /// Calculates the total quantity adding all the quantities from the
     /// references.
     pub fn total_quantity<'a>(
@@ -245,7 +237,8 @@ impl Ingredient {
     ) -> impl Iterator<Item = &Quantity> {
         std::iter::once(self.quantity.as_ref())
             .chain(
-                self.referenced_from
+                self.relation
+                    .referenced_from()
                     .iter()
                     .copied()
                     .map(|i| all_ingredients[i].quantity.as_ref()),
@@ -259,10 +252,43 @@ impl Ingredient {
 pub struct Cookware {
     /// Name
     pub name: String,
+    /// Alias
+    pub alias: Option<String>,
     /// Amount needed
     ///
     /// Note that this is a value, not a quantity, so it doesn't have units.
     pub quantity: Option<QuantityValue>,
+    /// Note
+    pub note: Option<String>,
+    /// How the cookware is related to others
+    pub relation: ComponentRelation,
+    pub(crate) modifiers: Modifiers,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub enum ComponentRelation {
+    Definition { referenced_from: Vec<usize> },
+    Reference { references_to: usize },
+}
+
+impl ComponentRelation {
+    /// Gets a list of the components referencing this one.
+    ///
+    /// Returns a list of indices to the corresponding vec in [Recipe].
+    pub fn referenced_from(&self) -> &[usize] {
+        match self {
+            ComponentRelation::Definition { referenced_from } => &referenced_from,
+            ComponentRelation::Reference { .. } => &[],
+        }
+    }
+
+    /// Get the index the relations references to
+    pub fn references_to(&self) -> Option<usize> {
+        match self {
+            ComponentRelation::Definition { .. } => None,
+            ComponentRelation::Reference { references_to } => Some(*references_to),
+        }
+    }
 }
 
 /// A recipe timer

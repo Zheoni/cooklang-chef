@@ -1,5 +1,5 @@
 use crate::{
-    ast::{self, Modifiers},
+    ast::{self, Modifiers, Text},
     context::Recover,
     error::label,
     lexer::T,
@@ -114,19 +114,8 @@ fn modifiers<'t>(line: &mut LineParser<'t, '_>) -> &'t [Token] {
     line.consume_while(|t| matches!(t, T![@] | T![&] | T![?] | T![+] | T![-]))
 }
 
-const INGREDIENT: &str = "ingredient";
-const COOKWARE: &str = "cookware";
-const TIMER: &str = "timer";
-
-fn ingredient<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Ingredient<'input>> {
-    // Parse
-    line.consume(T![@])?;
-    let modifiers_pos = line.current_offset();
-    let modifiers_tokens = modifiers(line);
-    let name_offset = line.current_offset();
-    let body = comp_body(line)?;
-    let note = line
-        .extension(Extensions::INGREDIENT_NOTE)
+fn note<'input>(line: &mut LineParser<'_, 'input>) -> Option<Text<'input>> {
+    line.extension(Extensions::COMPONENT_NOTE)
         .then(|| {
             line.with_recover(|line| {
                 line.consume(T!['('])?;
@@ -136,67 +125,21 @@ fn ingredient<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Ingredie
                 Some(line.text(offset, note))
             })
         })
-        .flatten();
-
-    // Build text(s) and checks
-    let (name, alias) = if let Some(alias_sep) = line
-        .extension(Extensions::INGREDIENT_ALIAS)
-        .then(|| body.name.iter().position(|t| t.kind == T![|]))
         .flatten()
-    {
-        let (name_tokens, alias_tokens) = body.name.split_at(alias_sep);
-        let (alias_sep, alias_text_tokens) = alias_tokens.split_first().unwrap();
-        let alias_text = line.text(alias_sep.span.end(), alias_text_tokens);
-        let alias_text = if alias_text_tokens.iter().any(|t| t.kind == T![|]) {
-            let bad_bit = Span::new(
-                alias_sep.span.start(),
-                alias_text_tokens.last().unwrap_or(alias_sep).span.end(),
-            );
-            line.error(ParserError::ComponentPartInvalid {
-                container: INGREDIENT,
-                what: "alias",
-                reason: "multiple aliases",
-                labels: vec![label!(bad_bit, "more than one alias defined here")],
-                help: Some("An ingrediedient can only have one alias. Remove the extra '|'."),
-            });
-            None
-        } else if alias_text.is_text_empty() {
-            line.error(ParserError::ComponentPartInvalid {
-                container: INGREDIENT,
-                what: "alias",
-                reason: "is empty",
-                labels: vec![
-                    label!(alias_sep.span, "remove this"),
-                    label!(alias_text.span(), "or add something here"),
-                ],
-                help: None,
-            });
-            None
-        } else {
-            Some(alias_text)
-        };
-        (line.text(name_offset, name_tokens), alias_text)
-    } else {
-        (line.text(name_offset, body.name), None)
-    };
+}
 
-    if name.is_text_empty() {
-        line.error(ParserError::ComponentPartInvalid {
-            container: INGREDIENT,
-            what: "name",
-            reason: "is empty",
-            labels: vec![label!(name.span(), "add a name here")],
-            help: None,
-        });
-    }
-
-    let modifiers = if modifiers_tokens.is_empty() {
+fn parse_modifiers(
+    line: &mut LineParser,
+    modifiers_tokens: &[Token],
+    modifiers_pos: usize,
+) -> Located<Modifiers> {
+    if modifiers_tokens.is_empty() {
         Located::new(Modifiers::empty(), Span::pos(modifiers_pos))
-    } else if !line.extension(Extensions::INGREDIENT_MODIFIERS) {
+    } else if !line.extension(Extensions::COMPONENT_MODIFIERS) {
         let modifiers_span = tokens_span(modifiers_tokens);
         line.error(ParserError::ExtensionNotEnabled {
             span: modifiers_span,
-            extension_name: "ingredient modifiers",
+            extension_name: "component modifiers",
         });
         Located::new(Modifiers::empty(), modifiers_span)
     } else {
@@ -226,7 +169,84 @@ fn ingredient<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Ingredie
             .unwrap_or(Modifiers::empty());
 
         Located::new(m, modifiers_span)
-    };
+    }
+}
+
+fn parse_alias<'input>(
+    container: &'static str,
+    line: &mut LineParser<'_, 'input>,
+    tokens: &[Token],
+    name_offset: usize,
+) -> (Text<'input>, Option<Text<'input>>) {
+    if let Some(alias_sep) = line
+        .extension(Extensions::COMPONENT_ALIAS)
+        .then(|| tokens.iter().position(|t| t.kind == T![|]))
+        .flatten()
+    {
+        let (name_tokens, alias_tokens) = tokens.split_at(alias_sep);
+        let (alias_sep, alias_text_tokens) = alias_tokens.split_first().unwrap();
+        let alias_text = line.text(alias_sep.span.end(), alias_text_tokens);
+        let alias_text = if alias_text_tokens.iter().any(|t| t.kind == T![|]) {
+            let bad_bit = Span::new(
+                alias_sep.span.start(),
+                alias_text_tokens.last().unwrap_or(alias_sep).span.end(),
+            );
+            line.error(ParserError::ComponentPartInvalid {
+                container,
+                what: "alias",
+                reason: "multiple aliases",
+                labels: vec![label!(bad_bit, "more than one alias defined here")],
+                help: Some("A component can only have one alias. Remove the extra '|'."),
+            });
+            None
+        } else if alias_text.is_text_empty() {
+            line.error(ParserError::ComponentPartInvalid {
+                container,
+                what: "alias",
+                reason: "is empty",
+                labels: vec![
+                    label!(alias_sep.span, "remove this"),
+                    label!(alias_text.span(), "or add something here"),
+                ],
+                help: None,
+            });
+            None
+        } else {
+            Some(alias_text)
+        };
+        (line.text(name_offset, name_tokens), alias_text)
+    } else {
+        (line.text(name_offset, tokens), None)
+    }
+}
+
+const INGREDIENT: &str = "ingredient";
+const COOKWARE: &str = "cookware";
+const TIMER: &str = "timer";
+
+fn ingredient<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Ingredient<'input>> {
+    // Parse
+    line.consume(T![@])?;
+    let modifiers_pos = line.current_offset();
+    let modifiers_tokens = modifiers(line);
+    let name_offset = line.current_offset();
+    let body = comp_body(line)?;
+    let note = note(line);
+
+    // Build text(s) and checks
+    let (name, alias) = parse_alias(INGREDIENT, line, body.name, name_offset);
+
+    if name.is_text_empty() {
+        line.error(ParserError::ComponentPartInvalid {
+            container: INGREDIENT,
+            what: "name",
+            reason: "is empty",
+            labels: vec![label!(name.span(), "add a name here")],
+            help: None,
+        });
+    }
+
+    let modifiers = parse_modifiers(line, modifiers_tokens, modifiers_pos);
 
     let quantity = body.quantity.map(|tokens| {
         parse_quantity(tokens, line.input, line.extensions, &mut line.context).quantity
@@ -244,16 +264,14 @@ fn ingredient<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Ingredie
 fn cookware<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Cookware<'input>> {
     // Parse
     line.consume(T![#])?;
+    let modifiers_pos = line.current_offset();
     let modifiers_tokens = modifiers(line);
     let name_offset = line.current_offset();
     let body = comp_body(line)?;
+    let note = note(line);
 
     // Errors
-    check_modifiers(line, modifiers_tokens, COOKWARE);
-    check_alias(line, body.name, COOKWARE);
-    check_note(line, COOKWARE);
-
-    let name = line.text(name_offset, body.name);
+    let (name, alias) = parse_alias(COOKWARE, line, body.name, name_offset);
     if name.is_text_empty() {
         line.error(ParserError::ComponentPartInvalid {
             container: COOKWARE,
@@ -292,8 +310,15 @@ fn cookware<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Cookware<'
         }
         q.quantity.map_inner(|q| q.value)
     });
+    let modifiers = parse_modifiers(line, modifiers_tokens, modifiers_pos);
 
-    Some(ast::Cookware { name, quantity })
+    Some(ast::Cookware {
+        name,
+        alias,
+        quantity,
+        modifiers,
+        note,
+    })
 }
 
 fn timer<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Timer<'input>> {
@@ -304,9 +329,9 @@ fn timer<'input>(line: &mut LineParser<'_, 'input>) -> Option<ast::Timer<'input>
     let body = comp_body(line)?;
 
     // Errors
-    check_modifiers(line, modifiers_tokens, COOKWARE);
-    check_alias(line, body.name, COOKWARE);
-    check_note(line, COOKWARE);
+    check_modifiers(line, modifiers_tokens, TIMER);
+    check_alias(line, body.name, TIMER);
+    check_note(line, TIMER);
 
     let name = line.text(name_offset, body.name);
 
@@ -387,7 +412,7 @@ fn check_alias(line: &mut LineParser, name_tokens: &[Token], container: &'static
 
 fn check_note(line: &mut LineParser, container: &'static str) {
     assert_ne!(container, INGREDIENT);
-    if !line.extension(Extensions::INGREDIENT_NOTE) {
+    if !line.extension(Extensions::COMPONENT_NOTE) {
         return;
     }
 

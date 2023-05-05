@@ -55,10 +55,13 @@ pub struct Ingredient<'a> {
     pub note: Option<Text<'a>>,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Cookware<'a> {
+    pub modifiers: Located<Modifiers>,
     pub name: Text<'a>,
+    pub alias: Option<Text<'a>>,
     pub quantity: Option<Located<QuantityValue>>,
+    pub note: Option<Text<'a>>,
 }
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Timer<'a> {
@@ -291,5 +294,11 @@ impl Modifiers {
             Self::NEW => '+',
             _ => panic!("Unknown modifier: {:?}", self),
         }
+    }
+}
+
+impl std::fmt::Display for Modifiers {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
     }
 }
