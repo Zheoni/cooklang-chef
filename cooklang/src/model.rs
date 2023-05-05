@@ -265,6 +265,30 @@ pub struct Cookware {
     pub(crate) modifiers: Modifiers,
 }
 
+impl Cookware {
+    /// Gets the name the ingredient should be displayed with
+    pub fn display_name(&self) -> &str {
+        self.alias.as_ref().unwrap_or(&self.name)
+    }
+
+    /// Access the ingredient modifiers
+    pub fn modifiers(&self) -> Modifiers {
+        self.modifiers
+    }
+
+    pub fn is_hidden(&self) -> bool {
+        self.modifiers.contains(Modifiers::HIDDEN)
+    }
+
+    pub fn is_optional(&self) -> bool {
+        self.modifiers.contains(Modifiers::OPT)
+    }
+
+    pub fn is_reference(&self) -> bool {
+        self.modifiers.contains(Modifiers::REF)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum ComponentRelation {
     Definition { referenced_from: Vec<usize> },
