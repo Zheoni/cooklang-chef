@@ -86,7 +86,7 @@ pub fn run(ctx: &Context, aisle: AileConf, args: CreateArgs) -> Result<()> {
     let mut add_items = |table: &mut tabular::Table, items: Vec<(String, GroupedQuantity)>| {
         for (igr, q) in items {
             let mut row = tabular::Row::new().with_cell(igr);
-            let q_str = match q.total() {
+            match q.total() {
                 cooklang::quantity::TotalQuantity::None => {
                     row.add_cell("");
                 }

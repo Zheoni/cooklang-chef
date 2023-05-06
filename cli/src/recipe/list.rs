@@ -44,9 +44,6 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
         for entry in iter {
             count += 1;
             if args.check || args.images {
-                let entry = cooklang_fs::RecipeEntry::try_from(entry)
-                    .expect("not recipe returned from iterator");
-
                 if args.check {
                     let content = entry.read()?;
                     let report = content.parse(ctx.parser()?).into_report();
@@ -130,12 +127,7 @@ fn list_label(
         String::new()
     };
 
-    let images = if let Some(images) = args
-        .images
-        .then(|| cooklang_fs::RecipeEntry::try_from(entry).ok())
-        .flatten()
-        .map(|e| e.images().len())
-    {
+    let images = if let Some(images) = args.images.then(|| entry.images().len()) {
         if images > 0 {
             format!(" [{} image{}]", images, if images == 1 { "" } else { "s" })
         } else {

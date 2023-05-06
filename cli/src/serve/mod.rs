@@ -193,7 +193,7 @@ fn api(ctx: Context) -> Result<Router> {
         max_depth: config.max_depth,
         recipe_index,
         updates_stream: updates_rx,
-        editor_command: config.editor_command.clone(),
+        editor_command: config.editor_command,
     });
 
     let router = Router::new()
@@ -225,7 +225,7 @@ async fn filter_files<B>(req: Request<B>, next: Next<B>) -> impl axum::response:
     if ext == "cook" || cooklang_fs::IMAGE_EXTENSIONS.contains(&ext) {
         Ok(next.run(req).await)
     } else {
-        return Err(StatusCode::NOT_FOUND);
+        Err(StatusCode::NOT_FOUND)
     }
 }
 
@@ -286,9 +286,8 @@ async fn handle_ws_socket(
 
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
-            match msg {
-                Message::Close(_) => break,
-                _ => {}
+            if let Message::Close(_) = msg {
+                break;
             }
         }
     });
@@ -401,7 +400,7 @@ async fn recipe(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let times = get_times(&entry.path()).await?;
+    let times = get_times(entry.path()).await?;
 
     let recipe = state
         .parser
@@ -467,7 +466,7 @@ async fn recipe_metadata(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    let times = get_times(&entry.path()).await?;
+    let times = get_times(entry.path()).await?;
 
     let metadata = state.parser.parse_metadata(&content);
     let path = clean_path(entry.path(), &state.base_path);

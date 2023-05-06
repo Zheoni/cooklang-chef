@@ -194,7 +194,7 @@ fn iter_paths<'a>(
     paths
         .iter()
         .filter_map(move |path| {
-            path.strip_prefix(&base_path)
+            path.strip_prefix(base_path)
                 .ok()
                 .and_then(|p| Utf8Path::from_path(p).map(Utf8Path::to_path_buf))
         })

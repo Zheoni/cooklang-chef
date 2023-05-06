@@ -398,7 +398,7 @@ impl<'a, 'r> Walker<'a, 'r> {
             alias: cookware.alias.map(|t| t.text_trimmed().into_owned()),
             quantity: cookware.quantity.map(|q| self.value(q.inner, false)),
             note: cookware.note.map(|n| n.text_trimmed().into_owned()),
-            modifiers: cookware.modifiers.clone().take(),
+            modifiers: cookware.modifiers.take(),
             relation: ComponentRelation::Definition {
                 referenced_from: Vec::new(),
             },
@@ -669,7 +669,7 @@ impl RefComponent for Cookware {
 }
 
 fn find_temperature<'a>(text: &'a str, re: &Regex) -> Option<(&'a str, Quantity, &'a str)> {
-    let Some(caps) = re.captures(&text) else { return None; };
+    let Some(caps) = re.captures(text) else { return None; };
 
     let value = caps[1].replace(',', ".").parse::<f64>().ok()?;
     let unit = caps.get(3).unwrap().range();

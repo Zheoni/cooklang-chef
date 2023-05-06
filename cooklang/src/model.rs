@@ -302,7 +302,7 @@ impl ComponentRelation {
     /// Returns a list of indices to the corresponding vec in [Recipe].
     pub fn referenced_from(&self) -> &[usize] {
         match self {
-            ComponentRelation::Definition { referenced_from } => &referenced_from,
+            ComponentRelation::Definition { referenced_from } => referenced_from,
             ComponentRelation::Reference { .. } => &[],
         }
     }
