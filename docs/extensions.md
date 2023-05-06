@@ -1,6 +1,6 @@
 # Cooklang syntax extensions
 
-## Ingredient modifiers
+## Modifiers
 With the ingredient modifiers you can alter the behaviour of ingredients. There
 are 5 modifiers:
 - `@` **Recipe**. References another recipe by it's name.
@@ -24,7 +24,9 @@ are 5 modifiers:
 - `+` **New**. Forces to create a new ingredient. This works with the 
   [modes](#modes) extension.
 
-## Ingredient note
+This also works (except recipe) for cookware.
+
+## Component note
 Simple, add small notes to ingredients. The notes in between parenthesis.
 
 ```coklang
@@ -33,7 +35,9 @@ Simple, add small notes to ingredients. The notes in between parenthesis.
 @flour{} (all purpose) -- ❌ no space between the ingredient and the note
 ```
 
-## Ingredient alias
+This also works for cookware.
+
+## Component alias
 Add an alias to an ingredient to display a different name.
 
 ```cooklang
@@ -49,12 +53,15 @@ Add the @tipo zero flour{}
 Add more @&tipo zero flour|flour{}
 ```
 
+This also works for cookware.
+
 ## Sections
 Divide the steps. Sections can have a name or not.
 
 ```cooklang
-== Cooking ==     -- 2 '=' before, 2 after the name
-====              -- 2 or more '=' for a section without name
+= Cooking         -- this
+== Cooking ==     -- many before and after is also supported
+====              -- without name
 ```
 
 To add images to steps inside a section, add another index to the image name:
@@ -67,6 +74,8 @@ Recipe.1.0.jpeg -- Second section, first, step
 ## Text steps
 All components are ignored and the steps don't increment the step counter. Some
 people like to write a couple of paragraphs in the recipe that don't are steps.
+
+It can also be used as notes that are not instructions.
 
 ```cooklang
 Regular step.

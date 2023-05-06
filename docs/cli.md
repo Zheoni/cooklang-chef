@@ -123,9 +123,9 @@ aisle = "path/to/aisle.conf/file
 ```toml
 [extensions]
 MULTINE_STEPS = true
-INGREDIENT_MODIFIERS = true
-INGREDIENT_NOTE = true
-INGREDIENT_ALIAS = true
+COMPONENT_MODIFIERS = true
+COMPONENT_NOTE = true
+COMPONENT_ALIAS = true
 SECTIONS = true
 ADVANCED_UNITS = true
 MODES = true
