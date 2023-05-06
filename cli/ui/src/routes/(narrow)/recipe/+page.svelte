@@ -177,7 +177,7 @@
 {/if}
 <h1 class="text-6xl font-heading">
 	{#if recipe.metadata.emoji}
-		<span use:twemoji class="text-6xl" aria-hidden>
+		<span use:twemoji={{ emoji: recipe.metadata.emoji }} class="text-6xl" aria-hidden>
 			{recipe.metadata.emoji}
 		</span>
 	{/if}
