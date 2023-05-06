@@ -290,6 +290,7 @@ impl Cookware {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum ComponentRelation {
     Definition { referenced_from: Vec<usize> },
     Reference { references_to: usize },

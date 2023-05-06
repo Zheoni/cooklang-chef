@@ -529,6 +529,8 @@ impl GroupedQuantity {
     }
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
 pub enum TotalQuantity {
     None,
     Single(Quantity),

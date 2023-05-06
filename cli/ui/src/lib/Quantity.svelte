@@ -30,7 +30,7 @@
 	$: value = qValueFmt(quantity.value);
 </script>
 
-<span>
+<span {...$$restProps}>
 	{value}
 	{#if quantity.unit}
 		<span class="font-italic">{quantity.unit}</span>

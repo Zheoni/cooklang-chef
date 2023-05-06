@@ -1,15 +1,20 @@
-import type { Ingredient } from './types';
+import type { ComponentRelation } from './types';
 
-export function ingredientHighlight(
+export function componentHighlight<T extends { relation: ComponentRelation }>(
 	element: HTMLElement,
 	params: {
-		ingredient: Ingredient;
+		component: T;
 		index: number;
+		componentKind: 'ingredient' | 'cookware';
 	}
 ) {
-	const ref_group = params.ingredient.references_to ?? params.index;
-	element.setAttribute('data-ingredient-ref-group', ref_group.toString());
-	const selector = `[data-ingredient-ref-group="${ref_group}"`;
+	const ref_group =
+		params.component.relation.type === 'definition'
+			? params.index
+			: params.component.relation.references_to;
+	element.setAttribute('data-component-ref-group', ref_group.toString());
+	element.setAttribute('data-component-kind', params.componentKind);
+	const selector = `[data-component-ref-group="${ref_group}"][data-component-kind="${params.componentKind}"]`;
 	element.addEventListener('mouseenter', () => {
 		document.querySelectorAll(selector).forEach((el) => el.classList.add(cls(el)));
 	});

@@ -47,12 +47,15 @@ export type Ingredient = {
 	quantity: Quantity | null;
 	note: string | null;
 	modifiers: string;
-	references_to: number | null;
-	referenced_from: number[];
+	relation: ComponentRelation;
 };
 export type Cookware = {
 	name: string;
+	alias: string | null;
 	quantity: QuantityValue | null;
+	note: string | null;
+	modifiers: string;
+	relation: ComponentRelation;
 };
 export type Timer = {
 	name: string | null;
@@ -74,16 +77,18 @@ export type Value =
 
 export type IngredientListEntry = {
 	index: number;
-	quantity: GroupedQuantity;
+	quantity: TotalQuantity;
 	outcome: ScaleOutcome | null;
 };
 
-export type GroupedQuantity = {
-	known: Record<PhysicalQuantity, Quantity | null>;
-	unknown: Record<string, Quantity>;
-	no_unit: Quantity | null;
-	other: Quantity[];
-};
+export type ComponentRelation =
+	| {
+			type: 'definition';
+			referenced_from: number[];
+	  }
+	| { type: 'reference'; references_to: number };
+
+export type TotalQuantity = null | Quantity | Quantity[];
 
 export type PhysicalQuantity = 'volume' | 'mass' | 'length' | 'temperature' | 'time';
 

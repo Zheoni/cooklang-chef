@@ -22,3 +22,24 @@ body {
 .scale-fixed {
 	--at-apply: text-yellow-12 decoration-yellow-11 underline decoration-wavy;
 }
+
+.underline-link {
+	--at-apply: text-primary-11 underline;
+}
+
+[data-component-ref-group] {
+	--at-apply: outline-2 transition-colors px-1 -mx-1 py-1 -my-1 rounded relative outline-transparent
+		bg-transparent;
+}
+.highlight {
+	--at-apply: outline relative z-1;
+}
+[data-component-kind='ingredient'].highlight {
+	--at-apply: bg-primary-4 outline-primary-6;
+}
+[data-component-kind='cookware'].highlight {
+	--at-apply: bg-yellow-4 outline-yellow-6;
+}
+.qhighlight {
+	--at-apply: text-primary-11 transition-colors underline decoration-dotted underline-offset-3;
+}

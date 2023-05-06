@@ -28,9 +28,8 @@
 	} from '@rgossiaux/svelte-headlessui';
 	import ListboxOptions from '$lib/listbox/ListboxOptions.svelte';
 	import ListboxOption from '$lib/listbox/ListboxOption.svelte';
-	import type { GroupedQuantity } from '$lib/types';
-	import Quantity, { qValueFmt } from '$lib/Quantity.svelte';
-	import { ingredientHighlight } from '$lib/ingredientHighlight';
+	import { qValueFmt } from '$lib/Quantity.svelte';
+	import { componentHighlight } from '$lib/componentHighlight';
 	import { stepIngredientsView } from '$lib/settings';
 	import OpenInEditor from '$lib/OpenInEditor.svelte';
 	import { connected } from '$lib/updatesWS';
@@ -41,6 +40,9 @@
 	import { flip, offset, shift } from 'svelte-floating-ui/dom';
 	import Divider from '$lib/Divider.svelte';
 	import { scaleOutcomeTooltip } from '$lib/scaleOutcomeTooltip';
+	import IngredientListItem from '$lib/IngredientListItem.svelte';
+	import type { TotalQuantity } from '$lib/types';
+	import { displayName } from '$lib/util';
 
 	export let data: PageData;
 
@@ -74,21 +76,14 @@
 		);
 	}
 
-	function allQuantities(group: GroupedQuantity) {
-		const all = [];
-		for (const q of Object.values(group.known)) {
-			if (q) all.push(q);
+	function allQuantities(group: TotalQuantity) {
+		if (Array.isArray(group)) {
+			return group;
+		} else if (group !== null) {
+			return [group];
+		} else {
+			return [];
 		}
-		for (const q of Object.values(group.unknown)) {
-			if (q) all.push(q);
-		}
-		if (group.no_unit) {
-			all.push(group.no_unit);
-		}
-		for (const q of group.other) {
-			all.push(q);
-		}
-		return all;
 	}
 
 	let state = {
@@ -142,7 +137,9 @@
 				} else {
 					params.delete('units');
 				}
-				goto(`?${params}`, { keepFocus: true, noScroll: true });
+				if ($page.url.searchParams.toString() !== params.toString()) {
+					goto(`?${params}`, { keepFocus: true, noScroll: true });
+				}
 			},
 			delay ? 500 : 0
 		);
@@ -234,7 +231,7 @@
 				{#if author.name !== null && author.url === null}
 					{recipe.metadata.author.name ?? ''}
 				{:else if author.name === null && author.url !== null}
-					<a href={author.url} class="link italic">author website</a>
+					<a href={author.url} class="link italic">author website<External /></a>
 				{:else}
 					<a href={author.url} class="link">{author.name}<External /></a>
 				{/if}
@@ -246,11 +243,9 @@
 				{#if source.name !== null && source.url === null}
 					{recipe.metadata.source.name ?? ''}
 				{:else if source.name === null && source.url !== null}
-					<a href={source.url} class="link italic">source website</a>
+					<a href={source.url} class="link italic">source website<External /></a>
 				{:else}
-					<a href={source.url} class="link"
-						>{source.name}<External class="inline-block -translate-y-1" /></a
-					>
+					<a href={source.url} class="link">{source.name}<External /></a>
 				{/if}
 			</Metadata>
 		{/if}
@@ -427,24 +422,11 @@
 			<div>
 				<h2 class="text-2xl my-2 font-heading">Ingredients</h2>
 				<ul class="list-disc ms-6">
-					{#each recipe.ingredient_list as entry}
-						{@const ingredient = recipe.ingredients[entry.index]}
-						{@const all = allQuantities(entry.quantity)}
+					{#each recipe.ingredient_list as { index, outcome, quantity }}
+						{@const ingredient = recipe.ingredients[index]}
 						{#if !ingredient.modifiers.includes('HIDDEN')}
-							<li use:scaleOutcomeTooltip={entry.outcome} class="w-fit">
-								<span
-									class="capitalize"
-									use:ingredientHighlight={{ ingredient, index: entry.index }}
-									>{ingredient.alias ?? ingredient.name}</span
-								>{#if all.length > 0}
-									:
-									<span class="text-base-11">
-										{#each all.slice(0, all.length - 1) as q}
-											<Quantity quantity={q} /><span class="text-base-12">{', '}</span>
-										{/each}
-										<Quantity quantity={all[all.length - 1]} />
-									</span>
-								{/if}
+							<li use:scaleOutcomeTooltip={outcome} class="w-fit">
+								<IngredientListItem {index} {ingredient} quantities={allQuantities(quantity)} />
 							</li>
 						{/if}
 					{/each}
@@ -455,54 +437,54 @@
 			<div>
 				<h2 class="text-2xl my-2 font-heading">Cookware</h2>
 				<ul class="list-disc ms-6">
-					{#each recipe.cookware as item}
-						<li>
-							<span class="capitalize">{item.name}</span>{#if item.quantity}
-								: <span class="text-base-11">{qValueFmt(item.quantity)}</span>
-							{/if}
-						</li>
+					{#each recipe.cookware as item, index}
+						{#if !item.modifiers.includes('HIDDEN') && !item.modifiers.includes('REF')}
+							<li>
+								<span
+									class="capitalize"
+									use:componentHighlight={{ index, component: item, componentKind: 'cookware' }}
+									>{displayName(item)}</span
+								>{#if item.quantity}
+									: <span class="text-base-11">{qValueFmt(item.quantity)}</span>
+								{/if}
+							</li>
+						{/if}
 					{/each}
 				</ul>
 			</div>
 		{/if}
 	</div>
 
-	<div class="flex flex-wrap justify-between">
-		<h2 class="text-2xl my-2 font-heading">Method</h2>
-		<div class="flex">
-			<Listbox value={$stepIngredientsView} on:change={(e) => stepIngredientsView.set(e.detail)}>
-				<svelte:fragment slot="button">
-					<ListboxButton class="btn-square-9 radix-solid-primary">
-						<StepIngredientsViewIcon />
-					</ListboxButton>
-				</svelte:fragment>
-				<svelte:fragment slot="label">
-					<ListboxLabel class="sr-only">Step ingredients view:</ListboxLabel>
-				</svelte:fragment>
-				<ListboxOptions>
-					{#each ['compact', 'list', 'hidden'] as view}
-						<ListboxOption value={view}>
-							<span class="capitalize">{view}</span>
-						</ListboxOption>
-					{/each}
-				</ListboxOptions>
-			</Listbox>
+	{#if recipe.sections.length > 0}
+		<div class="flex flex-wrap justify-between">
+			<h2 class="text-2xl my-2 font-heading">Method</h2>
+			<div class="flex">
+				<Listbox value={$stepIngredientsView} on:change={(e) => stepIngredientsView.set(e.detail)}>
+					<svelte:fragment slot="button">
+						<ListboxButton class="btn-square-9 radix-solid-primary">
+							<StepIngredientsViewIcon />
+						</ListboxButton>
+					</svelte:fragment>
+					<svelte:fragment slot="label">
+						<ListboxLabel class="sr-only">Step ingredients view:</ListboxLabel>
+					</svelte:fragment>
+					<ListboxOptions>
+						{#each ['compact', 'list', 'hidden'] as view}
+							<ListboxOption value={view}>
+								<span class="capitalize">{view}</span>
+							</ListboxOption>
+						{/each}
+					</ListboxOptions>
+				</Listbox>
+			</div>
 		</div>
-	</div>
-	{#each recipe.sections as section, section_index}
-		<Section {recipe} {images} {section} {section_index} />
-	{/each}
+		{#each recipe.sections as section, section_index}
+			<Section {recipe} {images} {section} {section_index} />
+		{/each}
+	{/if}
 </div>
 
 <style>
-	.content :global([data-ingredient-ref-group]) {
-		--at-apply: bg-transparent outline-primary-6 outline-2 transition-colors px-1 -mx-1 py-1 -my-1
-			rounded;
-	}
-	.content :global(.highlight) {
-		--at-apply: bg-primary-4 outline relative z-1;
-	}
-
 	input[type='number']::-webkit-inner-spin-button,
 	input[type='number']::-webkit-outer-spin-button {
 		-webkit-appearance: none;

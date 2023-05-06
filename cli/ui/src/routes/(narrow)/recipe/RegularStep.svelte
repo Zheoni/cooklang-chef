@@ -1,13 +1,15 @@
 <script lang="ts">
-	import Quantity, { qValueFmt } from '$lib/Quantity.svelte';
-	import type { Ingredient, Item, Recipe } from '$lib/types';
+	import Quantity from '$lib/Quantity.svelte';
+	import type { Item, Recipe } from '$lib/types';
 	import type { SliceStep } from './Section.svelte';
-	import { ingredientHighlight, quantityHighlight } from '$lib/ingredientHighlight';
 	import Divider from '$lib/Divider.svelte';
-	import { tooltip } from 'svooltip';
 	import { API } from '$lib/constants';
 	import { stepIngredientsView } from '$lib/settings';
 	import { extractOutcome, scaleOutcomeTooltip } from '$lib/scaleOutcomeTooltip';
+	import InlineIngredient from '$lib/InlineIngredient.svelte';
+	import IngredientStepItem from '$lib/IngredientStepItem.svelte';
+	import { displayName } from '$lib/util';
+	import { componentHighlight } from '$lib/componentHighlight';
 
 	export let step: SliceStep;
 	export let recipe: Recipe;
@@ -38,7 +40,7 @@
 
 		// javascript maps are guaranteed to remember insertion order, so it can be used
 		// to iterate in the same order as ingredients in the step
-		const stepIngredients = new Map<number, { ingredient: Ingredient; subscript: number | null }>();
+		const stepIngredients = new Map<number, { subscript: number | null }>();
 		for (const item of items) {
 			if (item.type === 'component' && item.value.kind === 'ingredient') {
 				const igr = recipe.ingredients[item.value.index];
@@ -50,7 +52,6 @@
 					subscript = pos === -1 ? null : pos + 1;
 				}
 				stepIngredients.set(item.value.index, {
-					ingredient: igr,
 					subscript
 				});
 			}
@@ -77,29 +78,24 @@
 					{@const component = i.value}
 					{#if component.kind === 'ingredient'}
 						{@const entry = stepIngredients.get(component.index)}
-						<!-- ? this should always be true -->
+						<!-- this should always be true -->
 						{#if entry}
-							<span
-								class="text-primary-11 font-semibold inline-block"
-								use:ingredientHighlight={{ ingredient: entry.ingredient, index: component.index }}
-								use:quantityHighlight={{ index: component.index }}
-								use:tooltip={{
-									content: entry.ingredient.quantity
-										? `<span class="font-serif">${qValueFmt(entry.ingredient.quantity.value)} <em>${
-												entry.ingredient.quantity.unit
-										  }</em></span>`
-										: '',
-									html: true,
-									visibility:
-										entry.ingredient.quantity !== null && $stepIngredientsView === 'hidden'
-								}}>{entry.ingredient.alias ?? entry.ingredient.name}</span
-							>{#if entry.subscript && $stepIngredientsView !== 'hidden'}
-								<sub>{entry.subscript}</sub>
-							{/if}
+							<InlineIngredient
+								index={component.index}
+								ingredient={recipe.ingredients[component.index]}
+								subscript={entry.subscript}
+							/>
 						{/if}
 					{:else if component.kind === 'cookware'}
 						{@const cw = recipe.cookware[component.index]}
-						<span class="text-yellow-11 font-semibold">{cw.name}</span>
+						<span
+							class="text-yellow-11 font-semibold"
+							use:componentHighlight={{
+								index: component.index,
+								component: cw,
+								componentKind: 'cookware'
+							}}>{displayName(cw)}</span
+						>
 					{:else if component.kind === 'timer'}
 						{@const tm = recipe.timers[component.index]}
 						<span class="text-indigo-11 font-semibold"
@@ -112,17 +108,9 @@
 		{#if stepIngredientsArray.length > 0 && $stepIngredientsView !== 'hidden'}
 			<Divider class="my-4" />
 			<div class="stepIngredients" class:compact={$stepIngredientsView === 'compact'}>
-				{#each stepIngredientsArray as [index, { ingredient, subscript }], arrIndex (index)}
+				{#each stepIngredientsArray as [index, { subscript }], arrIndex (index)}
 					<div use:scaleOutcomeTooltip={extractOutcome(recipe, index)}>
-						<span use:quantityHighlight={{ index }} data-highlight-cls="qhighlight"
-							>{ingredient.alias ?? ingredient.name}</span
-						>{#if subscript}
-							<sub>{subscript}</sub>
-						{/if}{#if ingredient.modifiers.includes('OPT')}
-							(opt)
-						{/if}{#if ingredient.quantity}
-							: <span class="text-base-11"><Quantity quantity={ingredient.quantity} /></span>
-						{/if}
+						<IngredientStepItem {index} ingredient={recipe.ingredients[index]} {subscript} />
 					</div>
 					{#if arrIndex < stepIngredientsArray.length - 1 && $stepIngredientsView === 'compact'}
 						<div class="w-2px rounded h-6 mx-2 bg-base-6" />
@@ -140,10 +128,6 @@
 </div>
 
 <style>
-	.stepIngredients :global(.qhighlight) {
-		--at-apply: underline text-primary-11 transition-colors;
-	}
-
 	.compact {
 		--at-apply: flex flex-wrap;
 	}
