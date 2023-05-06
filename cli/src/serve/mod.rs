@@ -420,11 +420,21 @@ async fn recipe(
             Ok(scaled)
         })?
         .map(|r| {
-            let ingredient_list = r.ingredient_list(state.parser.converter());
+            let ingredient_list = r
+                .ingredient_list(state.parser.converter())
+                .into_iter()
+                .map(|entry| {
+                    serde_json::json!({
+                        "index": entry.index,
+                        "quantity": entry.quantity.total(),
+                        "outcome": entry.outcome
+                    })
+                })
+                .collect();
             let mut val = serde_json::to_value(r).unwrap();
             val.as_object_mut().unwrap().insert(
                 "ingredient_list".into(),
-                serde_json::to_value(ingredient_list).unwrap(),
+                serde_json::Value::Array(ingredient_list),
             );
             val
         });
