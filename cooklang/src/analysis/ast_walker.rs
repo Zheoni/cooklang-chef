@@ -367,6 +367,8 @@ impl<'a, 'r> Walker<'a, 'r> {
                     });
                 }
             }
+
+            set_referenced_from(&mut self.content.ingredients, references_to);
         }
 
         if new_igr.modifiers.contains(Modifiers::RECIPE)
@@ -405,8 +407,6 @@ impl<'a, 'r> Walker<'a, 'r> {
         if let Some((references_to, implicit)) =
             self.resolve_reference(&mut new_cw, location, located_cookware.modifiers.span())
         {
-            let _referenced = &self.content.cookware[references_to];
-
             if let Some(note) = &located_cookware.note {
                 self.error(AnalysisError::ComponentPartNotAllowedInReference {
                     container: "cookware",
@@ -424,6 +424,8 @@ impl<'a, 'r> Walker<'a, 'r> {
                     implicit,
                 });
             }
+
+            set_referenced_from(&mut self.content.ingredients, references_to);
         }
 
         self.content.cookware.push(new_cw);
@@ -578,7 +580,7 @@ impl<'a, 'r> Walker<'a, 'r> {
                 // is implicit if we are here (is a reference) and the reference modifier is not set
                 let implicit = !new.modifiers().contains(Modifiers::REF);
 
-                new.set_reference(references_to, &mut self.content);
+                new.set_reference(references_to);
 
                 if !conflict.is_empty() {
                     self.error(AnalysisError::ConflictingModifiersInReference {
@@ -600,6 +602,14 @@ impl<'a, 'r> Walker<'a, 'r> {
     }
 }
 
+fn set_referenced_from<C: RefComponent>(all: &mut Vec<C>, references_to: usize) {
+    let new_index = all.len();
+    match all[references_to].relation() {
+        ComponentRelation::Definition { referenced_from } => referenced_from.push(new_index),
+        ComponentRelation::Reference { .. } => panic!("Reference to reference"),
+    }
+}
+
 trait RefComponent: Sized {
     fn relation(&mut self) -> &mut ComponentRelation;
     fn modifiers(&mut self) -> &mut Modifiers;
@@ -608,15 +618,9 @@ trait RefComponent: Sized {
 
     fn inherit_modifiers() -> Modifiers;
 
-    fn set_reference(&mut self, references_to: usize, content: &mut RecipeContent) {
+    fn set_reference(&mut self, references_to: usize) {
         *self.modifiers() |= Modifiers::REF;
         *self.relation() = ComponentRelation::Reference { references_to };
-        let all = Self::all(content);
-        let new_index = all.len();
-        match all[references_to].relation() {
-            ComponentRelation::Definition { referenced_from } => referenced_from.push(new_index),
-            ComponentRelation::Reference { .. } => panic!("Reference to reference"),
-        }
     }
 }
 
