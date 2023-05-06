@@ -39,7 +39,7 @@
 						{entry.name}
 					</h2>
 				</a>
-				<Divider class="my-2 px-1 text-xl" labelPos="right">
+				<Divider class="mt-2 mb-3 px-1 text-xl" labelPos="right">
 					{#if entry.metadata.value?.emoji}
 						<span use:twemoji>
 							{entry.metadata.value.emoji}
