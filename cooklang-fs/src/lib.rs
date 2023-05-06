@@ -286,15 +286,23 @@ fn process_entry(dir_entry: &DirEntry) -> Option<(&str, &Utf8Path)> {
 impl Cache {
     fn get(&self, name: &str, path: &Utf8Path) -> Option<Utf8PathBuf> {
         let v = self.recipes.get(&name.to_lowercase())?;
-        v.iter()
-            .find(|&p| p == path)
-            .or_else(|| if name == path { v.first() } else { None })
-            .cloned()
+        if name == path {
+            v.first().cloned()
+        } else {
+            v.iter().find(|&p| p == path).cloned()
+        }
     }
 
     fn insert(&mut self, name: &str, path: &Utf8Path) {
         let recipes = self.recipes.entry(name.to_lowercase()).or_default();
-        let pos = recipes.partition_point(|p| p.components().count() < path.components().count());
+        let pos = recipes.partition_point(|p| {
+            // less components first. same, alphabetically
+            match p.components().count().cmp(&path.components().count()) {
+                std::cmp::Ordering::Less => true,
+                std::cmp::Ordering::Equal => p.as_str() < path.as_str(),
+                std::cmp::Ordering::Greater => false,
+            }
+        });
         recipes.insert(pos, path.to_path_buf());
         self.non_existent.remove(path.as_str());
     }
