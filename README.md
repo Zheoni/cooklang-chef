@@ -21,7 +21,7 @@ Bake with a preheated #oven at 230ºC for ~{30%min}.
 ![](./images/bread3.png)
 
 ## What is this crate
-I wanted a couple more feature that cooklang did not have, so I extended the
+I wanted a couple more features that cooklang did not have, so I extended the
 cooklang syntax and semantics a bit.
 
 **All regular cooklang files parse as the same recipe**, the extensions
@@ -54,8 +54,7 @@ problem for you, manually [cloning the repo and compiling will work](./docs/cli.
   before. I think the most important extension to the original cooklang. You can
   read about using references in [this document](./docs/using_references.md).
 
-- **Good error reporting**. Error reports are a top priority. Specially those 
-  related to parsing cooklang files.
+- **Good error reporting**. Error reports are a top priority.
 
   This little recipe contain errors:
   ```cooklang
@@ -72,11 +71,10 @@ problem for you, manually [cloning the repo and compiling will work](./docs/cli.
 
 ## Crates
 
-- [Cooklang parser](./cooklang/)
-- [The CLI](./cli/). The CLI readme details it features and explains how to
-  compile it.
-- [cooklang-fs](./cooklang-fs). Utilities to deal with referencing recipe, 
-  images and data related to recipes that are in other files.
-- [cooklang-to-cooklang](./cooklang-to-cooklang). Recipe back to Cooklang.
-- [cooklang-to-human](./cooklang-to-human). Write a recipe in a human friendly way.
-- [cooklang-to-md](./cooklang-to-md). Recipe into Markdown.
+- [Cooklang parser](./cooklang/) [![Crates.io](https://img.shields.io/crates/v/cooklang)](https://crates.io/crates/cooklang) [![docs.rs](https://img.shields.io/docsrs/cooklang)](https://docs.rs/cooklang/)
+- [The CLI](./cli/) [![Crates.io](https://img.shields.io/crates/v/cooklang-chef)](https://crates.io/crates/cooklang-chef)
+- [cooklang-fs](./cooklang-fs). [![Crates.io](https://img.shields.io/crates/v/cooklang-fs)](https://crates.io/crates/cooklang-fs)
+  Utilities to deal with referencing recipe, images and data related to recipes that are in other files.
+- [cooklang-to-cooklang](./cooklang-to-cooklang). [![Crates.io](https://img.shields.io/crates/v/cooklang-to-cooklang)](https://crates.io/crates/cooklang-to-cooklang) Recipe back to Cooklang.
+- [cooklang-to-human](./cooklang-to-human). [![Crates.io](https://img.shields.io/crates/v/cooklang-to-human)](https://crates.io/crates/cooklang-to-human) Write a recipe in a human friendly way.
+- [cooklang-to-md](./cooklang-to-md). [![Crates.io](https://img.shields.io/crates/v/cooklang-to-md)](https://crates.io/crates/cooklang-to-md) Recipe into Markdown.
