@@ -29,7 +29,7 @@ pub struct ListArgs {
     absolute_paths: bool,
 
     /// Only count the number of recipes
-    #[arg(short = 'n', long, conflicts_with_all = ["tree", "paths", "absolute_paths"])]
+    #[arg(short = 'n', long, conflicts_with_all = ["paths", "absolute_paths"])]
     count: bool,
 }
 
