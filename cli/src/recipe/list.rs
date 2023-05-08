@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{builder::ArgPredicate, Args};
-use cooklang::CooklangParser;
-use cooklang_fs::{all_recipes, RecipeEntry};
+use cooklang::{metadata::Metadata, CooklangParser};
+use cooklang_fs::{all_recipes, RecipeContent, RecipeEntry};
 use yansi::Paint;
 
 use crate::Context;
@@ -15,6 +15,20 @@ pub struct ListArgs {
     /// Include images
     #[arg(short, long, default_value_if("long", ArgPredicate::IsPresent, "true"))]
     images: bool,
+
+    /// Filter entries by tag
+    #[arg(short, long)]
+    tag: Vec<String>,
+
+    /// Show tags in the list
+    #[arg(short = 'T',
+        long,
+        default_value_ifs([
+            ("long", ArgPredicate::IsPresent, "true"),
+            ("tag", ArgPredicate::IsPresent, "true")
+        ])
+    )]
+    tags: bool,
 
     /// Add `check` and `images` in one flag
     #[arg(short, long, conflicts_with_all = ["check", "images"])]
@@ -34,7 +48,23 @@ pub struct ListArgs {
 }
 
 pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
-    let iter = all_recipes(&ctx.base_dir, ctx.config.max_depth);
+    let iter = all_recipes(&ctx.base_dir, ctx.config.max_depth)
+        .map(CachedRecipeEntry::new)
+        .filter(|entry| {
+            if args.tag.is_empty() {
+                return true;
+            }
+
+            let parser = ctx
+                .parser()
+                .expect("Could not init parser when filtering by tags");
+            let Ok(metadata) = entry.metadata(parser, args.check) else {
+                tracing::warn!("Skipping '{}': could not parse metadata", entry.entry.path());
+                return false;
+            };
+
+            args.tag.iter().all(|t| metadata.tags.contains(t))
+        });
     if args.count {
         let mut count = 0;
         let mut with_warnings = 0;
@@ -76,16 +106,10 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
         }
         println!("{table}");
     } else {
-        let mut table = tabular::Table::new("{:<} {:<} {:<}");
-        // dont print dirs
+        let mut table = tabular::Table::new("{:<}{:<}{:<}{:<}");
         for entry in iter {
-            let (name, check, images) = list_label(ctx, &args, entry)?;
-            table.add_row(
-                tabular::Row::new()
-                    .with_ansi_cell(name)
-                    .with_ansi_cell(check)
-                    .with_ansi_cell(images),
-            );
+            let row = list_row(ctx, &args, entry)?;
+            table.add_row(row);
         }
         println!("{table}");
     }
@@ -93,11 +117,9 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
     Ok(())
 }
 
-fn list_label(
-    ctx: &Context,
-    args: &ListArgs,
-    entry: RecipeEntry,
-) -> Result<(String, String, String)> {
+fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<tabular::Row> {
+    let mut row = tabular::Row::new();
+
     let name = if args.absolute_paths {
         entry.path().to_string()
     } else {
@@ -120,29 +142,49 @@ fn list_label(
             entry.name().to_string()
         }
     };
+    row.add_ansi_cell(name);
 
-    let check = if args.check {
-        format!(" [{}]", check_str(ctx.parser()?, &entry))
+    if args.tags {
+        if let Some(metadata) = ctx
+            .parser()
+            .ok()
+            .and_then(|parser| entry.metadata(parser, args.check).ok())
+        {
+            if metadata.tags.is_empty() {
+                row.add_ansi_cell(format!(" [{}]", Paint::new("-").dimmed()));
+            } else {
+                row.add_cell(format!(" [{}]", metadata.tags.join(", ")));
+            }
+        } else {
+            row.add_ansi_cell(format!(" ({})", Paint::yellow("cannot parse")));
+        }
     } else {
-        String::new()
+        row.add_cell("");
+    }
+
+    if args.check {
+        row.add_ansi_cell(format!(" [{}]", check_str(ctx.parser()?, &entry)));
+    } else {
+        row.add_cell("");
     };
 
-    let images = if let Some(images) = args.images.then(|| entry.images().len()) {
-        if images > 0 {
+    if let Some(images) = args.images.then(|| entry.images().len()) {
+        let s = if images > 0 {
             format!(" [{} image{}]", images, if images == 1 { "" } else { "s" })
         } else {
             format!(" [{}]", Paint::new("no images").dimmed())
-        }
+        };
+        row.add_ansi_cell(s);
     } else {
-        String::new()
+        row.add_cell("");
     };
 
-    Ok((name, check, images))
+    Ok(row)
 }
 
-fn check_str(parser: &CooklangParser, entry: &RecipeEntry) -> Paint<&'static str> {
+fn check_str(parser: &CooklangParser, entry: &CachedRecipeEntry) -> Paint<&'static str> {
     entry
-        .read()
+        .content()
         .ok()
         .map(|e| e.parse(parser).into_report())
         .map(|report| {
@@ -155,4 +197,70 @@ fn check_str(parser: &CooklangParser, entry: &RecipeEntry) -> Paint<&'static str
             }
         })
         .unwrap_or(Paint::red("Could not check").dimmed())
+}
+
+struct CachedRecipeEntry {
+    entry: RecipeEntry,
+    content: once_cell::unsync::OnceCell<RecipeContent>,
+    metadata: once_cell::unsync::OnceCell<Metadata>,
+    parsed: once_cell::unsync::OnceCell<cooklang::RecipeResult>,
+}
+
+impl CachedRecipeEntry {
+    fn new(entry: RecipeEntry) -> Self {
+        Self {
+            entry,
+            content: Default::default(),
+            metadata: Default::default(),
+            parsed: Default::default(),
+        }
+    }
+
+    fn content(&self) -> Result<&RecipeContent> {
+        self.content
+            .get_or_try_init(|| self.entry.read())
+            .map_err(anyhow::Error::from)
+    }
+
+    fn parsed(&self, parser: &CooklangParser) -> Result<&cooklang::RecipeResult> {
+        self.content()
+            .map(|content| self.parsed.get_or_init(|| content.parse(parser)))
+    }
+
+    fn metadata(&self, parser: &CooklangParser, try_full: bool) -> Result<&Metadata> {
+        match self
+            .parsed
+            .get()
+            .and_then(|r| r.output())
+            .map(|r| &r.metadata)
+        {
+            Some(m) => Ok(m),
+            None => self.content().and_then(|content| {
+                self.metadata.get_or_try_init(|| {
+                    if try_full && self.parsed.get().is_none() {
+                        if let Some(m) = self
+                            .parsed(parser)
+                            .ok()
+                            .and_then(|r| r.output())
+                            .map(|r| &r.metadata)
+                        {
+                            return Ok(m.clone());
+                        }
+                    }
+                    content
+                        .metadata(parser)
+                        .take_output()
+                        .ok_or(anyhow::anyhow!("Can't parse metadata"))
+                })
+            }),
+        }
+    }
+}
+
+impl std::ops::Deref for CachedRecipeEntry {
+    type Target = RecipeEntry;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry
+    }
 }
