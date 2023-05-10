@@ -342,14 +342,6 @@ impl<'t, 'input> LineParser<'t, 'input> {
         assert_eq!(offset, start);
 
         for token in tokens {
-            if token.kind == T![line comment] || token.kind == T![block comment] {
-                t.append_str(&self.input[start..end]);
-                start = token.span.end();
-                end = start;
-            } else {
-                end = token.span.end();
-            }
-
             match token.kind {
                 T![line comment] | T![block comment] => {
                     t.append_str(&self.input[start..end]);
@@ -360,6 +352,7 @@ impl<'t, 'input> LineParser<'t, 'input> {
                     t.append_str(&self.input[start..end]);
                     debug_assert_eq!(token.len(), 2, "unexpected escaped token length");
                     start = token.span.start() + 1; // skip "\"
+                    end = token.span.end()
                 }
                 _ => end = token.span.end(),
             }
