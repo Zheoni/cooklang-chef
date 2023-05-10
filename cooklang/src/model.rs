@@ -184,8 +184,11 @@ impl Ingredient {
     pub fn display_name(&self) -> Cow<str> {
         let mut name = Cow::from(&self.name);
         if self.modifiers.contains(Modifiers::RECIPE) {
-            if let Some(idx) = self.name.rfind(std::path::is_separator) {
-                name = self.name.split_at(idx + 1).1.into();
+            if let Some(recipe_name) = std::path::Path::new(&self.name)
+                .file_stem()
+                .and_then(|s| s.to_str())
+            {
+                name = recipe_name.into();
             }
         }
         self.alias.as_ref().map(Cow::from).unwrap_or(name)
