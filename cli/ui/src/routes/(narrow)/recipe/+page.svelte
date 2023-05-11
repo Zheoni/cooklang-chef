@@ -43,6 +43,7 @@
 	import IngredientListItem from '$lib/IngredientListItem.svelte';
 	import type { TotalQuantity } from '$lib/types';
 	import { displayName } from '$lib/util';
+	import VideoEmbed from '$lib/VideoEmbed.svelte';
 
 	export let data: PageData;
 
@@ -312,6 +313,8 @@
 		</Metadata>
 	</MetadataGroup>
 </details>
+
+<VideoEmbed youtubeUrl={recipe.metadata.source?.url} />
 
 <div class="flex justify-end items-center gap-2">
 	<Listbox
