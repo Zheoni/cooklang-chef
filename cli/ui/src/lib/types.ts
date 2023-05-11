@@ -111,7 +111,7 @@ export type Scale =
 	  };
 
 /* Other */
-export type Image = { path: string; indexes: [number, number] | null };
+export type Image = { path: string; indexes: { section: number; step: number } | null };
 
 /* Reports */
 export type Report<T> = {

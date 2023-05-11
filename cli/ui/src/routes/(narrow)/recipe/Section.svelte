@@ -30,7 +30,8 @@
 			const step = section.steps[step_index];
 			const image =
 				images.find(
-					(im) => im.indexes && im.indexes[0] === section_index && im.indexes[1] === step_index
+					(im) =>
+						im.indexes && im.indexes.section === section_index && im.indexes.step === step_index
 				)?.path ?? null;
 			const sliceStep: SliceStep = {
 				step,
