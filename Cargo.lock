@@ -491,7 +491,6 @@ dependencies = [
  "serde",
  "thiserror",
  "tracing",
- "walkdir",
 ]
 
 [[package]]

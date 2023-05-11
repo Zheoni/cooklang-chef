@@ -397,8 +397,14 @@ impl std::ops::Deref for RecipeContent {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Image {
-    pub indexes: Option<(usize, usize)>,
+    pub indexes: Option<ImageIndexes>,
     pub path: Utf8PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct ImageIndexes {
+    section: u16,
+    step: u16,
 }
 
 /// Valid image extensions
@@ -408,55 +414,48 @@ pub const IMAGE_EXTENSIONS: &[&str] = &["jpeg", "jpg", "png", "heic", "gif", "we
 ///
 /// See [IMAGE_EXTENSIONS].
 pub fn recipe_images(path: &Utf8Path) -> Vec<Image> {
-    let Some(dir) = path.parent() else { return vec![]; };
-    let mut images = walkdir::WalkDir::new(dir)
-        .max_depth(1)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter_map(|e| Utf8PathBuf::from_path_buf(e.path().to_path_buf()).ok())
-        .filter(|e| !e.is_dir())
-        .filter_map(|image_path| {
-            let parts = image_path
-                .file_name()
-                .unwrap()
-                .rsplitn(4, '.')
-                .collect::<Vec<_>>();
-            let recipe_name = path
-                .file_name()
-                .unwrap_or_default()
-                .split_once('.')
-                .map(|s| s.0)
-                .unwrap_or_default();
-            match parts.as_slice() {
-                &[ext, step_index, section_index, name] => {
-                    let step_index = step_index.parse::<usize>();
-                    let section_index = section_index.parse::<usize>();
-                    (IMAGE_EXTENSIONS.contains(&ext)
-                        && name == recipe_name
-                        && step_index.is_ok()
-                        && section_index.is_ok())
-                    .then_some(Image {
-                        indexes: Some((section_index.unwrap(), step_index.unwrap())),
-                        path: image_path,
-                    })
-                }
-                &[ext, step_index, name] => {
-                    let step_index = step_index.parse::<usize>();
-                    (IMAGE_EXTENSIONS.contains(&ext) && name == recipe_name && step_index.is_ok())
-                        .then_some(Image {
-                            indexes: Some((0, step_index.unwrap())),
-                            path: image_path,
-                        })
-                }
-                &[ext, name] => {
-                    (IMAGE_EXTENSIONS.contains(&ext) && name == recipe_name).then_some(Image {
-                        indexes: None,
-                        path: image_path,
-                    })
-                }
-                [_name] => None,
-                _ => unreachable!(),
+    let Some(dir) = path
+        .parent()
+        .and_then(|dir| dir.read_dir_utf8().ok())
+    else { return vec![]; };
+
+    let Some(recipe_name) = path.file_stem() else { return vec![]; };
+
+    let mut images = dir
+        .filter_map(|e| e.ok()) // skip error
+        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false)) // skip non-file
+        .filter_map(|e| {
+            let parts = e.file_name().rsplitn(4, '.').collect::<Vec<_>>();
+
+            // no dots, so no extension
+            if parts.len() == 1 {
+                return None;
             }
+
+            let name = *parts.last().unwrap();
+            let ext = *parts.first().unwrap();
+
+            if name != recipe_name || !IMAGE_EXTENSIONS.contains(&ext) {
+                return None;
+            }
+
+            let indexes = match &parts[1..parts.len() - 1] {
+                [step, section] => {
+                    let section = section.parse::<u16>().ok()?;
+                    let step = step.parse::<u16>().ok()?;
+                    Some(ImageIndexes { section, step })
+                }
+                [step] => {
+                    let step = step.parse::<u16>().ok()?;
+                    Some(ImageIndexes { section: 0, step })
+                }
+                _ => None,
+            };
+
+            Some(Image {
+                indexes,
+                path: e.into_path(),
+            })
         })
         .collect::<Vec<_>>();
     images.sort_unstable();
@@ -466,11 +465,11 @@ pub fn recipe_images(path: &Utf8Path) -> Vec<Image> {
 #[derive(Debug, thiserror::Error)]
 pub enum RecipeImageError {
     #[error("No section {section} in recipe, referenced from {image}")]
-    MissingSection { section: usize, image: Utf8PathBuf },
+    MissingSection { section: u16, image: Utf8PathBuf },
     #[error("No step {step} in section {section}, referenced from {image}")]
     MissingStep {
-        section: usize,
-        step: usize,
+        section: u16,
+        step: u16,
         image: Utf8PathBuf,
     },
 }
@@ -485,20 +484,20 @@ pub fn check_recipe_images<D: serde::Serialize>(
 ) -> Result<(), Vec<RecipeImageError>> {
     let mut errors = Vec::new();
     for image in images {
-        if let Some((section_index, step_index)) = image.indexes {
-            let Some(section) = recipe.sections.get(section_index)
+        if let Some(ImageIndexes { section, step }) = image.indexes {
+            let Some(recipe_section) = recipe.sections.get(section as usize)
             else {
                 errors.push(RecipeImageError::MissingSection {
-                    section: section_index,
+                    section,
                     image: image.path.clone()
                 });
                 continue;
             };
 
-            if step_index >= section.steps.len() {
+            if step as usize >= recipe_section.steps.len() {
                 errors.push(RecipeImageError::MissingStep {
-                    section: section_index,
-                    step: step_index,
+                    section,
+                    step,
                     image: image.path.clone(),
                 });
             }
