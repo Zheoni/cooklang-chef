@@ -8,7 +8,7 @@ use cooklang::{
     convert::{builder::ConverterBuilder, units_file::UnitsFile},
     CooklangParser,
 };
-use cooklang_fs::FsIndex;
+use cooklang_fs::{resolve_recipe, FsIndex, RecipeContent};
 use once_cell::sync::OnceCell;
 use tracing::{debug, warn};
 
@@ -89,11 +89,11 @@ pub struct GlobalArgs {
     #[arg(long, hide_short_help = true, global = true)]
     no_recipe_ref_check: bool,
 
-    /// Override recipe indexing depth. Defaults to 3.
+    /// Override recipe indexing depth
     ///
     /// This is used to search for referenced recipes.
-    #[arg(long, global = true)]
-    max_depth: Option<usize>,
+    #[arg(long, global = true, default_value_t = 10)]
+    max_depth: usize,
 
     #[arg(long, hide_short_help = true, global = true)]
     debug_trace: bool,
@@ -108,7 +108,10 @@ pub fn main() -> Result<()> {
         tracing_subscriber::FmtSubscriber::builder()
             .compact()
             .with_max_level(tracing::Level::TRACE)
-            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+            .with_span_events(
+                tracing_subscriber::fmt::format::FmtSpan::CLOSE
+                    | tracing_subscriber::fmt::format::FmtSpan::NEW,
+            )
             .with_ansi(concolor::get(concolor::Stream::Stderr).ansi_color())
             .init();
     } else {
@@ -121,7 +124,6 @@ pub fn main() -> Result<()> {
 
     let ctx = configure_context(args.global_args)?;
 
-    let _enter = tracing::info_span!("run", cmd = %args.command).entered();
     match args.command {
         Command::Recipe(args) => recipe::run(&ctx, *args),
         #[cfg(feature = "serve")]
@@ -192,6 +194,28 @@ impl Context {
             configure_parser(&self.config, self.base_dir.as_std_path(), &self.config_path)
         })
     }
+
+    fn checker(&self, relative_to: Option<&Utf8Path>) -> Option<cooklang::RecipeRefChecker> {
+        if self.global_args.no_recipe_ref_check {
+            None
+        } else {
+            let relative_to = relative_to.map(|r| r.to_path_buf());
+            Some(Box::new(move |name: &str| {
+                resolve_recipe(name, &self.recipe_index, relative_to.as_deref()).is_ok()
+            }) as cooklang::RecipeRefChecker)
+        }
+    }
+
+    fn parse_content(
+        &self,
+        content: &cooklang_fs::RecipeContent,
+    ) -> Result<cooklang::RecipeResult> {
+        Ok(self.parser()?.parse_with_recipe_ref_checker(
+            content.text(),
+            content.name(),
+            self.checker(Some(content.path())),
+        ))
+    }
 }
 
 #[tracing::instrument(level = "debug", skip_all)]
@@ -241,26 +265,48 @@ where
     }
 }
 
-struct Input {
-    text: String,
-    recipe_name: String,
-    file_name: String,
-    path: Option<Utf8PathBuf>,
+enum Input {
+    File {
+        content: RecipeContent,
+        override_name: Option<String>,
+    },
+    Stdin {
+        text: String,
+        recipe_name: String,
+    },
 }
 
 impl Input {
     fn parse(&self, ctx: &Context) -> Result<cooklang::Recipe> {
-        let checker = if ctx.global_args.no_recipe_ref_check {
-            None
-        } else {
-            Some(Box::new(|name: &str| ctx.recipe_index.contains(name))
-                as cooklang::RecipeRefChecker)
-        };
-        let r = ctx
-            .parser()?
-            .parse_with_recipe_ref_checker(&self.text, &self.recipe_name, checker);
+        match self {
+            Input::File {
+                content,
+                override_name,
+            } => {
+                let r = ctx.parse_content(content)?.map(|mut r| {
+                    if let Some(name) = override_name {
+                        r.name = name.clone();
+                    }
+                    r
+                });
+                unwrap_recipe(r, content.file_name(), content.text(), ctx)
+            }
+            Input::Stdin { text, recipe_name } => {
+                let r = ctx.parser()?.parse_with_recipe_ref_checker(
+                    text,
+                    recipe_name,
+                    ctx.checker(None),
+                );
+                unwrap_recipe(r, recipe_name, text, ctx)
+            }
+        }
+    }
 
-        unwrap_recipe(r, &self.file_name, &self.text, ctx)
+    fn path(&self) -> Option<&Utf8Path> {
+        match self {
+            Input::File { content, .. } => Some(content.path()),
+            Input::Stdin { .. } => None,
+        }
     }
 }
 

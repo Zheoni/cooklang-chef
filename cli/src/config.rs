@@ -45,7 +45,7 @@ impl Default for Config {
             extensions: Extensions::all(),
             warnings_as_errors: false,
             recipe_ref_check: true,
-            max_depth: 3,
+            max_depth: 10,
             load: Default::default(),
             editor_command: None,
         }
@@ -89,9 +89,7 @@ impl Config {
         if args.warnings_as_errors {
             self.warnings_as_errors = true;
         }
-        if let Some(d) = args.max_depth {
-            self.max_depth = d;
-        }
+        self.max_depth = args.max_depth;
         if !args.units.is_empty() {
             self.load.units = args
                 .units

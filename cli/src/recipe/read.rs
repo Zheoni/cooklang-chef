@@ -50,7 +50,7 @@ enum System {
 }
 
 pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
-    let input = args.input.read()?;
+    let input = args.input.read(&ctx.recipe_index)?;
     let recipe = input.parse(ctx)?;
 
     let mut scaled_recipe = if let Some(scale) = args.scale {

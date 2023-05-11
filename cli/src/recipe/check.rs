@@ -15,10 +15,10 @@ pub struct CheckArgs {
 }
 
 pub fn run(ctx: &Context, args: CheckArgs) -> Result<()> {
-    let input = args.input.read()?;
+    let input = args.input.read(&ctx.recipe_index)?;
     let recipe = input.parse(ctx)?;
     if args.images {
-        if let Some(path) = &input.path {
+        if let Some(path) = &input.path() {
             if let Err(errors) = check_recipe_images(&recipe_images(path), &recipe) {
                 for e in errors {
                     eprintln!("{e}");

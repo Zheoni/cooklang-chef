@@ -9,9 +9,10 @@ use cooklang::model::IngredientListEntry;
 use cooklang::quantity::GroupedQuantity;
 use cooklang::{aisle::AileConf, quantity::Quantity};
 use cooklang::{Recipe, ScaledRecipe};
+use cooklang_fs::resolve_recipe;
 use yansi::Paint;
 
-use crate::{unwrap_recipe, write_to_output, Context};
+use crate::{unwrap_recipe, write_to_output, Context, Input};
 
 #[derive(Debug, Args)]
 pub struct CreateArgs {
@@ -27,8 +28,7 @@ pub struct CreateArgs {
 }
 
 pub fn run(ctx: &Context, aisle: AileConf, args: CreateArgs) -> Result<()> {
-    let parser = ctx.parser()?;
-    let converter = parser.converter();
+    let converter = ctx.parser()?.converter();
     let mut all_ingredients: HashMap<String, GroupedQuantity> = HashMap::new();
 
     for entry in args.recipes {
@@ -43,11 +43,14 @@ pub fn run(ctx: &Context, aisle: AileConf, args: CreateArgs) -> Result<()> {
                 (name, target.ok())
             })
             .unwrap_or((&entry, None));
-
-        let entry = ctx.recipe_index.get(name)?;
-        let content = entry.read()?;
-        let r = content.parse(parser);
-        let recipe = unwrap_recipe(r, entry.path().file_name().unwrap(), content.text(), ctx)?;
+        let input = {
+            let entry = resolve_recipe(name, &ctx.recipe_index, None)?;
+            Input::File {
+                content: entry.read()?,
+                override_name: None,
+            }
+        };
+        let recipe = input.parse(ctx)?;
         let recipe = if let Some(servings) = servings {
             recipe.scale(servings, converter)
         } else {

@@ -51,14 +51,14 @@ impl AsyncFsIndex {
                         match updated {
                             Update::Modified { .. } => {}
                             Update::Added { path } => {
-                                index.add_recipe(path.as_str()).unwrap();
+                                index.add_recipe(&path).unwrap();
                             }
                             Update::Deleted { path } => {
-                                index.remove_recipe(path.as_str()).unwrap();
+                                index.remove_recipe(&path).unwrap();
                             }
                             Update::Renamed { path: from, to } => {
-                                index.remove_recipe(from.as_str()).unwrap();
-                                index.add_recipe(to.as_str()).unwrap();
+                                index.remove_recipe(&from).unwrap();
+                                index.add_recipe(&to).unwrap();
                             }
                         }
                     }

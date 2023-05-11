@@ -334,24 +334,25 @@ fn images(entry: &cooklang_fs::RecipeEntry, base_path: &Utf8Path) -> Vec<cooklan
     images
 }
 
-async fn all_recipes(State(state): State<Arc<ApiState>>) -> Json<Vec<String>> {
-    let recipes = tokio::task::spawn_blocking(move || {
-        cooklang_fs::all_recipes(&state.base_path, state.max_depth)
-            .map(|e| {
-                clean_path(e.path(), &state.base_path)
-                    .with_extension("")
-                    .into_string()
-            })
-            .collect()
-    })
-    .await
-    .unwrap();
-    Json(recipes)
+async fn all_recipes(State(state): State<Arc<ApiState>>) -> Result<Json<Vec<String>>, StatusCode> {
+    let recipes = cooklang_fs::all_recipes(&state.base_path, state.max_depth)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map(|e| {
+            clean_path(e.path(), &state.base_path)
+                .with_extension("")
+                .into_string()
+        })
+        .collect();
+    Ok(Json(recipes))
 }
 
-async fn all_recipes_metadata(State(state): State<Arc<ApiState>>) -> Json<Vec<serde_json::Value>> {
+async fn all_recipes_metadata(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
     let mut handles = Vec::new();
-    for entry in cooklang_fs::all_recipes(&state.base_path, state.max_depth) {
+    for entry in cooklang_fs::all_recipes(&state.base_path, state.max_depth)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    {
         let state = Arc::clone(&state);
         handles.push(tokio::spawn(async move {
             let Ok(content) = tokio::fs::read_to_string(entry.path()).await else { return None; };
@@ -374,7 +375,7 @@ async fn all_recipes_metadata(State(state): State<Arc<ApiState>>) -> Json<Vec<se
             recipes.push(recipe)
         }
     }
-    Json(recipes)
+    Ok(Json(recipes))
 }
 
 #[derive(Deserialize)]

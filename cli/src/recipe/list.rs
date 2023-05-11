@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{builder::ArgPredicate, Args};
-use cooklang::{metadata::Metadata, CooklangParser};
+use cooklang::metadata::Metadata;
 use cooklang_fs::{all_recipes, RecipeContent, RecipeEntry};
 use yansi::Paint;
 
@@ -31,7 +31,7 @@ pub struct ListArgs {
     tags: bool,
 
     /// Add `check` and `images` in one flag
-    #[arg(short, long, conflicts_with_all = ["check", "images"])]
+    #[arg(short, long)]
     long: bool,
 
     /// Display the relative path of the recipes
@@ -48,17 +48,14 @@ pub struct ListArgs {
 }
 
 pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
-    let iter = all_recipes(&ctx.base_dir, ctx.config.max_depth)
+    let iter = all_recipes(&ctx.base_dir, ctx.config.max_depth)?
         .map(CachedRecipeEntry::new)
         .filter(|entry| {
             if args.tag.is_empty() {
                 return true;
             }
 
-            let parser = ctx
-                .parser()
-                .expect("Could not init parser when filtering by tags");
-            let Ok(metadata) = entry.metadata(parser, args.check) else {
+            let Ok(metadata) = entry.metadata(ctx, args.check) else {
                 tracing::warn!("Skipping '{}': could not parse metadata", entry.entry.path());
                 return false;
             };
@@ -75,8 +72,7 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
             count += 1;
             if args.check || args.images {
                 if args.check {
-                    let content = entry.read()?;
-                    let report = content.parse(ctx.parser()?).into_report();
+                    let report = entry.parsed(ctx)?;
                     if report.has_errors() {
                         with_errors += 1;
                     }
@@ -107,7 +103,9 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
         println!("{table}");
     } else {
         let mut table = tabular::Table::new("{:<}{:<}{:<}{:<}");
-        for entry in iter {
+        let mut all = iter.collect::<Vec<_>>();
+        all.sort_unstable_by(|a, b| a.path().cmp(b.path()));
+        for entry in all {
             let row = list_row(ctx, &args, entry)?;
             table.add_row(row);
         }
@@ -121,7 +119,7 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<
     let mut row = tabular::Row::new();
 
     let name = if args.absolute_paths {
-        entry.path().to_string()
+        entry.path().canonicalize()?.to_string_lossy().to_string()
     } else {
         let p = entry.path().strip_prefix(&ctx.base_dir).unwrap();
         if args.paths {
@@ -145,25 +143,21 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<
     row.add_ansi_cell(name);
 
     if args.tags {
-        if let Some(metadata) = ctx
-            .parser()
-            .ok()
-            .and_then(|parser| entry.metadata(parser, args.check).ok())
-        {
+        if let Ok(metadata) = entry.metadata(ctx, args.check) {
             if metadata.tags.is_empty() {
                 row.add_ansi_cell(format!(" [{}]", Paint::new("-").dimmed()));
             } else {
                 row.add_cell(format!(" [{}]", metadata.tags.join(", ")));
             }
         } else {
-            row.add_ansi_cell(format!(" ({})", Paint::yellow("cannot parse")));
+            row.add_ansi_cell(format!(" ({})", Paint::red("cannot parse")));
         }
     } else {
         row.add_cell("");
     }
 
     if args.check {
-        row.add_ansi_cell(format!(" [{}]", check_str(ctx.parser()?, &entry)));
+        row.add_ansi_cell(format!(" [{}]", check_str(ctx, &entry)));
     } else {
         row.add_cell("");
     };
@@ -182,11 +176,12 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<
     Ok(row)
 }
 
-fn check_str(parser: &CooklangParser, entry: &CachedRecipeEntry) -> Paint<&'static str> {
+fn check_str(ctx: &Context, entry: &CachedRecipeEntry) -> Paint<&'static str> {
     entry
         .content()
         .ok()
-        .map(|e| e.parse(parser).into_report())
+        .and_then(|content| ctx.parse_content(content).ok())
+        .map(|r| r.into_report())
         .map(|report| {
             if report.has_errors() {
                 Paint::red("Error")
@@ -222,12 +217,13 @@ impl CachedRecipeEntry {
             .map_err(anyhow::Error::from)
     }
 
-    fn parsed(&self, parser: &CooklangParser) -> Result<&cooklang::RecipeResult> {
+    fn parsed(&self, ctx: &Context) -> Result<&cooklang::RecipeResult> {
         self.content()
-            .map(|content| self.parsed.get_or_init(|| content.parse(parser)))
+            .and_then(|content| self.parsed.get_or_try_init(|| ctx.parse_content(content)))
+            .map_err(anyhow::Error::from)
     }
 
-    fn metadata(&self, parser: &CooklangParser, try_full: bool) -> Result<&Metadata> {
+    fn metadata(&self, ctx: &Context, try_full: bool) -> Result<&Metadata> {
         match self
             .parsed
             .get()
@@ -239,7 +235,7 @@ impl CachedRecipeEntry {
                 self.metadata.get_or_try_init(|| {
                     if try_full && self.parsed.get().is_none() {
                         if let Some(m) = self
-                            .parsed(parser)
+                            .parsed(ctx)
                             .ok()
                             .and_then(|r| r.output())
                             .map(|r| &r.metadata)
@@ -248,7 +244,7 @@ impl CachedRecipeEntry {
                         }
                     }
                     content
-                        .metadata(parser)
+                        .metadata(ctx.parser()?)
                         .take_output()
                         .ok_or(anyhow::anyhow!("Can't parse metadata"))
                 })

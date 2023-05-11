@@ -5,14 +5,18 @@
 //!
 //! It implements an index into the file system ([FsIndex]) to efficiently
 //! get recipes from a path. Also, get related images from a recipe.
+
+mod walker;
+
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    fs::FileType,
 };
 
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::Serialize;
+pub use walker::DirEntry;
+use walker::Walker;
 
 /// Index of a directory for cooklang recipes
 ///
@@ -22,7 +26,7 @@ use serde::Serialize;
 pub struct FsIndex {
     base_path: Utf8PathBuf,
     cache: RefCell<Cache>,
-    walker: RefCell<walkdir::IntoIter>,
+    walker: RefCell<Walker>,
 }
 
 #[derive(Debug, Default)]
@@ -36,96 +40,25 @@ pub enum Error {
     #[error("Recipe not found: '{0}'")]
     NotFound(String),
     #[error(transparent)]
-    Walk(#[from] walkdir::Error),
-    #[error("Error canonicalizing path")]
-    Canonicalize(
-        #[from]
-        #[source]
-        std::io::Error,
-    ),
+    Io(#[from] std::io::Error),
     #[error("Invalid name: '{0}'")]
     InvalidName(String),
     #[error(transparent)]
-    NonUtf8(#[from] NonUtf8),
-}
-
-#[derive(Debug)]
-pub struct RecipeEntry(Utf8PathBuf);
-
-#[derive(Debug, Clone)]
-pub struct DirEntry {
-    path: Utf8PathBuf,
-    depth: usize,
-    file_type: FileType,
-}
-
-impl DirEntry {
-    pub fn file_name(&self) -> &str {
-        self.path.file_name().unwrap_or(self.path.as_str())
-    }
-    pub fn file_stem(&self) -> &str {
-        self.path.file_stem().unwrap_or(self.path.as_str())
-    }
-    pub fn depth(&self) -> usize {
-        self.depth
-    }
-    pub fn path(&self) -> &Utf8Path {
-        &self.path
-    }
-    pub fn file_type(&self) -> FileType {
-        self.file_type
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("The entry is not a recipe: {}", .0.path)]
-pub struct NotRecipe(DirEntry);
-impl TryFrom<DirEntry> for RecipeEntry {
-    type Error = NotRecipe;
-
-    fn try_from(value: DirEntry) -> Result<Self, Self::Error> {
-        if !is_cooklang_file(&value) {
-            return Err(NotRecipe(value));
-        }
-        Ok(Self(value.path))
-    }
+    NotRecipe(#[from] NotRecipe),
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error("Non UTF8 path")]
 pub struct NonUtf8(std::path::PathBuf);
 
-impl TryFrom<walkdir::DirEntry> for DirEntry {
-    type Error = NonUtf8;
-
-    fn try_from(value: walkdir::DirEntry) -> Result<Self, Self::Error> {
-        let depth = value.depth();
-        let file_type = value.file_type();
-        let path = Utf8PathBuf::from_path_buf(value.into_path()).map_err(NonUtf8)?;
-        Ok(Self {
-            path,
-            depth,
-            file_type,
-        })
-    }
-}
-
 impl FsIndex {
     /// Create a new lazy index of the given path
     pub fn new(base_path: impl AsRef<std::path::Path>, max_depth: usize) -> Result<Self, Error> {
-        let base_path = Utf8Path::from_path(base_path.as_ref())
-            .ok_or_else(|| Error::NonUtf8(NonUtf8(base_path.as_ref().into())))?;
-        let walker = walkdir::WalkDir::new(base_path)
-            .max_depth(max_depth)
-            .sort_by(
-                // files first, and sort by name
-                |a, b| match (a.file_type().is_file(), b.file_type().is_file()) {
-                    (true, false) => std::cmp::Ordering::Less,
-                    (false, true) => std::cmp::Ordering::Greater,
-                    _ => a.file_name().cmp(b.file_name()),
-                },
-            )
-            .into_iter();
+        let base_path: &Utf8Path = base_path
+            .as_ref()
+            .try_into()
+            .map_err(|e: camino::FromPathError| e.into_io_error())?;
+        let walker = Walker::new(base_path, max_depth);
 
         Ok(Self {
             base_path: base_path.into(),
@@ -154,60 +87,44 @@ impl FsIndex {
     }
 
     /// Completes the lazy indexing
+    #[tracing::instrument(level = "debug", skip_all)]
     pub fn index_all(&mut self) -> Result<(), Error> {
         for entry in self.walker.get_mut() {
             let entry = entry?;
-            let entry = DirEntry::try_from(entry)?;
             let Some((entry_name, path)) = process_entry(&entry) else { continue; };
             self.cache.borrow_mut().insert(entry_name, path);
         }
         Ok(())
     }
 
-    fn into_name_path(recipe: &str) -> Result<(&str, &Utf8Path), Error> {
-        let path = Utf8Path::new(recipe);
-        let name = path
-            .file_stem()
-            .ok_or_else(|| Error::InvalidName(recipe.into()))?;
-        Ok((name, path))
-    }
-
     /// Get a recipe from the index
     ///
-    /// The input recipe name can be just a name or a path relative
-    /// to the base path of the index.
+    /// The input recipe is a partial path with or without the .cook extension.
     #[tracing::instrument(level = "debug", name = "fs_index_get", skip(self))]
     pub fn get(&self, recipe: &str) -> Result<RecipeEntry, Error> {
-        let (name, path) = Self::into_name_path(recipe)?;
+        let (name, path) = into_name_path(recipe)?;
 
         // Is in cache?
-        if let Some(path) = self.cache.borrow().get(name, path) {
+        if let Some(path) = self.cache.borrow().get(&name, &path) {
             return Ok(RecipeEntry(path));
         }
         if self.cache.borrow().non_existent.contains(recipe) {
             return Err(Error::NotFound(recipe.to_string()));
         }
 
-        // Is a file relative to base?
-        let possible_path = self.base_path.join(recipe).with_extension("cook");
-        if possible_path.is_file() {
-            // Add to cache
-            self.cache.borrow_mut().insert(name, &possible_path);
-            return Ok(RecipeEntry(possible_path));
-        }
-
         // Walk until found or no more files
+        // as walk is breadth-first and sorted by filename, the first found will
+        // be the wanted: outermost alphabetically
         while let Some(entry) = self.walker.borrow_mut().next() {
             let entry = entry?;
-            let entry = DirEntry::try_from(entry)?;
 
-            let Some((entry_name, path)) = process_entry(&entry) else { continue; };
+            let Some((entry_name, entry_path)) = process_entry(&entry) else { continue; };
 
             // Add to cache
-            self.cache.borrow_mut().insert(entry_name, path);
+            self.cache.borrow_mut().insert(entry_name, entry_path);
 
-            if entry_name == name {
-                return Ok(RecipeEntry(path.into()));
+            if compare_path(entry_path, &path) {
+                return Ok(RecipeEntry(entry_path.into()));
             }
         }
 
@@ -226,9 +143,23 @@ impl FsIndex {
     ///
     /// # Errors
     /// The only possible is [Error::InvalidName].
-    pub fn remove_recipe(&mut self, recipe: &str) -> Result<(), Error> {
-        let (name, path) = Self::into_name_path(recipe)?;
-        self.cache.get_mut().remove(name, path);
+    ///
+    /// # Panics
+    /// - If the path contains "." or "..".
+    /// - If the path is not relative to the base path.
+    pub fn remove_recipe(&mut self, path: &Utf8Path) -> Result<(), Error> {
+        assert!(
+            path.components().all(|c| matches!(
+                c,
+                camino::Utf8Component::CurDir | camino::Utf8Component::ParentDir
+            )),
+            "path contains current dir or parent dir"
+        );
+        let path = path
+            .strip_prefix(&self.base_path)
+            .expect("Path not under base path");
+        let (name, path) = into_name_path(path.as_str())?;
+        self.cache.get_mut().remove(&name, &path);
         Ok(())
     }
 
@@ -236,60 +167,61 @@ impl FsIndex {
     ///
     /// # Errors
     /// The only possible is [Error::InvalidName].
-    pub fn add_recipe(&mut self, recipe: &str) -> Result<(), Error> {
-        if self.get(recipe).is_ok() {
+    ///
+    /// # Panics
+    /// - If the path contains "." or "..".
+    /// - If the path is not relative to the base path.
+    pub fn add_recipe(&mut self, path: &Utf8Path) -> Result<(), Error> {
+        assert!(
+            path.components().all(|c| matches!(
+                c,
+                camino::Utf8Component::CurDir | camino::Utf8Component::ParentDir
+            )),
+            "path contains current dir or parent dir"
+        );
+        let path = path
+            .strip_prefix(&self.base_path)
+            .expect("Path not under base path");
+
+        if self.get(path.as_str()).is_ok() {
             return Ok(());
         }
 
-        let (name, path) = Self::into_name_path(recipe)?;
-        self.cache.get_mut().insert(name, path);
+        let (name, path) = into_name_path(path.as_str())?;
+        self.cache.get_mut().insert(&name, &path);
         Ok(())
     }
 }
 
-/// Get all recipes from a path with a depth limit
-pub fn all_recipes(
-    base_path: impl AsRef<std::path::Path>,
-    max_depth: usize,
-) -> impl Iterator<Item = RecipeEntry> {
-    walkdir::WalkDir::new(base_path.as_ref())
-        .max_depth(max_depth)
-        .sort_by_file_name()
-        .into_iter()
-        .filter_map(|e| {
-            e.ok()
-                .and_then(|e| DirEntry::try_from(e).ok())
-                .and_then(|e| RecipeEntry::try_from(e).ok())
-        })
-}
-
-fn is_cooklang_file(dir_entry: &DirEntry) -> bool {
-    dir_entry.file_type.is_file()
-        && dir_entry
-            .path
-            .extension()
-            .map(|e| e == "cook")
-            .unwrap_or(false)
-}
-
 fn process_entry(dir_entry: &DirEntry) -> Option<(&str, &Utf8Path)> {
     // Ignore non files or not .cook files
-    if !is_cooklang_file(dir_entry) {
+    if !dir_entry.is_cooklang_file() {
         return None;
     }
 
     let entry_name = dir_entry.file_stem();
 
-    Some((entry_name, &dir_entry.path))
+    Some((entry_name, dir_entry.path()))
 }
 
 impl Cache {
+    /// args should be lowercase already
     fn get(&self, name: &str, path: &Utf8Path) -> Option<Utf8PathBuf> {
-        let v = self.recipes.get(&name.to_lowercase())?;
+        debug_assert!(
+            name.chars().all(|c| !c.is_alphabetic() || c.is_lowercase()),
+            "cache lookup name not lowercase"
+        );
+        debug_assert!(
+            path.as_str()
+                .chars()
+                .all(|c| !c.is_alphabetic() || c.is_lowercase()),
+            "cache lookup path not lowercase"
+        );
+        let v = self.recipes.get(name)?;
         if name == path {
             v.first().cloned()
         } else {
-            v.iter().find(|&p| p == path).cloned()
+            v.iter().find(|p| compare_path(p, path)).cloned()
         }
     }
 
@@ -321,9 +253,72 @@ impl Cache {
     }
 }
 
+fn into_name_path(recipe: &str) -> Result<(String, Utf8PathBuf), Error> {
+    let path = compare_path_key(recipe.into());
+    let name = path
+        .file_stem()
+        .ok_or_else(|| Error::InvalidName(recipe.into()))?
+        .to_string();
+    Ok((name, path))
+}
+
+fn compare_path_key(p: &Utf8Path) -> Utf8PathBuf {
+    Utf8PathBuf::from(p.as_str().to_lowercase()).with_extension("")
+}
+
+fn compare_path(full: &Utf8Path, suffix: &Utf8Path) -> bool {
+    compare_path_key(full).ends_with(suffix)
+}
+
+/// Get all recipes from a path with a depth limit
+pub fn all_recipes(
+    base_path: impl AsRef<std::path::Path>,
+    max_depth: usize,
+) -> Result<impl Iterator<Item = RecipeEntry>, std::io::Error> {
+    let base_path: &Utf8Path = base_path
+        .as_ref()
+        .try_into()
+        .map_err(|e: camino::FromPathError| e.into_io_error())?;
+    Ok(Walker::new(base_path, max_depth).filter_map(|e| RecipeEntry::try_from(e.ok()?).ok()))
+}
+
+/// Resolves a recipe query first trying directly as a path and if it fails performs
+/// a lookup in the index.
+///
+/// The path can be outside the indexed dir.
+#[tracing::instrument(level = "debug", skip(index), ret, err)]
+pub fn resolve_recipe(
+    query: &str,
+    index: &FsIndex,
+    relative_to: Option<&Utf8Path>,
+) -> Result<RecipeEntry, Error> {
+    fn as_path(query: &str, relative_to: Option<&Utf8Path>) -> Result<RecipeEntry, Error> {
+        let mut path = Utf8PathBuf::from(query);
+
+        if let Some(base) = relative_to {
+            if path.is_relative() {
+                path = base.join(path);
+            }
+        }
+
+        DirEntry::new(&path)
+            .map_err(Error::from)
+            .and_then(|e| RecipeEntry::try_from(e).map_err(Error::from))
+    }
+
+    as_path(query, relative_to).or_else(|_| index.get(query))
+}
+
+#[derive(Debug, Clone)]
+pub struct RecipeEntry(Utf8PathBuf);
+
 impl RecipeEntry {
     pub fn path(&self) -> &Utf8Path {
         &self.0
+    }
+
+    pub fn file_name(&self) -> &str {
+        self.0.file_name().unwrap()
     }
 
     pub fn name(&self) -> &str {
@@ -338,7 +333,7 @@ impl RecipeEntry {
         let content = std::fs::read_to_string(&self.0)?;
         Ok(RecipeContent {
             content,
-            path: self.0.clone(),
+            entry: self.clone(),
         })
     }
 
@@ -347,9 +342,23 @@ impl RecipeEntry {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("The entry is not a recipe: {}", .0.path())]
+pub struct NotRecipe(DirEntry);
+impl TryFrom<DirEntry> for RecipeEntry {
+    type Error = NotRecipe;
+
+    fn try_from(value: DirEntry) -> Result<Self, Self::Error> {
+        if !value.is_cooklang_file() {
+            return Err(NotRecipe(value));
+        }
+        Ok(Self(value.into_path()))
+    }
+}
+
 pub struct RecipeContent {
     content: String,
-    path: Utf8PathBuf,
+    entry: RecipeEntry,
 }
 
 impl RecipeContent {
@@ -358,14 +367,31 @@ impl RecipeContent {
     }
 
     pub fn parse(&self, parser: &cooklang::CooklangParser) -> cooklang::RecipeResult {
-        parser.parse(
-            &self.content,
-            self.path.file_stem().expect("empty recipe name").as_ref(),
-        )
+        parser.parse(&self.content, self.entry.name())
+    }
+
+    pub fn parse_with_recipe_ref_checker(
+        &self,
+        parser: &cooklang::CooklangParser,
+        checker: Option<cooklang::RecipeRefChecker>,
+    ) -> cooklang::RecipeResult {
+        parser.parse_with_recipe_ref_checker(&self.content, self.entry.name(), checker)
     }
 
     pub fn text(&self) -> &str {
         &self.content
+    }
+
+    pub fn into_text(self) -> String {
+        self.content
+    }
+}
+
+impl std::ops::Deref for RecipeContent {
+    type Target = RecipeEntry;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry
     }
 }
 
