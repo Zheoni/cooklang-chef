@@ -591,23 +591,35 @@ impl UnitCount {
 
 impl<D: Serialize> Recipe<D> {
     /// Convert a [Recipe] to another [System] in place.
-    pub fn convert(&mut self, to: System, converter: &Converter) -> Result<(), ConvertError> {
+    ///
+    /// When an error occurs, it is stored and the quantity stays the same.
+    ///
+    /// Returns all the errors while converting. These usually are missing units,
+    /// unknown units or text values.
+    pub fn convert(&mut self, to: System, converter: &Converter) -> Vec<ConvertError> {
+        let mut errors = Vec::new();
+
+        let mut conv = |q: &mut Quantity| match converter.convert(q, to) {
+            Ok(cq) => *q = cq,
+            Err(e) => errors.push(e),
+        };
+
         for igr in &mut self.ingredients {
             if let Some(q) = &mut igr.quantity {
-                *q = converter.convert(&*q, to)?;
+                conv(q);
             }
         }
 
         // cookware can't have units
 
         for timer in &mut self.timers {
-            timer.quantity = converter.convert(&timer.quantity, to)?;
+            conv(&mut timer.quantity)
         }
 
         for q in &mut self.inline_quantities {
-            *q = converter.convert(&*q, to)?;
+            conv(q);
         }
 
-        Ok(())
+        errors
     }
 }

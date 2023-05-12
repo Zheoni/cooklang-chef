@@ -1,6 +1,6 @@
 [package]
 name = "cooklang"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "Cooklang parser with opt-in extensions"

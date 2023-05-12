@@ -413,9 +413,10 @@ async fn recipe(
                 recipe.default_scale()
             };
             if let Some(system) = query.units {
-                scaled
-                    .convert(system, state.parser.converter())
-                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                let errors = scaled.convert(system, state.parser.converter());
+                if !errors.is_empty() {
+                    tracing::warn!("Errors converting units: {errors:?}");
+                }
             }
             Ok(scaled)
         })?
