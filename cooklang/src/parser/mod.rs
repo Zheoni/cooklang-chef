@@ -180,7 +180,7 @@ pub fn parse<'input>(
         let ast_line = if let Some(l) = meta_or_section {
             l
         } else {
-            if !last_line_is_empty && extensions.contains(Extensions::MULTINE_STEPS) {
+            if !last_line_is_empty && extensions.contains(Extensions::MULTILINE_STEPS) {
                 if let Some(ast::Line::Step { items, is_text }) = lines.last_mut() {
                     let parsed_step = step(&mut line, *is_text);
                     if !parsed_step.items.is_empty() {

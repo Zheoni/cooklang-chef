@@ -122,7 +122,7 @@ aisle = "path/to/aisle.conf/file
 `extensions` can be `'all'`, `'none'` or a map to extensions like this one
 ```toml
 [extensions]
-MULTINE_STEPS = true
+MULTILINE_STEPS = true
 COMPONENT_MODIFIERS = true
 COMPONENT_NOTE = true
 COMPONENT_ALIAS = true

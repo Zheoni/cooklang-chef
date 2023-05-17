@@ -42,7 +42,7 @@ bitflags! {
     /// for a detailed explanation of all of them.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
     pub struct Extensions: u32 {
-        const MULTINE_STEPS        = 1 << 0;
+        const MULTILINE_STEPS      = 1 << 0;
         const COMPONENT_MODIFIERS  = 1 << 1;
         const COMPONENT_NOTE       = 1 << 2;
         const COMPONENT_ALIAS      = 1 << 3;
