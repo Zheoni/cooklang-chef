@@ -1,6 +1,8 @@
-# cooklang-rs
+# cooklang-chef
 
-A superset of [cooklang](https://cooklang.org/) and related tools.
+A CLI to manage [cooklang](https://cooklang.org/) recipes with extensions.
+
+> The parser has been moved to [cooklang/cooklang-rs](https://github.com/cooklang/cooklang-rs)
 
 ## What is cooklang
 Cooklang is a markup language for cooking recipes. An in depth explanation can
@@ -20,28 +22,34 @@ Bake with a preheated #oven at 230ºC for ~{30%min}.
 ```
 ![](./images/bread3.png)
 
-## What is this crate
+## What is cooklang-chef
+`chef` is a CLI to manage, read and convert cooklang recipes.
+
 I wanted a couple more features that cooklang did not have, so I extended the
 cooklang syntax and semantics a bit.
 
 **All regular cooklang files parse as the same recipe**, the extensions
 are a superset of the original cooklang format. Also, the
 **extensions can be turned off**, so the parser can be used for regular cooklang
-if you don't like the extensions.
+if you don't like the extensions. All extensions except the multiline steps
+are enabled by default[^1].
 
-You can see a detailed list of all extensions explained [here](./docs/extensions.md).
+[^1]: This is done to maximize compatibility with other cooklang parsers.
+
+You can see a detailed list of all extensions explained in [the parser repo](./docs/extensions.md).
 
 Full user documentation [here](./docs/main.md).
 
-Some key features:
-- [**CLI**](./docs/cli.md). All in one program to manage your recipes.
-  Install it with[^1]:
-  ```sh
-  cargo install cooklang-chef
-  ```
-[^1]: This method currently has a problem. A dependency has a bug which is solved
+You can install `chef` with[^2]:
+```sh
+cargo install cooklang-chef
+```
+
+[^2]: This method currently has a problem. A dependency has a bug which is solved
 but pending a release. Until then error colors won't work. If that is a big
 problem for you, manually [cloning the repo and compiling will work](./docs/cli.md#compiling-the-cli).
+
+Key features:
 
 - **Web UI**. The [CLI](./docs/cli.md) comes with an embedded web UI.
   - Scale and convert the quantities.
@@ -64,14 +72,14 @@ problem for you, manually [cloning the repo and compiling will work](./docs/cli.
   ```
   ![](./images/error_report.png)
 
-- **Units**. An ingredient quantity means nothing without a units. This is why
-  the units are parsed a and checked. With units come:
+- **Units**. An ingredient quantity means nothing without a unit. This is why
+  the units are parsed and checked. With units come:
   - Unit conversion. You can read your recipe in your prefered unit system.
   - Configurable units. You can add, remove and rename units.
 
 ## Crates
 
-- [Cooklang parser](./cooklang/) [![Crates.io](https://img.shields.io/crates/v/cooklang)](https://crates.io/crates/cooklang) [![docs.rs](https://img.shields.io/docsrs/cooklang)](https://docs.rs/cooklang/)
+- [Cooklang parser](https://github.com/cooklang/cooklang-rs) [![Crates.io](https://img.shields.io/crates/v/cooklang)](https://crates.io/crates/cooklang) [![docs.rs](https://img.shields.io/docsrs/cooklang)](https://docs.rs/cooklang/)
 - [The CLI](./cli/) [![Crates.io](https://img.shields.io/crates/v/cooklang-chef)](https://crates.io/crates/cooklang-chef)
 - [cooklang-fs](./cooklang-fs). [![Crates.io](https://img.shields.io/crates/v/cooklang-fs)](https://crates.io/crates/cooklang-fs)
   Utilities to deal with referencing recipe, images and data related to recipes that are in other files.

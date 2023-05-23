@@ -1,6 +1,6 @@
-# `cooklang-rs` documentation
+# `cooklang-chef` documentation
 
-- [Extensions](./extensions.md)
-- [Using references](./using_references.md)
 - [The CLI](./cli.md)
+- [Using references](./using_references.md)
+- [Extensions](https://github.com/cooklang/cooklang-rs/blob/main/extensions.md)
 - [Units file](./units_file.md)
