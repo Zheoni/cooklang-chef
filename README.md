@@ -80,7 +80,7 @@ Key features:
 ## Crates
 
 - [Cooklang parser](https://github.com/cooklang/cooklang-rs) [![Crates.io](https://img.shields.io/crates/v/cooklang)](https://crates.io/crates/cooklang) [![docs.rs](https://img.shields.io/docsrs/cooklang)](https://docs.rs/cooklang/)
-- [The CLI](./cli/) [![Crates.io](https://img.shields.io/crates/v/cooklang-chef)](https://crates.io/crates/cooklang-chef)
+- The CLI [![Crates.io](https://img.shields.io/crates/v/cooklang-chef)](https://crates.io/crates/cooklang-chef)
 - [cooklang-fs](./cooklang-fs). [![Crates.io](https://img.shields.io/crates/v/cooklang-fs)](https://crates.io/crates/cooklang-fs)
   Utilities to deal with referencing recipe, images and data related to recipes that are in other files.
 - [cooklang-to-cooklang](./cooklang-to-cooklang). [![Crates.io](https://img.shields.io/crates/v/cooklang-to-cooklang)](https://crates.io/crates/cooklang-to-cooklang) Recipe back to Cooklang.
