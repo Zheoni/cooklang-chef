@@ -7,7 +7,7 @@ description = "Format cooklang to markdown"
 license = "MIT"
 keywords = ["cooklang"]
 categories = ["value-formatting"]
-repository = "https://github.com/Zheoni/cooklang-rs"
+repository.workspace = true
 readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

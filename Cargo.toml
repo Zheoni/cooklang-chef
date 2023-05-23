@@ -7,7 +7,7 @@ description = "CLI to manage cooklang recipes"
 license = "MIT"
 keywords = ["cooklang", "cooking", "recipes", "cli", "chef"]
 categories = ["command-line-utilities", "parser-implementations"]
-repository = "https://github.com/Zheoni/cooklang-rs"
+repository.workspace = true
 readme = "README.md"
 include = [
     "/src",
@@ -71,6 +71,9 @@ members = [
     "cooklang-to-human",
     "cooklang-to-md"
 ]
+
+[workspace.package]
+repository = "https://github.com/Zheoni/cooklang-chef"
 
 [workspace.dependencies]
 cooklang = { version = "0.3" }

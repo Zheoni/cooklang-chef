@@ -7,7 +7,7 @@ description = "Utilities for cooklang recipes in a file system"
 license = "MIT"
 keywords = ["cooklang"]
 categories = []
-repository = "https://github.com/Zheoni/cooklang-rs"
+repository.workspace = true
 readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
