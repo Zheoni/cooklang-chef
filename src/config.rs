@@ -42,7 +42,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             default_units: true,
-            extensions: Extensions::all(),
+            extensions: Extensions::all() ^ Extensions::MULTILINE_STEPS,
             warnings_as_errors: false,
             recipe_ref_check: true,
             max_depth: 10,
@@ -159,7 +159,13 @@ mod extensions_serde {
         } else if extensions.is_empty() {
             se.serialize_str("none")
         } else {
-            se.collect_map(extensions.iter_names().map(|(name, _)| (name, true)))
+            let enabled = extensions.iter_names().map(|(name, _)| (name, true));
+            let disabled = extensions
+                .complement()
+                .iter_names()
+                .map(|(name, _)| (name, false));
+
+            se.collect_map(enabled.chain(disabled))
         }
     }
 
