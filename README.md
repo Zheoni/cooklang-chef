@@ -36,7 +36,7 @@ are enabled by default[^1].
 
 [^1]: This is done to maximize compatibility with other cooklang parsers.
 
-You can see a detailed list of all extensions explained in [the parser repo](./docs/extensions.md).
+You can see a detailed list of all extensions explained in [the parser repo](https://github.com/cooklang/cooklang-rs/blob/main/extensions.md).
 
 Full user documentation [here](./docs/main.md).
 
