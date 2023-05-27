@@ -237,7 +237,8 @@ fn configure_parser(
         }
         for file in units {
             debug!("Loading units {}", file.display());
-            let text = std::fs::read_to_string(file)?;
+            let text = std::fs::read_to_string(&file)
+                .with_context(|| format!("Cannot find units file: {}", file.display()))?;
             let units = toml::from_str(&text)?;
             builder.add_units_file(units)?;
         }
