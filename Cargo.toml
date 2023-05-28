@@ -9,12 +9,7 @@ keywords = ["cooklang", "cooking", "recipes", "cli", "chef"]
 categories = ["command-line-utilities", "parser-implementations"]
 repository.workspace = true
 readme = "README.md"
-include = [
-    "/src",
-    "/Cargo.toml",
-    "/README.md",
-    "/ui/build",
-]
+include = ["/src", "/Cargo.toml", "/README.md", "/ui/build"]
 
 [[bin]]
 path = "src/main.rs"
@@ -48,7 +43,7 @@ tokio = { version = "1", features = ["full"], optional = true }
 axum = { version = "0.6", features = ["ws"], optional = true }
 tower = { version = "0.4", features = ["util"], optional = true }
 tower-http = { version = "0.4", features = ["fs", "trace", "cors"], optional = true }
-notify = { version = "5.1", optional = true }
+notify = { version = "6.0", optional = true }
 debounced = { version = "0.1", optional = true }
 tokio-stream = { version = "0.1", optional = true }
 futures = { version = "0.3", optional = true }
@@ -61,16 +56,21 @@ open = { version = "4.1", optional = true }
 [features]
 default = ["ui"]
 ui = ["serve", "dep:mime_guess", "dep:rust-embed", "dep:open"]
-serve = ["dep:tokio", "dep:axum", "dep:notify", "dep:debounced", "dep:tokio-stream", "dep:futures", "dep:tower", "dep:tower-http", "dep:shell-words"]
+serve = [
+    "dep:tokio",
+    "dep:axum",
+    "dep:notify",
+    "dep:debounced",
+    "dep:tokio-stream",
+    "dep:futures",
+    "dep:tower",
+    "dep:tower-http",
+    "dep:shell-words",
+]
 
 
 [workspace]
-members = [
-    "cooklang-fs",
-    "cooklang-to-cooklang",
-    "cooklang-to-human",
-    "cooklang-to-md"
-]
+members = ["cooklang-fs", "cooklang-to-cooklang", "cooklang-to-human", "cooklang-to-md"]
 
 [workspace.package]
 repository = "https://github.com/Zheoni/cooklang-chef"

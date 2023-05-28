@@ -22,6 +22,8 @@ enum Message {
     Update(Update),
 }
 
+// the paths are relative to the base path, but without the base path itself
+// so not './recipe.cook', just 'recipe.cook'.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Update {
@@ -51,14 +53,14 @@ impl AsyncFsIndex {
                         match updated {
                             Update::Modified { .. } => {}
                             Update::Added { path } => {
-                                index.add_recipe(&path).unwrap();
+                                index.add_recipe(&index.base_path().join(path)).unwrap();
                             }
                             Update::Deleted { path } => {
-                                index.remove_recipe(&path).unwrap();
+                                index.remove_recipe(&index.base_path().join(path)).unwrap();
                             }
                             Update::Renamed { path: from, to } => {
-                                index.remove_recipe(&from).unwrap();
-                                index.add_recipe(&to).unwrap();
+                                index.remove_recipe(&index.base_path().join(from)).unwrap();
+                                index.add_recipe(&index.base_path().join(to)).unwrap();
                             }
                         }
                     }
@@ -97,9 +99,10 @@ fn watch_changes_task(tx: mpsc::Sender<Message>, base_path: &Utf8Path) {
                     continue;
                 }
             };
+            let paths = iter_paths(&base_path, &ev.paths);
             match ev.kind {
                 notify::EventKind::Create(_) => {
-                    for path in iter_paths(&base_path, &ev.paths) {
+                    for path in paths {
                         tx.send(Message::Update(Update::Added { path }))
                             .await
                             .unwrap();
@@ -111,7 +114,7 @@ fn watch_changes_task(tx: mpsc::Sender<Message>, base_path: &Utf8Path) {
                         tx.send(msg).await.unwrap();
                     } else {
                         // fallback
-                        for path in iter_paths(&base_path, &ev.paths) {
+                        for path in paths {
                             tx.send(Message::Update(Update::Modified { path }))
                                 .await
                                 .unwrap();
@@ -119,14 +122,14 @@ fn watch_changes_task(tx: mpsc::Sender<Message>, base_path: &Utf8Path) {
                     }
                 }
                 notify::EventKind::Modify(_) => {
-                    for path in iter_paths(&base_path, &ev.paths) {
+                    for path in paths {
                         tx.send(Message::Update(Update::Modified { path }))
                             .await
                             .unwrap();
                     }
                 }
                 notify::EventKind::Remove(_) => {
-                    for path in iter_paths(&base_path, &ev.paths) {
+                    for path in paths {
                         tx.send(Message::Update(Update::Deleted { path }))
                             .await
                             .unwrap();

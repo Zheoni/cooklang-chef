@@ -4,6 +4,9 @@ use camino::{Utf8Path, Utf8PathBuf};
 
 /// Breadth-first, sorted by file name, .cook filtered, dir walker.
 ///
+/// Paths are relative to the base path, with the base path included. So when
+/// walking over `dir`, entries will be `dir/whatever.cook`.
+///
 /// Currently, all [DirEntry] are guaranteed to be [RecipeEntry](super::RecipeEntry),
 /// but this may change in the future.
 #[derive(Debug)]

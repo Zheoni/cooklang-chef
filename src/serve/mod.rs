@@ -318,7 +318,9 @@ fn check_path(p: &str) -> Result<(), StatusCode> {
 }
 
 fn clean_path(p: &Utf8Path, base_path: &Utf8Path) -> Utf8PathBuf {
-    let p = p.strip_prefix(base_path).unwrap();
+    let p = p
+        .strip_prefix(base_path)
+        .expect("dir entry path not relative to base path");
     #[cfg(windows)]
     let p = Utf8PathBuf::from(p.to_string().replace('\\', "/"));
     #[cfg(not(windows))]

@@ -134,6 +134,9 @@ impl FsIndex {
 
     /// Remove a recipe from the cache
     ///
+    /// The path cannot contain the current dir (`.`) or the parent
+    /// dir (`..`).
+    ///
     /// Remember that the the indexing procedure is lazy, so further calls to
     /// [FsIndex::get] may discover the removed recipe if it was not indexed
     /// before.
@@ -145,44 +148,39 @@ impl FsIndex {
     /// The only possible is [Error::InvalidName].
     ///
     /// # Panics
-    /// - If the path contains "." or "..".
-    /// - If the path is not relative to the base path.
+    /// - If the path does not start with the base path
     pub fn remove_recipe(&mut self, path: &Utf8Path) -> Result<(), Error> {
+        tracing::trace!("manually removing {path}");
         assert!(
-            path.components().all(|c| matches!(
-                c,
-                camino::Utf8Component::CurDir | camino::Utf8Component::ParentDir
-            )),
-            "path contains current dir or parent dir"
+            path.starts_with(&self.base_path),
+            "path does not start with the base path"
         );
-        let path = path
-            .strip_prefix(&self.base_path)
-            .expect("Path not under base path");
+
         let (name, path) = into_name_path(path.as_str())?;
         self.cache.get_mut().remove(&name, &path);
         Ok(())
     }
 
-    /// Manually add a recipe to the cache
+    /// Manually add a recipe to the cache.
+    ///
+    /// The path cannot contain the current dir (`.`) or the parent
+    /// dir (`..`). The file must exist.
     ///
     /// # Errors
     /// The only possible is [Error::InvalidName].
     ///
     /// # Panics
-    /// - If the path contains "." or "..".
-    /// - If the path is not relative to the base path.
+    /// - If the path does not start with the base path
+    /// - If the file does not exist.
     pub fn add_recipe(&mut self, path: &Utf8Path) -> Result<(), Error> {
+        tracing::trace!("manually adding {path}");
         assert!(
-            path.components().all(|c| matches!(
-                c,
-                camino::Utf8Component::CurDir | camino::Utf8Component::ParentDir
-            )),
-            "path contains current dir or parent dir"
+            path.starts_with(&self.base_path),
+            "path does not start with the base path"
         );
-        let path = path
-            .strip_prefix(&self.base_path)
-            .expect("Path not under base path");
+        assert!(path.is_file(), "path does not exist or is not a file");
 
+        // if its known, do nothing
         if self.get(path.as_str()).is_ok() {
             return Ok(());
         }
@@ -207,25 +205,12 @@ fn process_entry(dir_entry: &DirEntry) -> Option<(&str, &Utf8Path)> {
 impl Cache {
     /// args should be lowercase already
     fn get(&self, name: &str, path: &Utf8Path) -> Option<Utf8PathBuf> {
-        debug_assert!(
-            name.chars().all(|c| !c.is_alphabetic() || c.is_lowercase()),
-            "cache lookup name not lowercase"
-        );
-        debug_assert!(
-            path.as_str()
-                .chars()
-                .all(|c| !c.is_alphabetic() || c.is_lowercase()),
-            "cache lookup path not lowercase"
-        );
-        let v = self.recipes.get(name)?;
-        if name == path {
-            v.first().cloned()
-        } else {
-            v.iter().find(|p| compare_path(p, path)).cloned()
-        }
+        let paths = self.recipes.get(&name.to_lowercase())?;
+        paths.iter().find(|p| compare_path(p, path)).cloned()
     }
 
     fn insert(&mut self, name: &str, path: &Utf8Path) {
+        tracing::trace!("adding {name}:{path} to index cache");
         let recipes = self.recipes.entry(name.to_lowercase()).or_default();
         let pos = recipes.partition_point(|p| {
             // less components first. same, alphabetically
@@ -240,6 +225,7 @@ impl Cache {
     }
 
     fn remove(&mut self, name: &str, path: &Utf8Path) {
+        tracing::trace!("removing {name}:{path} from index cache");
         if let Some(recipes) = self.recipes.get_mut(&name.to_lowercase()) {
             // can't do swap so "outer" recipes remain first
             if let Some(index) = recipes.iter().position(|r| r == path) {
@@ -254,7 +240,7 @@ impl Cache {
 }
 
 fn into_name_path(recipe: &str) -> Result<(String, Utf8PathBuf), Error> {
-    let path = compare_path_key(recipe.into());
+    let path = Utf8PathBuf::from(recipe);
     let name = path
         .file_stem()
         .ok_or_else(|| Error::InvalidName(recipe.into()))?
@@ -267,7 +253,8 @@ fn compare_path_key(p: &Utf8Path) -> Utf8PathBuf {
 }
 
 fn compare_path(full: &Utf8Path, suffix: &Utf8Path) -> bool {
-    compare_path_key(full).ends_with(suffix)
+    // only compare the end, so partial paths are a valid form of referencing recipes
+    compare_path_key(full).ends_with(compare_path_key(suffix))
 }
 
 /// Get all recipes from a path with a depth limit

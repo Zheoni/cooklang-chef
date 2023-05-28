@@ -7,7 +7,7 @@
 		if (r !== null && r[4]) return r[4];
 		return null;
 	}
-	const youtubeVideoId = youtubeUrl && getYoutubeId(youtubeUrl);
+	$: youtubeVideoId = youtubeUrl && getYoutubeId(youtubeUrl);
 </script>
 
 {#if youtubeVideoId}
