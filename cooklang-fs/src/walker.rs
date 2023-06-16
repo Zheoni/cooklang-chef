@@ -7,6 +7,8 @@ use camino::{Utf8Path, Utf8PathBuf};
 /// Paths are relative to the base path, with the base path included. So when
 /// walking over `dir`, entries will be `dir/whatever.cook`.
 ///
+/// Files/dirs starting with '.' are ignored.
+///
 /// Currently, all [DirEntry] are guaranteed to be [RecipeEntry](super::RecipeEntry),
 /// but this may change in the future.
 #[derive(Debug)]
@@ -15,6 +17,8 @@ pub struct Walker {
     max_depth: usize,
     dirs: VecDeque<Utf8PathBuf>,
     current: std::vec::IntoIter<DirEntry>,
+    config_dir: Option<String>,
+    ignore: Vec<String>,
 }
 
 impl Walker {
@@ -27,7 +31,26 @@ impl Walker {
             max_depth,
             dirs,
             current: Vec::new().into_iter(),
+            config_dir: None,
+            ignore: Vec::new(),
         }
+    }
+
+    /// Sets a config dir to the walker
+    ///
+    /// If this dir is found not in the top level, a warning will be printed.
+    ///
+    /// This also [Self::ignore]s the dir.
+    pub fn set_config_dir(&mut self, dir: String) {
+        if !dir.starts_with('.') {
+            self.ignore.push(dir.clone());
+        }
+        self.config_dir = Some(dir);
+    }
+
+    /// Ignores a given file/dir
+    pub fn ignore(&mut self, dir: String) {
+        self.ignore.push(dir);
     }
 
     fn process_dir(&mut self, dir: &Utf8Path) -> Result<(), std::io::Error> {
@@ -37,18 +60,26 @@ impl Walker {
         let mut new_entries = Vec::new();
         for e in dir.read_dir_utf8()? {
             let e = e?;
-            if e.file_name().starts_with('.') {
+            let ft = e.file_type()?;
+
+            // print warning for unexpected config dir
+            if let Some(config_dir) = &self.config_dir {
+                if ft.is_dir()
+                    && e.file_name() == config_dir
+                    && entry_depth(e.path(), &self.base_path) > 1
+                {
+                    tracing::warn!("Config dir `{config_dir}` found not in base path. It will be ignored. You may be running the application in the wrong directory.");
+                }
+            }
+
+            // filter dot files/dirs and explicit filters
+            if e.file_name().starts_with('.') || self.ignore.iter().any(|d| d == e.file_name()) {
                 continue;
             }
-            let ft = e.file_type()?;
+
             if ft.is_dir() {
-                if e.path()
-                    .strip_prefix(&self.base_path)
-                    .unwrap()
-                    .components()
-                    .count()
-                    <= self.max_depth
-                {
+                let depth = entry_depth(e.path(), &self.base_path);
+                if depth <= self.max_depth {
                     new_dirs.push(e.into_path());
                 }
             } else {
@@ -125,4 +156,15 @@ impl DirEntry {
     pub fn is_cooklang_file(&self) -> bool {
         self.file_type.is_file() && self.path.extension().map(|e| e == "cook").unwrap_or(false)
     }
+}
+
+/// Calculates the depth of a path in relation to a base path.
+///
+/// # Panics
+/// If `path` is not a suffix of `base_path`.
+fn entry_depth(path: &Utf8Path, base_path: &Utf8Path) -> usize {
+    path.strip_prefix(base_path)
+        .expect("entry path not under base path")
+        .components()
+        .count()
 }

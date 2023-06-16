@@ -201,7 +201,8 @@ fn configure_context(args: GlobalArgs) -> Result<Context> {
         bail!("Base path '{base_dir}' is not a directory");
     }
 
-    let index = FsIndex::new(&base_dir, config.max_depth)?;
+    let mut index = FsIndex::new(&base_dir, config.max_depth)?;
+    index.set_config_dir(COOK_DIR.to_string());
 
     Ok(Context {
         parser: OnceCell::new(),

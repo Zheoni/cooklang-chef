@@ -77,6 +77,20 @@ impl FsIndex {
         Ok(index)
     }
 
+    /// Sets a config dir to the walker
+    ///
+    /// If this dir is found not in the top level, a warning will be printed.
+    ///
+    /// This also [Self::ignore]s the dir.
+    pub fn set_config_dir(&mut self, dir: String) {
+        self.walker.get_mut().set_config_dir(dir);
+    }
+
+    /// Ignores a given file/dir
+    pub fn ignore(&mut self, dir: String) {
+        self.walker.get_mut().ignore(dir);
+    }
+
     pub fn base_path(&self) -> &Utf8Path {
         &self.base_path
     }
