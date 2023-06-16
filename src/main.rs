@@ -14,6 +14,7 @@ use tracing::{debug, warn};
 
 mod config;
 mod convert;
+mod generate_completions;
 mod list;
 mod recipe;
 #[cfg(feature = "serve")]
@@ -53,6 +54,8 @@ enum Command {
     Convert(convert::ConvertArgs),
     /// See loaded configuration
     Config,
+    /// Generate shell completions
+    GenerateCompletions(generate_completions::GenerateCompletionsArgs),
 }
 
 #[derive(Debug, Args)]
@@ -157,6 +160,7 @@ pub fn main() -> Result<()> {
         Command::Units(args) => units::run(ctx.parser()?.converter(), args),
         Command::Convert(args) => convert::run(ctx.parser()?.converter(), args),
         Command::Config => config::run(&ctx),
+        Command::GenerateCompletions(args) => generate_completions::run(args),
     }
 }
 
