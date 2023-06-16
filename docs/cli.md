@@ -107,12 +107,12 @@ chef config
 ### The configuration file
 This is an example configuration file:
 ```toml
-default_units = true        # use bundled units
-warnings_as_errors = false  # treat any warning as an error
-recipe_ref_check = true     # check recipe references
-max_depth = 3               # max depth to search for recipe references
-extensions = 'all'          # enabled extensions
-editor_command = "code -n"  # code editor to open from the web ui
+default_units = true             # use bundled units
+warnings_as_errors = false       # treat any warning as an error
+recipe_ref_check = true          # check recipe references
+max_depth = 3                    # max depth to search for recipe references
+extensions = 'all'               # enabled extensions
+editor_command = ["code", "-n"]  # code editor to open from the web ui
 
 [load]
 units = ["path/to/a/units/file"]

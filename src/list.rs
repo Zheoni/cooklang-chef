@@ -48,7 +48,7 @@ pub struct ListArgs {
 }
 
 pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
-    let iter = all_recipes(&ctx.base_dir, ctx.config.max_depth)?
+    let iter = all_recipes(&ctx.base_path, ctx.config.max_depth)?
         .map(CachedRecipeEntry::new)
         .filter(|entry| {
             if args.tag.is_empty() {
@@ -121,13 +121,13 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<
     let name = if args.absolute_paths {
         entry.path().canonicalize()?.to_string_lossy().to_string()
     } else {
-        let p = entry.path().strip_prefix(&ctx.base_dir).unwrap();
+        let p = entry.path().strip_prefix(&ctx.base_path).unwrap();
         if args.paths {
             p.to_string()
         } else if let Some(parent) = entry
             .path()
             .parent()
-            .and_then(|p| p.strip_prefix(&ctx.base_dir).ok())
+            .and_then(|p| p.strip_prefix(&ctx.base_path).ok())
             .filter(|p| !p.as_str().is_empty())
         {
             format!(

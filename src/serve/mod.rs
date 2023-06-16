@@ -157,10 +157,9 @@ mod ui {
 struct ApiState {
     parser: CooklangParser,
     base_path: Utf8PathBuf,
-    max_depth: usize,
     recipe_index: AsyncFsIndex,
     updates_stream: broadcast::Receiver<Update>,
-    editor_command: Option<String>,
+    config: crate::config::Config,
 }
 
 fn api(ctx: Context) -> Result<Router> {
@@ -168,7 +167,7 @@ fn api(ctx: Context) -> Result<Router> {
     let Context {
         parser,
         recipe_index,
-        base_dir,
+        base_path,
         config,
         ..
     } = ctx;
@@ -189,11 +188,10 @@ fn api(ctx: Context) -> Result<Router> {
 
     let shared_state = Arc::new(ApiState {
         parser,
-        base_path: base_dir,
-        max_depth: config.max_depth,
+        base_path,
         recipe_index,
         updates_stream: updates_rx,
-        editor_command: config.editor_command,
+        config,
     });
 
     let router = Router::new()
@@ -337,7 +335,7 @@ fn images(entry: &cooklang_fs::RecipeEntry, base_path: &Utf8Path) -> Vec<cooklan
 }
 
 async fn all_recipes(State(state): State<Arc<ApiState>>) -> Result<Json<Vec<String>>, StatusCode> {
-    let recipes = cooklang_fs::all_recipes(&state.base_path, state.max_depth)
+    let recipes = cooklang_fs::all_recipes(&state.base_path, state.config.max_depth)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(|e| {
             clean_path(e.path(), &state.base_path)
@@ -352,7 +350,7 @@ async fn all_recipes_metadata(
     State(state): State<Arc<ApiState>>,
 ) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
     let mut handles = Vec::new();
-    for entry in cooklang_fs::all_recipes(&state.base_path, state.max_depth)
+    for entry in cooklang_fs::all_recipes(&state.base_path, state.config.max_depth)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     {
         let state = Arc::clone(&state);
@@ -508,21 +506,18 @@ async fn open_editor(
 
     tracing::info!("Opening editor for '{}'", entry.path());
 
-    // TODO get system editor
-    let editor_cmd = state.editor_command.as_deref().unwrap_or(if cfg!(windows) {
-        "code.cmd -n"
+    let args = if let Some(editor_command) = &state.config.editor_command {
+        editor_command.iter().map(String::as_str).collect()
     } else {
-        "code -n"
-    });
-
-    let args = match shell_words::split(editor_cmd) {
-        Ok(args) if !args.is_empty() => args,
-        _ => {
-            tracing::error!("Error parsing custom editor command");
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        // TODO get system editor
+        if cfg!(windows) {
+            vec!["code.cmd", "-n"]
+        } else {
+            vec!["code", "-n"]
         }
     };
     let (editor, args) = (&args[0], &args[1..]);
+
     if tokio::process::Command::new(editor)
         .args(args)
         .arg(entry.path())

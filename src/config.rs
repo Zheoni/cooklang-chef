@@ -20,7 +20,7 @@ pub struct Config {
     pub extensions: Extensions,
     #[serde(skip_serializing_if = "Load::is_empty")]
     pub load: Load,
-    pub editor_command: Option<String>,
+    pub editor_command: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -57,8 +57,8 @@ const AUTO_AISLE: &str = "aisle.conf";
 const AUTO_UNITS: &str = "units.toml";
 
 impl Config {
-    pub fn read(base_dir: &Utf8Path) -> Result<(Self, PathBuf)> {
-        let local_file = base_dir
+    pub fn read(base_path: &Utf8Path) -> Result<(Self, PathBuf)> {
+        let local_file = base_path
             .join(COOK_DIR)
             .join(CONFIG_NAME)
             .with_extension("toml");
@@ -115,7 +115,7 @@ impl Config {
             .as_ref()
             .map(|a| resolve_path(&ctx.config_path, a))
             .or_else(|| {
-                let local = ctx.base_dir.as_std_path().join(COOK_DIR).join(AUTO_AISLE);
+                let local = ctx.base_path.as_std_path().join(COOK_DIR).join(AUTO_AISLE);
                 local.is_file().then_some(local)
             })
             .or_else(|| {
@@ -124,7 +124,7 @@ impl Config {
             })
     }
 
-    pub fn units(&self, config_path: &Path, base_dir: &Path) -> Vec<PathBuf> {
+    pub fn units(&self, config_path: &Path, base_path: &Path) -> Vec<PathBuf> {
         if !self.load.units.is_empty() {
             return self
                 .load
@@ -134,7 +134,7 @@ impl Config {
                 .collect();
         }
 
-        let local = base_dir.join(COOK_DIR).join(AUTO_UNITS);
+        let local = base_path.join(COOK_DIR).join(AUTO_UNITS);
         let relative = resolve_path(config_path, Path::new(AUTO_UNITS));
         if local.is_file() {
             vec![local]
@@ -246,7 +246,7 @@ pub fn run(ctx: &Context) -> Result<()> {
 
     for file in ctx
         .config
-        .units(&ctx.config_path, ctx.base_dir.as_std_path())
+        .units(&ctx.config_path, ctx.base_path.as_std_path())
         .iter()
         .chain(ctx.config.aisle(ctx).iter())
     {

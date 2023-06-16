@@ -184,7 +184,7 @@ pub struct Context {
     parser: OnceCell<CooklangParser>,
     recipe_index: FsIndex,
     global_args: GlobalArgs,
-    base_dir: Utf8PathBuf,
+    base_path: Utf8PathBuf,
     config: config::Config,
     config_path: PathBuf,
 }
@@ -194,18 +194,18 @@ const APP_NAME: &str = "cooklang-chef";
 
 #[tracing::instrument(level = "debug", skip_all)]
 fn configure_context(args: GlobalArgs) -> Result<Context> {
-    let base_dir = args
+    let base_path = args
         .path
         .as_deref()
         .unwrap_or(Utf8Path::new("."))
         .to_path_buf();
-    let (mut config, config_path) = Config::read(&base_dir)?;
+    let (mut config, config_path) = Config::read(&base_path)?;
     config.override_with_args(&args);
-    if !base_dir.is_dir() {
-        bail!("Base path '{base_dir}' is not a directory");
+    if !base_path.is_dir() {
+        bail!("Base path '{base_path}' is not a directory");
     }
 
-    let mut index = FsIndex::new(&base_dir, config.max_depth)?;
+    let mut index = FsIndex::new(&base_path, config.max_depth)?;
     index.set_config_dir(COOK_DIR.to_string());
 
     Ok(Context {
@@ -214,14 +214,18 @@ fn configure_context(args: GlobalArgs) -> Result<Context> {
         config,
         config_path,
         global_args: args,
-        base_dir,
+        base_path,
     })
 }
 
 impl Context {
     fn parser(&self) -> Result<&CooklangParser> {
         self.parser.get_or_try_init(|| {
-            configure_parser(&self.config, self.base_dir.as_std_path(), &self.config_path)
+            configure_parser(
+                &self.config,
+                self.base_path.as_std_path(),
+                &self.config_path,
+            )
         })
     }
 
