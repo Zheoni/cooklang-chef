@@ -5,7 +5,7 @@ use tracing::warn;
 
 use crate::Context;
 
-mod conf;
+mod aisle;
 mod create;
 
 #[derive(Debug, Args)]
@@ -24,11 +24,12 @@ enum ShoppingListCommands {
     /// Create a shopping list
     Create(create::CreateArgs),
     /// Manage shopping list aisle configuration
-    Conf(conf::ConfArgs),
+    Aisle(aisle::ConfArgs),
 }
 
 #[derive(Debug, Args)]
 struct ShoppingListGlobalArgs {
+    /// Load aisle conf file
     #[arg(short, long, global = true)]
     aisle: Option<Utf8PathBuf>,
 }
@@ -69,6 +70,6 @@ pub fn run(ctx: &Context, args: ShoppingListArgs) -> Result<()> {
 
     match command {
         ShoppingListCommands::Create(args) => create::run(ctx, aisle, args),
-        ShoppingListCommands::Conf(args) => conf::run(aisle, args),
+        ShoppingListCommands::Aisle(args) => aisle::run(aisle, args),
     }
 }

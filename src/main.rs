@@ -6,7 +6,7 @@ use clap::{Args, Parser, Subcommand};
 use config::Config;
 use cooklang::{
     convert::{builder::ConverterBuilder, units_file::UnitsFile},
-    CooklangParser,
+    CooklangParser, Extensions,
 };
 use cooklang_fs::{resolve_recipe, FsIndex, RecipeContent};
 use once_cell::sync::OnceCell;
@@ -14,6 +14,7 @@ use tracing::{debug, warn};
 
 mod config;
 mod convert;
+mod list;
 mod recipe;
 #[cfg(feature = "serve")]
 mod serve;
@@ -35,18 +36,20 @@ struct CliArgs {
 enum Command {
     /// Manage recipe files
     #[command(alias = "r")]
-    Recipe(Box<recipe::RecipeArgs>),
+    Recipe(recipe::RecipeArgs),
+    /// List all the recipes
+    #[command(alias = "l", visible_alias = "ls")]
+    List(list::ListArgs),
     #[cfg(feature = "serve")]
     /// Recipes web server
     Serve(serve::ServeArgs),
     /// Creates a shopping list from a given list of recipes
-    #[command(alias = "list")]
+    #[command(visible_alias = "sl")]
     ShoppingList(shopping_list::ShoppingListArgs),
     /// Manage unit files
-    #[command(alias = "u")]
     Units(units::UnitsArgs),
     /// Convert values and units
-    #[command(alias = "c")]
+    #[command(visible_alias = "c")]
     Convert(convert::ConvertArgs),
     /// See loaded configuration
     Config,
@@ -62,17 +65,38 @@ pub struct GlobalArgs {
     #[arg(long, hide_short_help = true, global = true)]
     no_default_units: bool,
 
-    /// Disable all extensions to the cooklang
-    /// spec <https://cooklang.org/docs/spec/>
-    #[arg(long, global = true)]
+    /// Disable all extensions
+    #[arg(long, alias = "no-default-extensions", group = "ext", global = true)]
     no_extensions: bool,
 
+    /// Enable all extensions
+    #[arg(long, group = "ext", global = true)]
+    all_extensions: bool,
+
+    /// Enable a set of extensions
+    ///
+    /// Can be specified multiple times.
+    #[arg(
+        short,
+        long,
+        group = "ext",
+        value_parser = bitflags::parser::from_str::<Extensions>,
+        action = clap::ArgAction::Append,
+        global = true
+    )]
+    extensions: Vec<Extensions>,
+
     /// Treat warnings as errors
-    #[arg(long, global = true)]
+    #[arg(long, hide_short_help = true, global = true)]
     warnings_as_errors: bool,
 
     /// Do not display warnings generated from parsing recipes
-    #[arg(long, conflicts_with = "warnings_as_errors", global = true)]
+    #[arg(
+        long,
+        hide_short_help = true,
+        conflicts_with = "warnings_as_errors",
+        global = true
+    )]
     ignore_warnings: bool,
 
     #[command(flatten)]
@@ -82,7 +106,7 @@ pub struct GlobalArgs {
     ///
     /// This path is used to load configuration files, search for images and
     /// recipe references.
-    #[arg(long, value_name = "PATH", global = true)]
+    #[arg(long, value_name = "PATH", value_hint = clap::ValueHint::DirPath, global = true)]
     path: Option<Utf8PathBuf>,
 
     /// Skip checking if referenced recipes exist
@@ -125,7 +149,8 @@ pub fn main() -> Result<()> {
     let ctx = configure_context(args.global_args)?;
 
     match args.command {
-        Command::Recipe(args) => recipe::run(&ctx, *args),
+        Command::Recipe(args) => recipe::run(&ctx, args),
+        Command::List(args) => list::run(&ctx, args),
         #[cfg(feature = "serve")]
         Command::Serve(args) => serve::run(ctx, args),
         Command::ShoppingList(args) => shopping_list::run(&ctx, args),

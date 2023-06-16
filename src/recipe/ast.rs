@@ -4,12 +4,10 @@ use clap::{Args, ValueEnum};
 
 use crate::Context;
 
-use super::RecipeInputArgs;
-
 #[derive(Debug, Args)]
 pub struct AstArgs {
     #[command(flatten)]
-    input: RecipeInputArgs,
+    input: super::RecipeInputArgs,
 
     /// Output file, none for stdout.
     #[arg(short, long)]
@@ -48,13 +46,7 @@ pub fn run(ctx: &Context, args: AstArgs) -> Result<()> {
         warnings.eprint(file_name, text, false)?;
     }
 
-    let format = args.format.unwrap_or_else(|| match &args.output {
-        Some(p) => match p.extension() {
-            Some("json") => OutputFormat::Json,
-            _ => OutputFormat::Debug,
-        },
-        None => OutputFormat::Json,
-    });
+    let format = args.format.unwrap_or(OutputFormat::Json);
 
     crate::write_to_output(args.output.as_deref(), |mut w| {
         match format {

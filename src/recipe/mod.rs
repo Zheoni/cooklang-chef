@@ -7,11 +7,8 @@ use cooklang_fs::{resolve_recipe, FsIndex};
 
 use crate::{Context, Input};
 
-use self::read::ReadArgs;
-
 mod ast;
 mod check;
-mod list;
 mod read;
 
 #[derive(Debug, Args)]
@@ -21,20 +18,17 @@ pub struct RecipeArgs {
     command: Option<RecipeCommand>,
 
     #[command(flatten)]
-    read_args: ReadArgs,
+    read_args: read::ReadArgs,
 }
 
 #[derive(Debug, Subcommand)]
 enum RecipeCommand {
     /// Reads a recipe file
     #[command(alias = "r")]
-    Read(ReadArgs),
+    Read(read::ReadArgs),
     /// Checks a recipe file for errors or warnings
     #[command(alias = "c")]
     Check(check::CheckArgs),
-    /// List all the recipes
-    #[command(alias = "l")]
-    List(list::ListArgs),
     /// Get the recipe abstract syntax tree
     Ast(ast::AstArgs),
 }
@@ -45,7 +39,6 @@ pub fn run(ctx: &Context, args: RecipeArgs) -> Result<()> {
     match command {
         RecipeCommand::Read(args) => read::run(ctx, args),
         RecipeCommand::Check(args) => check::run(ctx, args),
-        RecipeCommand::List(args) => list::run(ctx, args),
         RecipeCommand::Ast(args) => ast::run(ctx, args),
     }
 }
@@ -55,6 +48,7 @@ struct RecipeInputArgs {
     /// Input recipe, none for stdin
     ///
     /// This can be a full path, a partial path, or just the name.
+    #[arg(value_hint = clap::ValueHint::FilePath)]
     recipe: Option<Utf8PathBuf>,
 
     /// Give or override a name for the recipe

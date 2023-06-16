@@ -82,6 +82,16 @@ impl Config {
         }
         if args.no_extensions {
             self.extensions = Extensions::empty();
+        } else if args.all_extensions {
+            self.extensions = Extensions::all();
+        } else if !args.extensions.is_empty() {
+            use std::ops::BitOr;
+            self.extensions = args
+                .extensions
+                .iter()
+                .copied()
+                .reduce(Extensions::bitor)
+                .unwrap(); // checked not empty
         }
         if args.no_recipe_ref_check {
             self.recipe_ref_check = false;
@@ -191,7 +201,13 @@ mod extensions_serde {
                 match v {
                     "all" => Ok(Extensions::all()),
                     "none" | "empty" => Ok(Extensions::empty()),
-                    _ => Err(E::custom("invalid extensions string")),
+                    other => {
+                        if let Ok(ext) = bitflags::parser::from_str(other) {
+                            Ok(ext)
+                        } else {
+                            Err(E::custom("invalid extensions string"))
+                        }
+                    }
                 }
             }
 

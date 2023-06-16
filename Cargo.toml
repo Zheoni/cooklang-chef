@@ -39,6 +39,7 @@ is-terminal = "0.4"
 camino = { version = "1", features = ["serde1"] }
 confy = "0.5"
 once_cell = "1.17"
+bitflags = { version = "2", features = ["std"] }
 tokio = { version = "1", features = ["full"], optional = true }
 axum = { version = "0.6", features = ["ws"], optional = true }
 tower = { version = "0.4", features = ["util"], optional = true }
@@ -83,7 +84,3 @@ cooklang = { version = "0.3" }
 lto = "thin"
 strip = true
 # opt-level = "s"
-
-# TODO remove in new ariadne release
-[patch.crates-io]
-ariadne = { git = "https://github.com/Zheoni/ariadne", branch = "update-concolor" }

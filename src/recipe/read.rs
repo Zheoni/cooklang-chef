@@ -4,18 +4,18 @@ use clap::{Args, ValueEnum};
 
 use crate::{write_to_output, Context};
 
-use super::RecipeInputArgs;
-
 #[derive(Debug, Args)]
 pub struct ReadArgs {
     #[command(flatten)]
-    input: RecipeInputArgs,
+    input: super::RecipeInputArgs,
 
     /// Output file, none for stdout.
     #[arg(short, long)]
     output: Option<Utf8PathBuf>,
 
     /// Output format
+    ///
+    /// Tries to infer it from output file extension. Defaults to "human".
     #[arg(short, long, value_enum)]
     format: Option<OutputFormat>,
 
@@ -24,11 +24,11 @@ pub struct ReadArgs {
     pretty: bool,
 
     /// Scale to a number of servings
-    #[arg(short, long, alias = "servings")]
+    #[arg(short, long, alias = "servings", value_name = "SERVINGS")]
     scale: Option<u32>,
 
     /// Convert to a unit system
-    #[arg(short, long, alias = "system")]
+    #[arg(short, long, alias = "system", value_name = "SYSTEM")]
     convert: Option<System>,
 }
 
