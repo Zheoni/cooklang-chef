@@ -84,6 +84,8 @@ impl Config {
             self.extensions = Extensions::empty();
         } else if args.all_extensions {
             self.extensions = Extensions::all();
+        } else if args.compat_extensions {
+            self.extensions = Extensions::COMPAT;
         } else if !args.extensions.is_empty() {
             use std::ops::BitOr;
             self.extensions = args

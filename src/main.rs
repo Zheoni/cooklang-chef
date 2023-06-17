@@ -76,6 +76,13 @@ pub struct GlobalArgs {
     #[arg(long, group = "ext", global = true)]
     all_extensions: bool,
 
+    /// Enables a subset of the extensions
+    ///
+    /// Enable only certain extensions to maximise compatibility with other
+    /// cooklang parsers.
+    #[arg(long, alias = "compat", group = "ext", global = true)]
+    compat_extensions: bool,
+
     /// Enable a set of extensions
     ///
     /// Can be specified multiple times.
