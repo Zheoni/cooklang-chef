@@ -2,7 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import { API } from '$lib/constants';
 import type { Recipe, Report, Image } from '$lib/types';
-import { is_valid } from '$lib/util';
+import { isValid } from '$lib/util';
 
 type Resp = {
 	recipe: Report<Recipe>;
@@ -17,7 +17,7 @@ export const load = (async ({ fetch, url }) => {
 	if (path === null) {
 		throw redirect(301, '/');
 	}
-	const apiParams = new URLSearchParams();
+	const apiParams = new URLSearchParams({ color: 'true' });
 	const scale = url.searchParams.get('scale');
 	if (scale) apiParams.set('scale', scale);
 	const units = url.searchParams.get('units');
@@ -35,7 +35,7 @@ async function fetchRecipe(resp: Response) {
 		throw error(400);
 	}
 	const data = (await resp.json()) as Resp;
-	if (!is_valid(data.recipe)) {
+	if (!isValid(data.recipe)) {
 		throw error(500, {
 			message: 'Error parsing recipe',
 			code: 'PARSE',

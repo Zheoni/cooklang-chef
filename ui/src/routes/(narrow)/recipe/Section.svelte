@@ -1,31 +1,37 @@
 <script lang="ts" context="module">
+	export type Slice = {
+		isText: boolean;
+		steps: SliceStep[];
+	};
+
 	export type SliceStep = {
 		step: Step;
+		// the index in the array
 		step_index: number;
-		step_count: number | null;
 		image: string | null;
+	};
+
+	export type SectionContext = {
+		sectionIndex: Readable<number>;
+		steps: Readable<Step[]>;
 	};
 </script>
 
 <script lang="ts">
 	import type { Image, Recipe, Section, Step } from '$lib/types';
+	import { setContext } from 'svelte';
 	import RegularStep from './RegularStep.svelte';
 	import TextStep from './TextStep.svelte';
+	import { readonly, writable, type Readable, readable } from 'svelte/store';
+	import { isTextStep } from '$lib/util';
 
 	export let section: Section;
 	export let section_index: number;
 	export let recipe: Recipe;
 	export let images: Image[];
 
-	type Slice = {
-		is_text: boolean;
-		steps: SliceStep[];
-		step_count: number | null;
-	};
-
 	function buildSlices(section: Section) {
 		let slices: Slice[] = [];
-		let count = 1;
 		for (let step_index = 0; step_index < section.steps.length; step_index += 1) {
 			const step = section.steps[step_index];
 			const image =
@@ -36,51 +42,75 @@
 			const sliceStep: SliceStep = {
 				step,
 				step_index,
-				step_count: step.is_text ? null : count++,
 				image
 			};
 			const lastSlice = slices[slices.length - 1];
 			if (lastSlice === undefined) {
 				slices.push({
-					is_text: step.is_text,
-					steps: [sliceStep],
-					step_count: sliceStep.step_count
+					isText: isTextStep(step),
+					steps: [sliceStep]
 				});
 				continue;
 			}
-			if (lastSlice.is_text === step.is_text) {
+			if (lastSlice.isText === isTextStep(step)) {
 				lastSlice.steps.push(sliceStep);
 			} else {
 				slices.push({
-					is_text: step.is_text,
-					steps: [sliceStep],
-					step_count: sliceStep.step_count
+					isText: isTextStep(step),
+					steps: [sliceStep]
 				});
 			}
 		}
 		return slices;
 	}
 	$: slices = buildSlices(section);
+
+	const sectionIndexStore = writable(section_index);
+	$: sectionIndexStore.set(section_index);
+	const stepsStore = writable(section.steps);
+	$: stepsStore.set(section.steps);
+	setContext<SectionContext>('section', {
+		sectionIndex: readonly(sectionIndexStore),
+		steps: readonly(stepsStore)
+	});
 </script>
 
-{#if section.name}
-	<h2 class="text-xl font-semibold">{section.name}</h2>
-{:else if section_index > 0}
-	<h2 class="text-xl font-semibold">Section {section_index + 1}</h2>
-{/if}
-
-{#each slices as slice}
-	{#if slice.is_text}
-		{#each slice.steps as step}
-			<TextStep {step} />
-		{/each}
-	{:else}
-		<ol start={slice.step_count ?? 1} class="list-decimal ms-6">
-			{#each slice.steps as step}
-				<li class="mb-8">
-					<RegularStep {step} {recipe} />
-				</li>
-			{/each}
-		</ol>
+<div
+	data-section-index={section_index}
+	id={`section-${section_index}`}
+	data-highlight-cls="highlight-section"
+	class="section bg-transparent transition-colors"
+>
+	{#if section.name}
+		<h2 class="text-xl my-3 font-semibold">{section.name}</h2>
+	{:else if section_index > 0}
+		<h2 class="text-xl my-3 font-semibold">Section {section_index + 1}</h2>
 	{/if}
-{/each}
+
+	{#each slices as slice}
+		{#if slice.isText}
+			{#each slice.steps as step}
+				<TextStep {step} />
+			{/each}
+		{:else}
+			<ol start={slice.steps[0].step.number ?? 1} class="list-decimal ms-6">
+				{#each slice.steps as step}
+					<li class="mb-8" value={step.step.number}>
+						<RegularStep {step} {recipe} />
+					</li>
+				{/each}
+			</ol>
+		{/if}
+	{/each}
+</div>
+
+<style>
+	.section {
+		transition: background-color 150ms, box-shadow 150ms;
+	}
+
+	:global(.highlight-section) {
+		--at-apply: bg-primary-2;
+		box-shadow: 0 0 10px 10px var(--un-preset-radix-grass2);
+	}
+</style>

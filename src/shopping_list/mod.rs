@@ -1,3 +1,4 @@
+use anstream::ColorChoice;
 use anyhow::{bail, Context as _, Result};
 use camino::Utf8PathBuf;
 use clap::{Args, Subcommand};
@@ -54,11 +55,14 @@ pub fn run(ctx: &Context, args: ShoppingListArgs) -> Result<()> {
         match cooklang::aisle::parse(content) {
             Ok(conf) => conf,
             Err(e) => {
+                let stderr = std::io::stderr();
+                let color = anstream::AutoStream::choice(&stderr) != ColorChoice::Never;
                 cooklang::error::write_rich_error(
                     &e,
-                    path.to_str().unwrap_or("<aisle>"),
+                    path.to_str().unwrap_or("<aisle.conf>"),
                     content,
-                    std::io::stderr(),
+                    color,
+                    stderr,
                 )?;
                 bail!("Error parsing aisle file")
             }

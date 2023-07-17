@@ -39,11 +39,13 @@
 		}
 	}
 	let lastTimeout: number | undefined = undefined;
+	let first = true;
 	$: {
 		if (lastTimeout) clearTimeout(lastTimeout);
-		if (browser) {
+		if (browser && !first) {
 			lastTimeout = setTimeout(updateUrl, 1000, $search);
 		}
+		first = false;
 	}
 
 	function updateUrl(search: Search) {

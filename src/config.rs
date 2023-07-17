@@ -1,11 +1,11 @@
 use std::path::{Path, PathBuf};
 
+use anstream::{print, println};
 use anyhow::Result;
 use camino::Utf8Path;
 use cooklang::Extensions;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
-use yansi::Paint;
 
 use crate::{Context, COOK_DIR};
 
@@ -236,12 +236,14 @@ mod extensions_serde {
 }
 
 pub fn run(ctx: &Context) -> Result<()> {
+    use owo_colors::OwoColorize;
+
     println!(
         "Configuration has been loaded from:\n\t{}",
-        Paint::yellow(ctx.config_path.display())
+        ctx.config_path.display().yellow()
     );
     let c = toml::to_string_pretty(&ctx.config)?;
-    let fence = Paint::new("+++").dimmed();
+    let fence = "+++".dimmed();
     println!("{fence}");
     println!("{}", c.trim());
     println!("{fence}");
@@ -252,11 +254,11 @@ pub fn run(ctx: &Context) -> Result<()> {
         .iter()
         .chain(ctx.config.aisle(ctx).iter())
     {
-        print!("{} {} ", file.display(), Paint::new("--").dimmed());
+        print!("{} {} ", file.display(), "--".dimmed());
         if file.is_file() {
-            println!("{}", Paint::green("found"));
+            println!("{}", "found".green().bold());
         } else {
-            println!("{}", Paint::red("not found"));
+            println!("{}", "not found".red().bold());
         }
     }
 

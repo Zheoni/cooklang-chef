@@ -27,7 +27,7 @@
 	will be reflected in the web application.
 </p>
 
-{#if $connected}
+{#if $connected === 'connected'}
 	<p>
 		The <span class="px-2 py-1 rounded border border-green-6 bg-green-3">green</span> dot in the top
 		right indicates that live updates are working. So if you open a <span class="code">.cook</span> file,

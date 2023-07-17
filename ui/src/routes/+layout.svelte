@@ -12,6 +12,7 @@
 
 	import { connect, connected } from '$lib/updatesWS';
 	import { onMount } from 'svelte';
+	import { scale } from 'svelte/transition';
 
 	import { tooltip } from 'svooltip';
 
@@ -30,21 +31,25 @@
 					>chef</a
 				>
 			</div>
-			<svelte:element
-				this={$connected ? 'div' : 'button'}
-				class="h-4 w-4 rounded-full border-2 transition-colors inline-block mx-4"
-				class:bg-green-9={$connected}
-				class:border-green-6={$connected}
-				class:bg-red-9={!$connected}
-				class:border-red-6={!$connected}
-				use:tooltip={{
-					content: $connected ? 'Auto updating content' : 'Auto update unavailable. Click to retry.'
-				}}
-				on:click={() => {
-					if (!$connected) connect(true);
-				}}
-			/>
-			<ThemeToggle />
+			{#if $connected !== 'pending'}
+				<div
+					class="h-4 w-4 rounded-full border-2 transition-colors inline-block mx-4"
+					class:bg-green-9={$connected === 'connected'}
+					class:border-green-6={$connected === 'connected'}
+					class:bg-red-9={$connected === 'disconnected'}
+					class:border-red-6={$connected === 'disconnected'}
+					use:tooltip={{
+						content:
+							$connected === 'connected'
+								? 'Auto updating content'
+								: 'Auto update unavailable. Reload to retry.'
+					}}
+					transition:scale={{ delay: 500 }}
+				/>
+			{/if}
+			<div id="theme-toggle">
+				<ThemeToggle />
+			</div>
 		</nav>
 		<Divider class="px-10 text-2xl" variant="dashed">
 			<ChefHat />

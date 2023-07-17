@@ -20,4 +20,14 @@ export function error(message: string) {
 	});
 }
 
-export default { success, error };
+export function timer(message: string) {
+	toast.push(message, {
+		theme: {
+			'--toastBackground': 'var(--un-preset-radix-indigo9, salmon)',
+			'--toastColor': 'white',
+			'--toastBarBackground': 'hsl(223, 98.4%, 97.1%)'
+		}
+	});
+}
+
+export default { success, error, timer };

@@ -1,10 +1,10 @@
+use anstream::println;
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
-use cooklang::aisle::AileConf;
-use yansi::Paint;
+use cooklang::aisle::AisleConf;
 
-use crate::write_to_output;
+use crate::util::write_to_output;
 
 #[derive(Debug, Args)]
 pub struct ConfArgs {
@@ -36,7 +36,7 @@ enum OutputFormat {
     Json,
 }
 
-pub fn run(mut aisle: AileConf, args: ConfArgs) -> Result<()> {
+pub fn run(mut aisle: AisleConf, args: ConfArgs) -> Result<()> {
     if args.count {
         let mut table = tabular::Table::new("{:<}  {:<}")
             .with_heading(format!("total {}", aisle.categories.len()));
@@ -84,22 +84,24 @@ pub fn run(mut aisle: AileConf, args: ConfArgs) -> Result<()> {
     Ok(())
 }
 
-fn print_aile_human(aisle: &AileConf, mut writer: impl std::io::Write) -> std::io::Result<()> {
+fn print_aile_human(aisle: &AisleConf, mut writer: impl std::io::Write) -> std::io::Result<()> {
+    use owo_colors::OwoColorize;
+
     let w = &mut writer;
     for category in aisle.categories.iter() {
         writeln!(
             w,
             "{}{}{}",
-            Paint::magenta('['),
-            Paint::green(&category.name).bold(),
-            Paint::magenta(']')
+            '['.magenta(),
+            category.name.green().bold(),
+            ']'.magenta()
         )?;
         for igr in &category.ingredients {
             if !igr.names.is_empty() {
                 let mut iter = igr.names.iter();
                 write!(w, "  {}", iter.next().unwrap())?;
                 for name in iter {
-                    write!(w, "{} {name}", Paint::magenta(','))?;
+                    write!(w, "{} {name}", ','.magenta())?;
                 }
                 writeln!(w)?;
             }

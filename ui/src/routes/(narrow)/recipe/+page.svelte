@@ -41,33 +41,12 @@
 	import Divider from '$lib/Divider.svelte';
 	import { scaleOutcomeTooltip } from '$lib/scaleOutcomeTooltip';
 	import IngredientListItem from '$lib/IngredientListItem.svelte';
-	import type { TotalQuantity } from '$lib/types';
-	import { displayName } from '$lib/util';
+	import { displayName, formatTime } from '$lib/util';
 	import VideoEmbed from '$lib/VideoEmbed.svelte';
+	import TimerClock from '$lib/TimerClock.svelte';
+	import { onMount } from 'svelte';
 
 	export let data: PageData;
-
-	function formatTime(minutes: number) {
-		let hours = Math.trunc(minutes / 60);
-		minutes %= 60;
-		const days = Math.trunc(hours / 24);
-		hours %= 24;
-
-		const parts = [];
-		// TODO maybe not construct formatters in every call
-		if (days > 0) {
-			parts.push(new Intl.NumberFormat(undefined, { style: 'unit', unit: 'day' }).format(days));
-		}
-		if (hours > 0) {
-			parts.push(new Intl.NumberFormat(undefined, { style: 'unit', unit: 'hour' }).format(hours));
-		}
-		if (minutes > 0) {
-			parts.push(
-				new Intl.NumberFormat(undefined, { style: 'unit', unit: 'minute' }).format(minutes)
-			);
-		}
-		return parts.join(' ');
-	}
 
 	function fromEpochFormat(secsFromEpoch: number) {
 		const date = new Date(0);
@@ -75,16 +54,6 @@
 		return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
 			date
 		);
-	}
-
-	function allQuantities(group: TotalQuantity) {
-		if (Array.isArray(group)) {
-			return group;
-		} else if (group !== null) {
-			return [group];
-		} else {
-			return [];
-		}
 	}
 
 	let state = {
@@ -102,11 +71,14 @@
 	$: urlServings = $page.url.searchParams.get('scale');
 	$: selectedServings = (urlServings !== null && Number(urlServings)) || defaultServings;
 
+	$: urlUnits = $page.url.searchParams.get('units');
 	let selectedUnits: Options['units'];
 	$: {
-		const v = $page.url.searchParams.get('units');
-		if (v === 'metric' || v === 'imperial') selectedUnits = v;
-		else selectedUnits = null;
+		if (urlUnits === 'metric' || urlUnits === 'imperial') {
+			selectedUnits = urlUnits;
+		} else {
+			selectedUnits = 'default';
+		}
 	}
 
 	const [floatingRef, floatingContent] = createFloatingActions({
@@ -117,7 +89,7 @@
 
 	type Options = {
 		servings: number;
-		units: 'metric' | 'imperial' | null;
+		units: 'metric' | 'imperial' | 'default';
 	};
 
 	let lastTimeout: number | null = null;
@@ -133,7 +105,7 @@
 				} else {
 					params.set('scale', options.servings.toString());
 				}
-				if (options.units) {
+				if (options.units !== 'default') {
 					params.set('units', options.units);
 				} else {
 					params.delete('units');
@@ -171,8 +143,8 @@
 		<DisplayReport ansiString={fancy_report} errors={warnings} {srcPath} kind="warning" />
 	</details>
 {/if}
-{#if $connected}
-	<div class="float-right flex flex-wrap gap-2" transition:fade>
+{#if $connected === 'connected'}
+	<div class="float-right flex flex-wrap gap-2" transition:fade|local>
 		<OpenInEditor {srcPath} />
 	</div>
 {/if}
@@ -302,7 +274,7 @@
 	<MetadataGroup>
 		<Code slot="icon" />
 		<Metadata key="Source file">
-			<span class="bg-base-1 dark -my-1 rounded px-4 py-1 font-mono">
+			<span class="bg-base-1 dark -my-1 rounded px-4 py-1 font-mono text-base-12">
 				{srcPath}
 			</span>
 			<a
@@ -317,13 +289,7 @@
 <VideoEmbed youtubeUrl={recipe.metadata.source?.url} />
 
 <div class="flex justify-end items-center gap-2">
-	<Listbox
-		value={selectedUnits ?? 'default'}
-		on:change={(e) => {
-			if (e.detail === 'metric' || e.detail === 'imperial') selectedUnits = e.detail;
-			else selectedUnits = null;
-		}}
-	>
+	<Listbox bind:value={selectedUnits}>
 		<svelte:fragment slot="button">
 			<ListboxButton class="btn-square-9 radix-solid-primary">
 				<Ruler />
@@ -360,16 +326,16 @@
 					<div class="flex items-center justify-center gap-6 flex-nowrap mt-4 mb-2">
 						<button
 							class="i-lucide-minus p-2 -m-2"
-							on:click={() => (selectedServings = Math.max(selectedServings - 1, 0))}
-							class:text-primary-11={selectedServings > 0}
-							disabled={selectedServings <= 0}
+							on:click={() => (selectedServings = Math.max(selectedServings - 1, 1))}
+							class:text-primary-11={selectedServings > 1}
+							disabled={selectedServings <= 1}
 						/>
 						<input
 							type="number"
 							bind:value={selectedServings}
 							min="0"
 							max="99"
-							class="dark px-4 py-2 bg-base-3 text-primary-11 border border-base-6 rounded text-2xl font-bold w-15 text-center"
+							class="dark px-4 py-2 bg-base-3 text-primary-11 border border-base-6 rounded text-2xl font-bold w-15 text-center tabular-nums"
 						/>
 						<button
 							class="i-lucide-plus p-2 -m-2"
@@ -421,15 +387,15 @@
 
 <div class="font-serif text-lg content">
 	<div class="md:grid md:grid-cols-2">
-		{#if recipe.ingredient_list.length > 0}
+		{#if recipe.grouped_ingredients.length > 0}
 			<div>
 				<h2 class="text-2xl my-2 font-heading">Ingredients</h2>
 				<ul class="list-disc ms-6">
-					{#each recipe.ingredient_list as { index, outcome, quantity }}
+					{#each recipe.grouped_ingredients as { index, outcome, quantity }}
 						{@const ingredient = recipe.ingredients[index]}
-						{#if !ingredient.modifiers.includes('HIDDEN')}
+						{#if !ingredient.modifiers.includes('HIDDEN') && !ingredient.modifiers.includes('REF_TO_STEP') && !ingredient.modifiers.includes('REF_TO_SECTION')}
 							<li use:scaleOutcomeTooltip={outcome} class="w-fit">
-								<IngredientListItem {index} {ingredient} quantities={allQuantities(quantity)} />
+								<IngredientListItem {index} {ingredient} quantities={quantity} />
 							</li>
 						{/if}
 					{/each}
@@ -460,9 +426,9 @@
 
 	{#if recipe.sections.length > 0}
 		<div class="flex flex-wrap justify-between">
-			<h2 class="text-2xl my-2 font-heading">Method</h2>
-			<div class="flex">
-				<Listbox value={$stepIngredientsView} on:change={(e) => stepIngredientsView.set(e.detail)}>
+			<h2 class="text-2xl my-3 font-heading">Method</h2>
+			<div class="flex items-center">
+				<Listbox bind:value={$stepIngredientsView}>
 					<svelte:fragment slot="button">
 						<ListboxButton class="btn-square-9 radix-solid-primary">
 							<StepIngredientsViewIcon />
@@ -483,9 +449,14 @@
 		</div>
 		{#each recipe.sections as section, section_index}
 			<Section {recipe} {images} {section} {section_index} />
+			{#if recipe.sections.length > 1 && section_index < recipe.sections.length - 1}
+				<Divider class="mt-8 mb-6" />
+			{/if}
 		{/each}
 	{/if}
 </div>
+
+<TimerClock />
 
 <style>
 	input[type='number']::-webkit-inner-spin-button,

@@ -2,7 +2,7 @@ import { tooltip } from 'svooltip';
 import type { Recipe, ScaleOutcome } from './types';
 
 export function scaleOutcomeTooltip(node: HTMLElement, outcome: ScaleOutcome | null) {
-	let tt = tooltip(node, { visibility: false, content: 'empty' });
+	let tt = tooltip(node, { visibility: false, content: 'empty', placement: 'bottom' });
 	function apply(outcome: ScaleOutcome | null) {
 		node.classList.remove('scale-error', 'scale-fixed');
 		tt?.update({ visibility: false });

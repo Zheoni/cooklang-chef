@@ -6,7 +6,8 @@ export type Recipe = {
 	cookware: Cookware[];
 	timers: Timer[];
 	inline_quantities: Quantity[];
-	ingredient_list: IngredientListEntry[];
+	grouped_ingredients: IngredientListEntry[];
+	timers_seconds: (Value | null)[];
 	data: Scale;
 };
 
@@ -29,7 +30,7 @@ export type Section = {
 };
 export type Step = {
 	items: Item[];
-	is_text: boolean;
+	number: number | null;
 };
 export type Item =
 	| { type: 'text'; value: string }
@@ -47,7 +48,7 @@ export type Ingredient = {
 	quantity: Quantity | null;
 	note: string | null;
 	modifiers: string;
-	relation: ComponentRelation;
+	relation: IngredientRelation;
 };
 export type Cookware = {
 	name: string;
@@ -69,7 +70,7 @@ export type Quantity = {
 export type QuantityValue =
 	| { type: 'fixed'; value: Value }
 	| { type: 'linear'; value: Value }
-	| { type: 'byServings'; value: Value[] };
+	| { type: 'byServings'; values: Value[] };
 export type Value =
 	| { type: 'number'; value: number }
 	| { type: 'range'; value: { start: number; end: number } }
@@ -77,7 +78,7 @@ export type Value =
 
 export type IngredientListEntry = {
 	index: number;
-	quantity: TotalQuantity;
+	quantity: Quantity[];
 	outcome: ScaleOutcome | null;
 };
 
@@ -88,7 +89,17 @@ export type ComponentRelation =
 	  }
 	| { type: 'reference'; references_to: number };
 
-export type TotalQuantity = null | Quantity | Quantity[];
+// I don't know enough typescript to do with without duplicating the code
+export type IngredientRelation =
+	| {
+			type: 'definition';
+			referenced_from: number[];
+	  }
+	| {
+			type: 'reference';
+			references_to: number;
+			reference_target: 'ingredient' | 'step' | 'section';
+	  };
 
 export type PhysicalQuantity = 'volume' | 'mass' | 'length' | 'temperature' | 'time';
 

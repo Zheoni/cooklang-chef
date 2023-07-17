@@ -11,6 +11,10 @@ svg.icon {
 	vertical-align: -0.1em;
 }
 
+html {
+	scroll-behavior: smooth;
+}
+
 body {
 	--at-apply: bg-base-1 text-primary-12 accent-primary-9;
 }
@@ -34,7 +38,7 @@ body {
 .highlight {
 	--at-apply: outline relative z-1;
 }
-[data-component-kind='ingredient'].highlight {
+[data-component-kind^='ingredient'].highlight {
 	--at-apply: bg-primary-4 outline-primary-6;
 }
 [data-component-kind='cookware'].highlight {
@@ -42,4 +46,37 @@ body {
 }
 .qhighlight {
 	--at-apply: text-primary-11 transition-colors underline decoration-dotted underline-offset-3;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 1s;
+}
+
+.change-theme * {
+	transition-property: all !important;
+	transition-duration: 0s !important;
+	transition-timing-function: linear !important;
+	transition-delay: 0s !important;
+}
+.change-theme::view-transition-image-pair(root) {
+	isolation: auto;
+}
+.change-theme::view-transition-old(root),
+.change-theme::view-transition-new(root) {
+	animation: none;
+	mix-blend-mode: normal;
+	display: block;
+}
+.change-theme.light::view-transition-old(root) {
+	z-index: 1;
+}
+.change-theme.light::view-transition-new(root) {
+	z-index: 2147483646;
+}
+.change-theme.dark::view-transition-old(root) {
+	z-index: 2147483646;
+}
+.change-theme.dark::view-transition-new(root) {
+	z-index: 1;
 }

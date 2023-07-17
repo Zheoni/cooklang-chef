@@ -19,7 +19,7 @@
 			case 'linear':
 				return valueToString(val.value);
 			case 'byServings':
-				return valueToString(val.value[0]);
+				return valueToString(val.values[0]);
 		}
 	}
 </script>

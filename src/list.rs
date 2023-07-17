@@ -1,8 +1,8 @@
+use anstream::println;
 use anyhow::Result;
 use clap::{builder::ArgPredicate, Args};
 use cooklang::metadata::Metadata;
 use cooklang_fs::{all_recipes, RecipeContent, RecipeEntry};
-use yansi::Paint;
 
 use crate::Context;
 
@@ -116,6 +116,8 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
 }
 
 fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<tabular::Row> {
+    use owo_colors::OwoColorize;
+
     let mut row = tabular::Row::new();
 
     let name = if args.absolute_paths {
@@ -132,8 +134,8 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<
         {
             format!(
                 "{}{}{}",
-                Paint::cyan(parent).italic(),
-                Paint::cyan(std::path::MAIN_SEPARATOR),
+                parent.cyan().italic(),
+                std::path::MAIN_SEPARATOR.cyan(),
                 entry.name()
             )
         } else {
@@ -145,12 +147,12 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<
     if args.tags {
         if let Ok(metadata) = entry.metadata(ctx, args.check) {
             if metadata.tags.is_empty() {
-                row.add_ansi_cell(format!(" [{}]", Paint::new("-").dimmed()));
+                row.add_ansi_cell(format!(" [{}]", "-".dimmed()));
             } else {
                 row.add_cell(format!(" [{}]", metadata.tags.join(", ")));
             }
         } else {
-            row.add_ansi_cell(format!(" ({})", Paint::red("cannot parse")));
+            row.add_ansi_cell(format!(" ({})", "cannot parse".red().bold()));
         }
     } else {
         row.add_cell("");
@@ -166,7 +168,7 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<
         let s = if images > 0 {
             format!(" [{} image{}]", images, if images == 1 { "" } else { "s" })
         } else {
-            format!(" [{}]", Paint::new("no images").dimmed())
+            format!(" [{}]", "no images".dimmed())
         };
         row.add_ansi_cell(s);
     } else {
@@ -176,7 +178,9 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<
     Ok(row)
 }
 
-fn check_str(ctx: &Context, entry: &CachedRecipeEntry) -> Paint<&'static str> {
+fn check_str(ctx: &Context, entry: &CachedRecipeEntry) -> String {
+    use owo_colors::OwoColorize;
+
     entry
         .content()
         .ok()
@@ -184,14 +188,14 @@ fn check_str(ctx: &Context, entry: &CachedRecipeEntry) -> Paint<&'static str> {
         .map(|r| r.into_report())
         .map(|report| {
             if report.has_errors() {
-                Paint::red("Error")
+                "Error".red().bold().to_string()
             } else if report.has_warnings() {
-                Paint::yellow("Warn")
+                "Warn".yellow().bold().to_string()
             } else {
-                Paint::green("Ok")
+                "Ok".green().bold().to_string()
             }
         })
-        .unwrap_or(Paint::red("Could not check").dimmed())
+        .unwrap_or("Could not check".red().dimmed().to_string())
 }
 
 struct CachedRecipeEntry {

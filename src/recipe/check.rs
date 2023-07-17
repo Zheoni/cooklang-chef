@@ -1,3 +1,4 @@
+use anstream::eprintln;
 use anyhow::{bail, Result};
 use clap::Args;
 use cooklang_fs::{check_recipe_images, recipe_images};

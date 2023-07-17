@@ -5,7 +5,7 @@
 	import Tag from '$lib/Tag.svelte';
 	import Card from './Card.svelte';
 	import type { Entry } from './+page';
-	import { is_valid } from '$lib/util';
+	import { isValid } from '$lib/util';
 
 	function unwrap<T>(val: T | null) {
 		return val!;
@@ -14,7 +14,7 @@
 	export let entry: Entry;
 
 	$: params = new URLSearchParams({ r: entry.path });
-	$: valid = is_valid(entry.metadata);
+	$: valid = isValid(entry.metadata);
 	$: href = `/recipe?${params}`;
 </script>
 

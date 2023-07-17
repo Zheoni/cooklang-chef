@@ -2,6 +2,7 @@ import { derived } from 'svelte/store';
 import { persistent } from './persistent';
 import { useMediaQuery } from './useMediaQuery';
 import { browser } from '$app/environment';
+import { tick } from 'svelte';
 
 export type ColorScheme = 'light' | 'dark';
 export type AdjustedColorScheme = ColorScheme | 'system';
@@ -17,23 +18,22 @@ const systemColorScheme = derived(prefersDark, ($prefersDark) => {
 const colorScheme = derived(
 	[adjustedColorScheme, systemColorScheme],
 	([$adjustedColorScheme, $systemColorScheme]) => {
-		if ($adjustedColorScheme !== 'dark' && $adjustedColorScheme !== 'light') {
-			return $systemColorScheme;
-		}
-		return $adjustedColorScheme;
+		return resolveAdjustedColors($adjustedColorScheme, $systemColorScheme);
 	}
 );
+
+export function resolveAdjustedColors(adjusted: AdjustedColorScheme, system: ColorScheme) {
+	if (adjusted === 'system') {
+		return system;
+	}
+	return adjusted;
+}
 
 if (browser) {
 	colorScheme.subscribe((cs) => {
 		const root = document.documentElement.classList;
-
-		if (root.contains(cs)) return;
-
-		const body = document.body.classList;
-		body.add('transition-colors');
-		setTimeout(() => body.remove('transition-colors'), 500);
-
+		root.add('change-theme');
+		setTimeout(() => root.remove('change-theme'), 1000);
 		root.add(cs);
 		if (cs === 'dark') {
 			root.remove('light');

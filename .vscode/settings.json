@@ -1,4 +1,4 @@
 {
   "rust-analyzer.cargo.features": "all",
-  "unocss.root": ["./cli/ui/"]
+  "unocss.root": ["./ui/"]
 }

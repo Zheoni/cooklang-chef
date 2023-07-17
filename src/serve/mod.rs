@@ -346,8 +346,15 @@ async fn all_recipes(State(state): State<Arc<ApiState>>) -> Result<Json<Vec<Stri
     Ok(Json(recipes))
 }
 
+#[derive(Debug, Deserialize, Clone, Copy, Default)]
+#[serde(default)]
+struct ColorConfig {
+    color: bool,
+}
+
 async fn all_recipes_metadata(
     State(state): State<Arc<ApiState>>,
+    Query(color): Query<ColorConfig>,
 ) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
     let mut handles = Vec::new();
     for entry in cooklang_fs::all_recipes(&state.base_path, state.config.max_depth)
@@ -358,7 +365,7 @@ async fn all_recipes_metadata(
             let Ok(content) = tokio::fs::read_to_string(entry.path()).await else { return None; };
             let metadata = state.parser.parse_metadata(&content);
             let path = clean_path(entry.path(), &state.base_path);
-            let report = Report::from_pass_result(metadata, path.as_str(), &content);
+            let report = Report::from_pass_result(metadata, path.as_str(), &content, color.color);
             let value = serde_json::json!({
                 "name": entry.name(),
                 "metadata": report,
@@ -388,6 +395,7 @@ async fn recipe(
     Path(path): Path<String>,
     State(state): State<Arc<ApiState>>,
     Query(query): Query<RecipeQuery>,
+    Query(color): Query<ColorConfig>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     check_path(&path)?;
 
@@ -421,26 +429,44 @@ async fn recipe(
             Ok(scaled)
         })?
         .map(|r| {
-            let ingredient_list = r
-                .ingredient_list(state.parser.converter())
+            let grouped = r
+                .group_ingredients(state.parser.converter())
                 .into_iter()
                 .map(|entry| {
                     serde_json::json!({
                         "index": entry.index,
-                        "quantity": entry.quantity.total(),
+                        "quantity": entry.quantity.total().into_vec(),
                         "outcome": entry.outcome
                     })
                 })
                 .collect();
+            let timers_seconds = r
+                .timers
+                .iter()
+                .map(|t| {
+                    t.quantity
+                        .as_ref()
+                        .and_then(|q| state.parser.converter().convert(q, "s").ok())
+                        .and_then(|q| match q.value {
+                            cooklang::QuantityValue::Fixed { value } => Some(value),
+                            _ => None,
+                        })
+                })
+                .map(|v| serde_json::to_value(v).unwrap())
+                .collect::<Vec<_>>();
             let mut val = serde_json::to_value(r).unwrap();
             val.as_object_mut().unwrap().insert(
-                "ingredient_list".into(),
-                serde_json::Value::Array(ingredient_list),
+                "grouped_ingredients".into(),
+                serde_json::Value::Array(grouped),
+            );
+            val.as_object_mut().unwrap().insert(
+                "timers_seconds".into(),
+                serde_json::Value::Array(timers_seconds),
             );
             val
         });
     let path = clean_path(entry.path(), &state.base_path);
-    let report = Report::from_pass_result(recipe, path.as_str(), &content);
+    let report = Report::from_pass_result(recipe, path.as_str(), &content, color.color);
     let value = serde_json::json!({
         "recipe": report,
         "images": images(&entry, &state.base_path),
@@ -455,6 +481,7 @@ async fn recipe(
 async fn recipe_metadata(
     Path(path): Path<String>,
     State(state): State<Arc<ApiState>>,
+    Query(color): Query<ColorConfig>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     check_path(&path)?;
 
@@ -472,7 +499,7 @@ async fn recipe_metadata(
 
     let metadata = state.parser.parse_metadata(&content);
     let path = clean_path(entry.path(), &state.base_path);
-    let report = Report::from_pass_result(metadata, path.as_str(), &content);
+    let report = Report::from_pass_result(metadata, path.as_str(), &content, color.color);
     let value = serde_json::json!({
         "name": entry.name(),
         "metadata": report,
@@ -561,6 +588,7 @@ impl<T> Report<T> {
         value: PassResult<T, E, W>,
         file_name: &str,
         source_code: &str,
+        color: bool,
     ) -> Self
     where
         E: cooklang::error::RichError,
@@ -574,7 +602,7 @@ impl<T> Report<T> {
         } else {
             let mut buf = Vec::new();
             cooklang::error::Report::new(e, w)
-                .write(file_name, source_code, false, &mut buf)
+                .write(file_name, source_code, false, color, &mut buf)
                 .expect("Write fancy report");
             Some(String::from_utf8_lossy(&buf).into_owned())
         };

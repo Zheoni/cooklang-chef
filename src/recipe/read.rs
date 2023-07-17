@@ -2,7 +2,7 @@ use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
 
-use crate::{write_to_output, Context};
+use crate::{util::write_to_output, Context};
 
 #[derive(Debug, Args)]
 pub struct ReadArgs {

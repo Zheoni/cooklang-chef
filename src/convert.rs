@@ -1,3 +1,4 @@
+use anstream::println;
 use clap::Args;
 use cooklang::convert::{ConvertTo, ConvertValue, Converter, System};
 
@@ -21,6 +22,8 @@ pub struct ConvertArgs {
 }
 
 pub fn run(converter: &Converter, args: ConvertArgs) -> anyhow::Result<()> {
+    use owo_colors::OwoColorize;
+
     let to = match args.to.as_str() {
         "fit" => ConvertTo::SameSystem,
         "metric" => ConvertTo::Best(System::Metric),
@@ -35,7 +38,7 @@ pub fn run(converter: &Converter, args: ConvertArgs) -> anyhow::Result<()> {
         n = (n * 1000.0).round() / 1000.0;
     }
 
-    println!("{} {}", n, yansi::Paint::new(unit).italic());
+    println!("{} {}", n, unit.italic());
 
     Ok(())
 }

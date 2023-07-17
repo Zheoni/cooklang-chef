@@ -16,12 +16,14 @@ type Message =
 			to: string;
 	  };
 
-const _connected = writable(false); // as it will connect instantly, false will be set in case of error
+type Connected = 'connected' | 'pending' | 'disconnected';
+
+const _connected = writable<Connected>('pending');
 export const connected = readonly(_connected);
 
 let ws: WebSocket | null = null;
 
-export function connect(trusted = false) {
+export function connect() {
 	if (!browser) throw new Error('Tried to connect to the updates web socket not in the browser');
 
 	const path = `${API}/updates`;
@@ -30,7 +32,7 @@ export function connect(trusted = false) {
 	const url = new URL(path, base);
 
 	ws = new WebSocket(url);
-	ws.addEventListener('open', () => _connected.set(true));
+	ws.addEventListener('open', () => _connected.set('connected'));
 	ws.addEventListener('message', (message) => {
 		const data = JSON.parse(message.data) as Message;
 		console.log(data);
@@ -49,8 +51,7 @@ export function connect(trusted = false) {
 		invalidate((url) => decodeURI(url.pathname).endsWith(name));
 	});
 	ws.addEventListener('close', () => {
-		if (trusted) toast.error('Could not set up auto update');
-		_connected.set(false);
+		_connected.set('disconnected');
 	});
 	return () => {
 		if (ws) ws.close();

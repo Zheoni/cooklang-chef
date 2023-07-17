@@ -5,7 +5,7 @@ use std::{fmt::Write, io};
 use cooklang::{
     convert::Converter,
     metadata::{IndexMap, Metadata, NameAndUrl, RecipeTime},
-    model::{ComponentKind, Item, Section, Step},
+    model::{Component, ComponentKind, Item, Section, Step},
     ScaledRecipe,
 };
 
@@ -40,7 +40,9 @@ pub fn print_md(
     writeln!(writer)?;
 
     if let Some(desc) = &recipe.metadata.description {
-        print_wrapped(&mut writer, desc)?;
+        print_wrapped_with_options(&mut writer, desc, |o| {
+            o.initial_indent("> ").subsequent_indent("> ")
+        })?;
         writeln!(writer)?;
     }
 
@@ -95,9 +97,10 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
 
     writeln!(w, "## Ingredients")?;
 
-    for entry in recipe.ingredient_list(converter) {
-        let ingredient = &recipe.ingredients[entry.index];
-        if ingredient.is_hidden() {
+    for entry in recipe.group_ingredients(converter) {
+        let ingredient = entry.ingredient;
+
+        if !ingredient.modifiers().should_be_listed() {
             continue;
         }
 
@@ -116,7 +119,7 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
 
         write!(w, "{}", ingredient.display_name())?;
 
-        if ingredient.is_optional() {
+        if ingredient.modifiers().is_optional() {
             write!(w, " (optional)")?;
         }
 
@@ -139,7 +142,7 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     for item in recipe
         .cookware
         .iter()
-        .filter(|cw| !cw.is_reference() && !cw.is_hidden())
+        .filter(|cw| cw.modifiers().should_be_listed())
     {
         write!(w, "- ")?;
         if let Some(value) = &item.quantity {
@@ -147,7 +150,7 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
         }
         write!(w, "{}", item.display_name())?;
 
-        if item.is_optional() {
+        if item.modifiers().is_optional() {
             write!(w, " (optional)")?;
         }
 
@@ -182,12 +185,7 @@ fn w_section(
             writeln!(w, "### Section {idx}")?;
         }
     }
-    let mut step_counter = 0;
     for step in &section.steps {
-        if !step.is_text {
-            step_counter += 1;
-            write!(w, "{}. ", step_counter)?;
-        }
         w_step(w, step, recipe)?;
         writeln!(w)?;
     }
@@ -196,30 +194,38 @@ fn w_section(
 
 fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> Result {
     let mut step_str = String::new();
+
+    if let Some(number) = step.number {
+        write!(&mut step_str, "{}. ", number).unwrap();
+    }
+
     for item in &step.items {
         match item {
-            Item::Text(t) => step_str.push_str(t),
-            Item::Component(c) => {
-                match c.kind {
-                    ComponentKind::Ingredient => {
-                        let igr = &recipe.ingredients[c.index];
+            Item::Text { value } => step_str.push_str(value),
+            Item::ItemComponent { value } => {
+                let Component { index, kind } = *value;
+                match kind {
+                    ComponentKind::IngredientKind => {
+                        let igr = &recipe.ingredients[index];
                         step_str.push_str(igr.display_name().as_ref());
                     }
-                    ComponentKind::Cookware => {
-                        let cw = &recipe.cookware[c.index];
+                    ComponentKind::CookwareKind => {
+                        let cw = &recipe.cookware[index];
                         step_str.push_str(&cw.name);
                     }
-                    ComponentKind::Timer => {
-                        let t = &recipe.timers[c.index];
+                    ComponentKind::TimerKind => {
+                        let t = &recipe.timers[index];
                         if let Some(name) = &t.name {
                             write!(&mut step_str, "({name})").unwrap();
                         }
-                        write!(&mut step_str, "{}", t.quantity).unwrap();
+                        if let Some(quantity) = &t.quantity {
+                            write!(&mut step_str, "{}", quantity).unwrap();
+                        }
                     }
                 };
             }
-            Item::InlineQuantity(index) => {
-                let q = &recipe.inline_quantities[*index];
+            Item::InlineQuantity { value } => {
+                let q = &recipe.inline_quantities[*value];
                 write!(&mut step_str, "{}", q.value).unwrap();
                 if let Some(u) = q.unit_text() {
                     step_str.push_str(u);
@@ -232,10 +238,18 @@ fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> Result 
 }
 
 fn print_wrapped(w: &mut impl io::Write, text: &str) -> Result {
-    static TERM_WIDTH: once_cell::sync::Lazy<usize> =
-        once_cell::sync::Lazy::new(|| textwrap::termwidth().min(80));
+    print_wrapped_with_options(w, text, |o| o)
+}
 
-    let lines = textwrap::wrap(text, textwrap::Options::new(*TERM_WIDTH));
+static TERM_WIDTH: once_cell::sync::Lazy<usize> =
+    once_cell::sync::Lazy::new(|| textwrap::termwidth().min(80));
+
+fn print_wrapped_with_options<F>(w: &mut impl io::Write, text: &str, f: F) -> Result
+where
+    F: FnOnce(textwrap::Options) -> textwrap::Options,
+{
+    let options = f(textwrap::Options::new(*TERM_WIDTH));
+    let lines = textwrap::wrap(text, options);
     for line in lines {
         writeln!(w, "{}", line)?;
     }

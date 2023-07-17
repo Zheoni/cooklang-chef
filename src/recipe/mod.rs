@@ -5,7 +5,7 @@ use camino::Utf8PathBuf;
 use clap::{Args, Subcommand};
 use cooklang_fs::{resolve_recipe, FsIndex};
 
-use crate::{Context, Input};
+use crate::{util::Input, Context};
 
 mod ast;
 mod check;

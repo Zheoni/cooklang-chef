@@ -1,20 +1,25 @@
 //! Format a recipe for humans to read
 //!
-//! It uses colors controlled by `concolor` and `yansi`, so enable or
-//! disable them at your own like.
+//! This will always write ansi colours. Use something like
+//! [`anstream`](https://docs.rs/anstream) to remove them if needed.
 
 use std::{collections::HashMap, io, time::Duration};
 
 use cooklang::{
     convert::Converter,
-    model::{Component, ComponentKind, Ingredient, IngredientListEntry, Item},
+    ingredient_list::GroupedIngredient,
+    model::{Component, ComponentKind, Ingredient, IngredientReferenceTarget, Item},
     quantity::Quantity,
     scale::ScaleOutcome,
-    ScaledRecipe,
+    ScaledRecipe, Section, Step,
 };
+use owo_colors::OwoColorize;
 use std::fmt::Write;
 use tabular::{Row, Table};
-use yansi::Paint;
+
+mod style;
+use style::styles;
+pub use style::{set_styles, CookStyles};
 
 pub type Result<T = ()> = std::result::Result<T, io::Error>;
 
@@ -36,52 +41,45 @@ pub fn print_human(
 
 fn header(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     let title_text = format!(
-        "  {}{}  ",
-        Paint::masked(
-            recipe
-                .metadata
-                .emoji
-                .as_ref()
-                .map(|s| format!("{s} "))
-                .unwrap_or_default()
-        ),
+        " {}{} ",
+        recipe
+            .metadata
+            .emoji
+            .as_ref()
+            .map(|s| format!("{s} "))
+            .unwrap_or_default(),
         recipe.name
     );
-    write!(
-        w,
-        "{}",
-        Paint::new(title_text)
-            .bg(yansi::Color::Magenta)
-            .fg(yansi::Color::White)
-            .bold()
-    )?;
-
-    writeln!(w)?;
+    writeln!(w, "{}", title_text.style(styles().title))?;
     if !recipe.metadata.tags.is_empty() {
         let mut tags = String::new();
         for tag in &recipe.metadata.tags {
-            let hash = tag
-                .chars()
-                .enumerate()
-                .map(|(i, c)| c as usize * i)
-                .reduce(usize::wrapping_add)
-                .map(|h| (h % 7))
-                .unwrap_or_default();
-            let color = match hash {
-                0 => yansi::Color::Red,
-                1 => yansi::Color::Blue,
-                2 => yansi::Color::Cyan,
-                3 => yansi::Color::Yellow,
-                4 => yansi::Color::Green,
-                5 => yansi::Color::Magenta,
-                6 => yansi::Color::White,
-                _ => unreachable!(),
-            };
-            tags += &Paint::new(format!("#{tag} ")).fg(color).to_string();
+            let color = tag_color(tag);
+            write!(&mut tags, "{} ", format!("#{tag}").color(color)).unwrap();
         }
         print_wrapped(w, &tags)?;
     }
     writeln!(w)
+}
+
+fn tag_color(tag: &str) -> owo_colors::AnsiColors {
+    let hash = tag
+        .chars()
+        .enumerate()
+        .map(|(i, c)| c as usize * i)
+        .reduce(usize::wrapping_add)
+        .map(|h| (h % 7))
+        .unwrap_or_default();
+    match hash {
+        0 => owo_colors::AnsiColors::Red,
+        1 => owo_colors::AnsiColors::Blue,
+        2 => owo_colors::AnsiColors::Cyan,
+        3 => owo_colors::AnsiColors::Yellow,
+        4 => owo_colors::AnsiColors::Green,
+        5 => owo_colors::AnsiColors::Magenta,
+        6 => owo_colors::AnsiColors::White,
+        _ => unreachable!(),
+    }
 }
 
 fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
@@ -92,22 +90,19 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
         writeln!(w)?;
     }
 
-    let some_meta = !recipe.metadata.map.is_empty();
     let mut meta_fmt =
-        |name: &str, value: &str| writeln!(w, "{}: {}", Paint::green(name).bold(), value);
+        |name: &str, value: &str| writeln!(w, "{}: {}", name.style(styles().meta_key), value);
     if let Some(author) = &recipe.metadata.author {
         let text = author
-            .name
-            .as_deref()
-            .or(author.url.as_ref().map(|u| u.as_str()))
+            .name()
+            .or(author.url().map(|u| u.as_str()))
             .unwrap_or("-");
         meta_fmt("author", text)?;
     }
     if let Some(source) = &recipe.metadata.source {
         let text = source
-            .name
-            .as_deref()
-            .or(source.url.as_ref().map(|u| u.as_str()))
+            .name()
+            .or(source.url().map(|u| u.as_str()))
             .unwrap_or("-");
         meta_fmt("source", text)?;
     }
@@ -130,6 +125,7 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
                 if let Some(c) = cook_time {
                     meta_fmt("cook time", &time_fmt(*c))?;
                 }
+                meta_fmt("total time", &time_fmt(time.total()))?;
             }
         }
     }
@@ -143,7 +139,9 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             .enumerate()
             .map(|(i, s)| {
                 if Some(i) == index {
-                    Paint::yellow(format!("[{s}]")).bold().to_string()
+                    format!("[{s}]")
+                        .style(styles().selected_servings)
+                        .to_string()
                 } else {
                     s.to_string()
                 }
@@ -152,13 +150,12 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             .unwrap_or_default();
         if let Some(data) = recipe.scaled_data() {
             if data.target.index().is_none() {
-                write!(
-                    &mut text,
-                    " {} {}",
-                    Paint::red("->"),
-                    Paint::red(data.target.target_servings()),
-                )
-                .unwrap();
+                text = format!(
+                    "{} {} {}",
+                    text.strikethrough().dimmed(),
+                    "\u{2192}".red(),
+                    data.target.target_servings().red()
+                );
             }
         }
         meta_fmt("servings", &text)?;
@@ -166,7 +163,7 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     for (key, value) in recipe.metadata.map_filtered() {
         meta_fmt(&key, &value)?;
     }
-    if some_meta {
+    if !recipe.metadata.map.is_empty() {
         writeln!(w)?;
     }
     Ok(())
@@ -180,53 +177,53 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
     let mut table = Table::new("  {:<} {:<}    {:<} {:<}");
     let mut there_is_fixed = false;
     let mut there_is_err = false;
-    let list = recipe.ingredient_list(converter);
-    for IngredientListEntry {
-        index,
-        quantity,
-        outcome,
-    } in list
-    {
-        let igr = &recipe.ingredients[index];
-        if igr.is_hidden() {
+    let trinagle = " \u{26a0}";
+    let octagon = " \u{2BC3}";
+    for entry in recipe.group_ingredients(converter) {
+        let GroupedIngredient {
+            ingredient: igr,
+            quantity,
+            outcome,
+            ..
+        } = entry;
+        if !igr.modifiers().should_be_listed() {
             continue;
         }
         let mut is_fixed = false;
         let mut is_err = false;
-        let s = outcome
+        let (outcome_style, outcome_char) = outcome
             .map(|outcome| match outcome {
                 ScaleOutcome::Fixed => {
                     there_is_fixed = true;
                     is_fixed = true;
-                    yansi::Style::new(yansi::Color::Yellow)
+                    (owo_colors::Style::new().yellow(), trinagle)
                 }
                 ScaleOutcome::Error(_) => {
                     there_is_err = true;
                     is_err = true;
-                    yansi::Style::default().bg(yansi::Color::Red)
+                    (owo_colors::Style::new().red(), octagon)
                 }
-                ScaleOutcome::Scaled | ScaleOutcome::NoQuantity => yansi::Style::default(),
+                ScaleOutcome::Scaled | ScaleOutcome::NoQuantity => (owo_colors::Style::new(), ""),
             })
             .unwrap_or_default();
-        let mut row = Row::new()
-            .with_cell(igr.display_name())
-            .with_cell(if igr.is_optional() { "(optional)" } else { "" });
-        match quantity.total() {
-            cooklang::quantity::TotalQuantity::None => {
-                row.add_cell("");
-            }
-            cooklang::quantity::TotalQuantity::Single(quantity) => {
-                row.add_ansi_cell(s.paint(quantity_fmt(&quantity)));
-            }
-            cooklang::quantity::TotalQuantity::Many(list) => {
-                let list = list
-                    .into_iter()
-                    .map(|q| quantity_fmt(&q))
-                    .reduce(|s, q| format!("{s}, {q}"))
-                    .unwrap();
-                row.add_ansi_cell(s.wrap().paint(list));
-            }
+        let mut row = Row::new().with_cell(igr.display_name());
+        if igr.modifiers().is_optional() {
+            row.add_ansi_cell("(optional)".style(styles().opt_marker));
+        } else {
+            row.add_cell("");
         }
+        let content = match quantity.total() {
+            cooklang::quantity::TotalQuantity::None => "".to_string(),
+            cooklang::quantity::TotalQuantity::Single(quantity) => {
+                quantity_fmt(&quantity).style(outcome_style).to_string()
+            }
+            cooklang::quantity::TotalQuantity::Many(list) => list
+                .into_iter()
+                .map(|q| quantity_fmt(&q).style(outcome_style).to_string())
+                .reduce(|s, q| format!("{s}, {q}"))
+                .unwrap(),
+        };
+        row.add_ansi_cell(format!("{content}{}", outcome_char.style(outcome_style)));
 
         if let Some(note) = &igr.note {
             row.add_cell(format!("({note})"));
@@ -237,14 +234,15 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
     }
     write!(w, "{table}")?;
     if there_is_fixed || there_is_err {
+        writeln!(w)?;
         if there_is_fixed {
-            write!(w, "{} fixed value", Paint::yellow("\u{25A0}"))?;
+            write!(w, "{} {}", trinagle.trim().yellow(), "fixed value".yellow())?;
         }
         if there_is_err {
             if there_is_fixed {
                 write!(w, " | ")?;
             }
-            write!(w, "{} error scaling", Paint::red("\u{25A0}"))?;
+            write!(w, "{} {}", octagon.trim().red(), "error scaling".red())?;
         }
         writeln!(w)?;
     }
@@ -260,11 +258,15 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     for item in recipe
         .cookware
         .iter()
-        .filter(|cw| !cw.is_reference() && !cw.is_hidden())
+        .filter(|cw| cw.modifiers().should_be_listed())
     {
-        let mut row = Row::new()
-            .with_cell(item.display_name())
-            .with_cell(if item.is_optional() { "(optional)" } else { "" });
+        let mut row = Row::new().with_cell(item.display_name()).with_cell(
+            if item.modifiers().is_optional() {
+                "(optional)"
+            } else {
+                ""
+            },
+        );
 
         if let Some(q) = &item.quantity {
             row.add_cell(q.to_string());
@@ -286,122 +288,233 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
 
 fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     writeln!(w, "Steps:")?;
-    for section in &recipe.sections {
-        if let Some(name) = &section.name {
-            writeln!(w, "{}", Paint::new(name).underline())?;
+    for (section_index, section) in recipe.sections.iter().enumerate() {
+        if recipe.sections.len() > 1 {
+            writeln!(
+                w,
+                "{: ^width$}",
+                format!("─── § {} ───", section_index + 1),
+                width = TERM_WIDTH
+            )?;
         }
-        let mut step_counter = 0;
+
+        if let Some(name) = &section.name {
+            writeln!(w, "{}:", name.style(styles().section_name))?;
+        }
+
         for step in &section.steps {
-            if step.is_text {
-                let mut step_text = String::new();
-                for item in &step.items {
-                    if let Item::Text(text) = item {
-                        step_text.push_str(text);
-                    } else {
-                        panic!("Not text in text step");
-                    }
-                }
-                print_wrapped_with_options(w, &step_text, |o| o.initial_indent("  "))?;
+            let (step_text, step_ingredients) = step_text(recipe, section, step);
+            if step.is_text() {
+                print_wrapped_with_options(w, step_text.trim(), |o| o.initial_indent(" "))?;
+                writeln!(w)?;
             } else {
-                step_counter += 1;
-                write!(w, "{step_counter:>2}. ")?;
-
-                let mut step_text = String::new();
-
-                // contain all ingredients used in the step (the names), the vec
-                // contains the exact indices used
-                let mut step_igrs_dedup: HashMap<&str, Vec<usize>> = HashMap::new();
-                for item in &step.items {
-                    if let Item::Component(Component {
-                        kind: ComponentKind::Ingredient,
-                        index,
-                    }) = item
-                    {
-                        let igr = &recipe.ingredients[*index];
-                        step_igrs_dedup.entry(&igr.name).or_default().push(*index);
-                    }
-                }
-                // only keep ingredients with quantities or a single ingredient
-                // without if no one has a quantity
-                for group in step_igrs_dedup.values_mut() {
-                    let first = group.first().copied().unwrap();
-                    group.retain(|&i| recipe.ingredients[i].quantity.is_some());
-                    if group.is_empty() {
-                        group.push(first);
-                    }
-                }
-
-                // contains the ingreient and index (if any) in the line under
-                // the step that shows the ingredients
-                let mut step_igrs_line: Vec<(&Ingredient, Option<usize>)> = Vec::new();
-                for item in &step.items {
-                    match item {
-                        Item::Text(text) => step_text += text,
-                        Item::Component(c) => match c.kind {
-                            ComponentKind::Ingredient => {
-                                let igr = &recipe.ingredients[c.index];
-                                write!(&mut step_text, "{}", Paint::green(igr.display_name()))
-                                    .unwrap();
-                                let pos = write_igr_count(
-                                    &mut step_text,
-                                    &step_igrs_dedup,
-                                    c.index,
-                                    &igr.name,
-                                );
-                                if step_igrs_dedup[igr.name.as_str()].contains(&c.index) {
-                                    step_igrs_line.push((igr, pos));
-                                }
-                            }
-                            ComponentKind::Cookware => {
-                                let cookware = &recipe.cookware[c.index];
-                                write!(&mut step_text, "{}", Paint::yellow(&cookware.name))
-                                    .unwrap();
-                            }
-                            ComponentKind::Timer => {
-                                let timer = &recipe.timers[c.index];
-                                write!(
-                                    &mut step_text,
-                                    "{}",
-                                    Paint::cyan(quantity_fmt(&timer.quantity))
-                                )
-                                .unwrap();
-                            }
-                        },
-                        Item::InlineQuantity(index) => {
-                            let q = &recipe.inline_quantities[*index];
-                            write!(&mut step_text, "{}", Paint::red(quantity_fmt(q))).unwrap()
-                        }
-                    }
-                }
-                print_wrapped_with_options(w, &step_text, |o| o.subsequent_indent("    "))?;
-                if step_igrs_line.is_empty() {
-                    writeln!(w, "    [-]")?;
-                } else {
-                    let mut igrs_text = String::from("    [");
-                    for (i, (igr, pos)) in step_igrs_line.iter().enumerate() {
-                        write!(&mut igrs_text, "{}", igr.display_name()).unwrap();
-                        if let Some(pos) = pos {
-                            write_subscript(&mut igrs_text, &pos.to_string());
-                        }
-                        if igr.is_optional() {
-                            write!(&mut igrs_text, " (opt)").unwrap();
-                        }
-                        if let Some(q) = &igr.quantity {
-                            write!(&mut igrs_text, ": {}", Paint::new(quantity_fmt(q)).dimmed())
-                                .unwrap();
-                        }
-                        if i != step_igrs_line.len() - 1 {
-                            igrs_text += ", ";
-                        }
-                    }
-                    igrs_text += "]";
-                    print_wrapped_with_options(w, &igrs_text, |o| o.subsequent_indent("     "))?;
-                }
+                write!(w, "{:>2}. ", step.number.unwrap())?;
+                print_wrapped_with_options(w, step_text.trim(), |o| o.subsequent_indent("    "))?;
+            }
+            if let Some(step_ingredients) = step_ingredients {
+                print_wrapped_with_options(w, &step_ingredients, |o| {
+                    let indent = "     "; // 5
+                    o.initial_indent(indent).subsequent_indent(indent)
+                })?;
             }
         }
-        writeln!(w)?
     }
     Ok(())
+}
+
+fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, Option<String>) {
+    if step.is_text() {
+        let mut step_text = String::new();
+        for item in &step.items {
+            if let Item::Text { value } = item {
+                step_text.push_str(value);
+            } else {
+                panic!("Not text in text step");
+            }
+        }
+        return (step_text, None);
+    }
+    let mut step_text = String::new();
+
+    let step_igrs_dedup = build_step_igrs_dedup(step, recipe);
+
+    // contains the ingredient and index (if any) in the line under
+    // the step that shows the ingredients
+    let mut step_igrs_line: Vec<(&Ingredient, Option<usize>)> = Vec::new();
+
+    for item in &step.items {
+        match item {
+            Item::Text { value } => step_text += value,
+            Item::ItemComponent { value } => match value.kind {
+                ComponentKind::IngredientKind => {
+                    let igr = &recipe.ingredients[value.index];
+                    write!(
+                        &mut step_text,
+                        "{}",
+                        igr.display_name().style(styles().ingredient)
+                    )
+                    .unwrap();
+                    let pos =
+                        write_igr_count(&mut step_text, &step_igrs_dedup, value.index, &igr.name);
+                    if step_igrs_dedup[igr.name.as_str()].contains(&value.index) {
+                        step_igrs_line.push((igr, pos));
+                    }
+                }
+                ComponentKind::CookwareKind => {
+                    let cookware = &recipe.cookware[value.index];
+                    write!(&mut step_text, "{}", cookware.name.style(styles().cookware)).unwrap();
+                }
+                ComponentKind::TimerKind => {
+                    let timer = &recipe.timers[value.index];
+
+                    match (&timer.quantity, &timer.name) {
+                        (Some(quantity), Some(name)) => {
+                            let s = format!(
+                                "{} ({})",
+                                quantity_fmt(quantity).style(styles().timer),
+                                name.style(styles().timer),
+                            );
+                            write!(&mut step_text, "{}", s).unwrap();
+                        }
+                        (Some(quantity), None) => {
+                            write!(
+                                &mut step_text,
+                                "{}",
+                                quantity_fmt(quantity).style(styles().timer)
+                            )
+                            .unwrap();
+                        }
+                        (None, Some(name)) => {
+                            write!(&mut step_text, "{}", name.style(styles().timer)).unwrap();
+                        }
+                        (None, None) => unreachable!(), // guaranteed in parsing
+                    }
+                }
+            },
+            Item::InlineQuantity { value } => {
+                let q = &recipe.inline_quantities[*value];
+                write!(
+                    &mut step_text,
+                    "{}",
+                    quantity_fmt(q).style(styles().inline_quantity)
+                )
+                .unwrap()
+            }
+        }
+    }
+
+    // This is only for the line where ingredients are placed
+
+    if step_igrs_line.is_empty() {
+        return (step_text, Some("[-]".into()));
+    }
+    let mut igrs_text = String::from("[");
+    for (i, (igr, pos)) in step_igrs_line.iter().enumerate() {
+        write!(&mut igrs_text, "{}", igr.display_name()).unwrap();
+        if let Some(pos) = pos {
+            write_subscript(&mut igrs_text, &pos.to_string());
+        }
+        if igr.modifiers().is_optional() {
+            write!(&mut igrs_text, "{}", " (opt)".style(styles().opt_marker)).unwrap();
+        }
+        if let Some(source) = inter_ref_text(igr, section) {
+            write!(
+                &mut igrs_text,
+                "{}",
+                format!(" from {source}").style(styles().intermediate_ref)
+            )
+            .unwrap();
+        }
+        if let Some(q) = &igr.quantity {
+            write!(
+                &mut igrs_text,
+                ": {}",
+                quantity_fmt(q).style(styles().step_igr_quantity)
+            )
+            .unwrap();
+        }
+        if i != step_igrs_line.len() - 1 {
+            igrs_text += ", ";
+        }
+    }
+    igrs_text += "]";
+    (step_text, Some(igrs_text))
+}
+
+fn inter_ref_text(igr: &Ingredient, section: &Section) -> Option<String> {
+    match igr.relation.references_to() {
+        Some((target_sect, IngredientReferenceTarget::SectionTarget)) => {
+            Some(format!("section {}", target_sect + 1))
+        }
+        Some((target_step, IngredientReferenceTarget::StepTarget)) => {
+            let step = &section.steps[target_step];
+            let s = if let Some(target_number) = step.number {
+                format!("step {target_number}")
+            } else {
+                let from = section.steps[..target_step]
+                    .iter()
+                    .rev()
+                    .find_map(|s| s.number);
+                let to = section.steps[target_step..].iter().find_map(|s| s.number);
+                match (from, to) {
+                    (Some(from), Some(to)) => {
+                        format!("between steps {from}-{to}")
+                    }
+                    // It means that the text step is the first one or
+                    // that all steps before this are also text steps
+                    (None, Some(_to)) => "text before steps".to_string(),
+                    // for this to happen, the text step should be the last
+                    // in the section. Because a text step cannot contain
+                    // references, and a reference is always to past steps,
+                    // this cannot occur.
+                    (Some(_from), None) => {
+                        panic!("impossible intermediate reference")
+                    }
+                    (None, None) => "text before".to_string(),
+                }
+            };
+            Some(s)
+        }
+        _ => None,
+    }
+}
+
+fn build_step_igrs_dedup<'a>(
+    step: &'a Step,
+    recipe: &'a cooklang::Recipe<cooklang::scale::Scaled>,
+) -> HashMap<&'a str, Vec<usize>> {
+    // contain all ingredients used in the step (the names), the vec
+    // contains the exact indices used
+    let mut step_igrs_dedup: HashMap<&str, Vec<usize>> = HashMap::new();
+    for item in &step.items {
+        if let Item::ItemComponent {
+            value:
+                Component {
+                    kind: ComponentKind::IngredientKind,
+                    index,
+                },
+        } = item
+        {
+            let igr = &recipe.ingredients[*index];
+            step_igrs_dedup.entry(&igr.name).or_default().push(*index);
+        }
+    }
+
+    // for each name only keep entries that provide information:
+    // - if it has a quantity
+    // - if it's an intermediate reference
+    // - at least one if it's empty
+    for group in step_igrs_dedup.values_mut() {
+        let first = group.first().copied().unwrap();
+        group.retain(|&i| {
+            let igr = &recipe.ingredients[i];
+            igr.quantity.is_some() || igr.relation.is_intermediate_reference()
+        });
+        if group.is_empty() {
+            group.push(first);
+        }
+    }
+    step_igrs_dedup
 }
 
 fn write_igr_count(
@@ -425,7 +538,7 @@ fn write_igr_count(
 
 fn quantity_fmt(qty: &Quantity) -> String {
     if let Some(unit) = qty.unit() {
-        format!("{} {}", qty.value, Paint::new(unit.text()).italic())
+        format!("{} {}", qty.value, unit.text().italic())
     } else {
         format!("{}", qty.value)
     }
@@ -454,13 +567,13 @@ fn print_wrapped(w: &mut impl io::Write, text: &str) -> Result {
     print_wrapped_with_options(w, text, |o| o)
 }
 
+static TERM_WIDTH: once_cell::sync::Lazy<usize> =
+    once_cell::sync::Lazy::new(|| textwrap::termwidth().min(80));
+
 fn print_wrapped_with_options<F>(w: &mut impl io::Write, text: &str, f: F) -> Result
 where
     F: FnOnce(textwrap::Options) -> textwrap::Options,
 {
-    static TERM_WIDTH: once_cell::sync::Lazy<usize> =
-        once_cell::sync::Lazy::new(|| textwrap::termwidth().min(80));
-
     let options = f(textwrap::Options::new(*TERM_WIDTH));
     let lines = textwrap::wrap(text, options);
     for line in lines {

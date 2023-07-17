@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Quantity from '$lib/Quantity.svelte';
 	import type { Item, Recipe } from '$lib/types';
-	import type { SliceStep } from './Section.svelte';
+	import type { SectionContext, SliceStep } from './Section.svelte';
 	import Divider from '$lib/Divider.svelte';
 	import { API } from '$lib/constants';
 	import { stepIngredientsView } from '$lib/settings';
@@ -10,9 +10,13 @@
 	import IngredientStepItem from '$lib/IngredientStepItem.svelte';
 	import { displayName } from '$lib/util';
 	import { componentHighlight } from '$lib/componentHighlight';
+	import { getContext } from 'svelte';
+	import Timer from '$lib/Timer.svelte';
 
 	export let step: SliceStep;
 	export let recipe: Recipe;
+
+	const { sectionIndex } = getContext<SectionContext>('section');
 
 	$: items = step.step.items;
 
@@ -66,8 +70,15 @@
 	$: ({ stepIngredients, stepIngredientsLine } = buildStepIngredients(recipe, items));
 </script>
 
-<div class="flex gap-2 flex-col-reverse lg:flex-row">
-	<div class="rounded bg-base-2 border border-base-6 shadow p-4 grow flex flex-col">
+<div
+	class="flex gap-2 flex-col-reverse lg:flex-row"
+	data-step-index={step.step_index}
+	data-highlight-cls="highlight-step"
+	id={`step-${$sectionIndex}-${step.step_index}`}
+>
+	<div
+		class="rounded bg-base-2 border border-base-6 shadow p-4 grow flex flex-col transition-colors"
+	>
 		<p class="grow">
 			{#each items as i}
 				{#if i.type === 'text'}
@@ -96,14 +107,15 @@
 							use:componentHighlight={{
 								index: component.index,
 								component: cw,
-								componentKind: 'cookware'
+								componentKind: 'cookware',
+								currentSectionIndex: $sectionIndex
 							}}>{displayName(cw)}</span
 						>
 					{:else if component.kind === 'timer'}
-						{@const tm = recipe.timers[component.index]}
-						<span class="text-indigo-11 font-semibold"
-							>{tm.name ?? ''}<Quantity quantity={tm.quantity} /></span
-						>
+						<Timer
+							timer={recipe.timers[component.index]}
+							seconds={recipe.timers_seconds[component.index]}
+						/>
 					{/if}
 				{/if}
 			{/each}
@@ -112,7 +124,7 @@
 			<Divider class="my-4" />
 			<div class="stepIngredients" class:compact={$stepIngredientsView === 'compact'}>
 				{#each stepIngredientsLine as { index, subscript }, arrIndex (index)}
-					<div use:scaleOutcomeTooltip={extractOutcome(recipe, index)}>
+					<div use:scaleOutcomeTooltip={extractOutcome(recipe, index)} class="w-fit">
 						<IngredientStepItem {index} ingredient={recipe.ingredients[index]} {subscript} />
 					</div>
 					{#if arrIndex < stepIngredientsLine.length - 1 && $stepIngredientsView === 'compact'}
@@ -133,5 +145,9 @@
 <style>
 	.compact {
 		--at-apply: flex flex-wrap;
+	}
+
+	:global(.highlight-step) > div {
+		--at-apply: bg-primary-4;
 	}
 </style>
