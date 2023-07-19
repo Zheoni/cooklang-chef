@@ -53,18 +53,20 @@ pub async fn run(ctx: Context, args: ServeArgs) -> Result<()> {
         SocketAddr::from(([127, 0, 0, 1], args.port))
     };
 
+    info!("Listening on {addr}");
+
     #[cfg(feature = "ui")]
     if args.open {
         let port = args.port;
+        let url = format!("http://localhost:{port}");
+        info!("Serving web UI on {url}");
         tokio::task::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            if let Err(e) = open::that(format!("http://localhost:{port}")) {
+            if let Err(e) = open::that(url) {
                 tracing::error!("Could not open the web browser: {e}");
             }
         });
     }
-
-    info!("Listening on {addr}");
 
     axum::Server::bind(&addr)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
@@ -429,7 +431,15 @@ async fn recipe(
             Ok(scaled)
         })?
         .map(|r| {
-            let grouped = r
+            #[derive(Serialize)]
+            struct ApiRecipe {
+                #[serde(flatten)]
+                recipe: cooklang::ScaledRecipe,
+                grouped_ingredients: Vec<serde_json::Value>,
+                timers_seconds: Vec<Option<cooklang::Value>>,
+            }
+
+            let grouped_ingredients = r
                 .group_ingredients(state.parser.converter())
                 .into_iter()
                 .map(|entry| {
@@ -452,18 +462,15 @@ async fn recipe(
                             _ => None,
                         })
                 })
-                .map(|v| serde_json::to_value(v).unwrap())
-                .collect::<Vec<_>>();
-            let mut val = serde_json::to_value(r).unwrap();
-            val.as_object_mut().unwrap().insert(
-                "grouped_ingredients".into(),
-                serde_json::Value::Array(grouped),
-            );
-            val.as_object_mut().unwrap().insert(
-                "timers_seconds".into(),
-                serde_json::Value::Array(timers_seconds),
-            );
-            val
+                .collect();
+
+            let api_recipe = ApiRecipe {
+                recipe: r,
+                grouped_ingredients,
+                timers_seconds,
+            };
+
+            serde_json::to_value(api_recipe).unwrap()
         });
     let path = clean_path(entry.path(), &state.base_path);
     let report = Report::from_pass_result(recipe, path.as_str(), &content, color.color);
