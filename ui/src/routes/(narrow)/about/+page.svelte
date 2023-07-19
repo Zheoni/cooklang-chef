@@ -2,24 +2,18 @@
 	import { page } from '$app/stores';
 	import { connected } from '$lib/updatesWS';
 
+	const extHref = 'https://github.com/cooklang/cooklang-rs/blob/main/extensions.md';
+
 	$: hostname = $page.url.hostname;
 	$: local = hostname === 'localhost' || hostname === '127.0.0.1';
 </script>
 
 <h1>About</h1>
 
-<p class="font-serif">
-	This web application is part of the <a class="link" href="https://github.com/Zheoni/cooklang-rs"
-		>cooklang-rs</a
-	>
-	project.
-</p>
-
 <p>
-	It is currently serving and rendering <a href="https://cooklang.org/">cooklang</a>
+	This is currently serving and rendering <a href="https://cooklang.org/">cooklang</a>
 	recipes from
-	<span class="code">.cook</span> files from
-	{#if local}
+	<span class="code">.cook</span> files from {#if local}
 		the current computer
 	{:else}
 		<span class="code">{hostname}</span>
@@ -29,9 +23,18 @@
 
 {#if $connected === 'connected'}
 	<p>
-		The <span class="px-2 py-1 rounded border border-green-6 bg-green-3">green</span> dot in the top
-		right indicates that live updates are working. So if you open a <span class="code">.cook</span> file,
-		make changes and save it. The rendered recipe will be automatically updated.
+		The <span class="px-2 py-1 rounded border border-green-6 bg-green-3">green</span>
+		dot in the top right indicates that live updates are working. So if you open a
+		<span class="code">.cook</span>
+		file, make changes and save it. The rendered recipe will be automatically updated.
+	</p>
+{:else}
+	<p>
+		The <span class="px-2 py-1 rounded border border-red-6 bg-red-3">red</span> dot in the top right
+		indicates that live updates are not working at the moment. You can try to
+		<button class="link" on:click={() => window.location.reload()}>reload</button>
+		the page to try to reconnect to the server. With live updates, changes made to the
+		<span class="code">.cook</span> files would be automatically shown in this web app.
 	</p>
 {/if}
 
@@ -41,9 +44,7 @@
 <p>
 	This application extends the regular cooklang syntax. The extensions form a superset, so every
 	original cooklang recipe should still be the exact same. You can see a list of the extensions
-	<a href="https://github.com/Zheoni/cooklang-rs/blob/main/docs/extensions.md" target="_blank"
-		>here</a
-	>.
+	<a href={extHref} target="_blank">here</a>.
 </p>
 
 <h2>Metadata</h2>
@@ -91,15 +92,13 @@
 	options:
 </p>
 <pre class="bg-base-3 border border-base-6 rounded p-4">
-Recipe.jpg        -- Main image of the recipe
-Recipe.0.jpg      -- Image for first section, first step
-Recipe.0.0.jpg    -- Same as above
-Recipe.2.0.jpg    -- Third section, first step
+Recipe.jpg        -- Main image of the recipe Recipe.0.jpg      -- Image for
+first section, first step Recipe.0.0.jpg    -- Same as above Recipe.2.0.jpg
+-- Third section, first step
 </pre>
 <p>
-	The <a href="https://github.com/Zheoni/cooklang-rs/blob/main/docs/extensions.md#text-steps"
-		>text steps</a
-	> also increments the index, so you can add images to those paragraphs.
+	The <a href="{extHref}#text-steps" target="_blank">text steps</a> also increments the index, so you
+	can add images to those paragraphs.
 </p>
 
 <style>
