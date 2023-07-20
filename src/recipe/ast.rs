@@ -30,13 +30,14 @@ enum OutputFormat {
 
 pub fn run(ctx: &Context, args: AstArgs) -> Result<()> {
     let input = args.input.read(&ctx.recipe_index)?;
-
-    let (text, file_name) = match &input {
-        Input::File { content, .. } => (content.text(), content.file_name()),
-        Input::Stdin { text, recipe_name } => (text.as_str(), recipe_name.as_str()),
+    let text = input.text();
+    let file_name = match &input {
+        Input::File { content, .. } => content.file_name(),
+        Input::Stdin { name, .. } => name,
     };
+
     let r = cooklang::parser::parse(text, ctx.parser()?.extensions());
-    if r.invalid() || ctx.global_args.warnings_as_errors && r.has_warnings() {
+    if !r.is_valid() || ctx.global_args.warnings_as_errors && r.has_warnings() {
         r.into_report().eprint(
             file_name,
             text,

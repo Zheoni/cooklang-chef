@@ -76,7 +76,7 @@ impl RecipeInputArgs {
                 .context("Failed to read stdin")?;
             Input::Stdin {
                 text: buf,
-                recipe_name: self.name.clone().ok_or(anyhow!("No name for recipe"))?,
+                name: self.name.clone().ok_or(anyhow!("No name for recipe"))?,
             }
         };
         Ok(input)

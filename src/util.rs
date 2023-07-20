@@ -1,7 +1,6 @@
 use anyhow::{bail, Context as _, Result};
 
 use camino::Utf8Path;
-use cooklang_fs::RecipeContent;
 
 use crate::Context;
 
@@ -22,38 +21,51 @@ where
 
 pub enum Input {
     File {
-        content: RecipeContent,
+        content: cooklang_fs::RecipeContent,
         override_name: Option<String>,
     },
     Stdin {
         text: String,
-        recipe_name: String,
+        name: String,
     },
 }
 
 impl Input {
     pub fn parse(&self, ctx: &Context) -> Result<cooklang::Recipe> {
+        self.parse_result(ctx)
+            .and_then(|r| unwrap_recipe(r, self.name(), self.text(), ctx))
+    }
+
+    pub fn parse_result(&self, ctx: &Context) -> Result<cooklang::RecipeResult> {
+        let parser = ctx.parser()?;
+        let r = match self {
+            Input::File { content, .. } => parser.parse_with_recipe_ref_checker(
+                content.text(),
+                self.name(),
+                ctx.checker(Some(content.path())),
+            ),
+            Input::Stdin {
+                text,
+                name: recipe_name,
+            } => parser.parse_with_recipe_ref_checker(text, recipe_name, ctx.checker(None)),
+        };
+        Ok(r)
+    }
+
+    pub fn name(&self) -> &str {
         match self {
             Input::File {
                 content,
                 override_name,
-            } => {
-                let r = ctx.parse_content(content)?.map(|mut r| {
-                    if let Some(name) = override_name {
-                        r.name = name.clone();
-                    }
-                    r
-                });
-                unwrap_recipe(r, content.file_name(), content.text(), ctx)
-            }
-            Input::Stdin { text, recipe_name } => {
-                let r = ctx.parser()?.parse_with_recipe_ref_checker(
-                    text,
-                    recipe_name,
-                    ctx.checker(None),
-                );
-                unwrap_recipe(r, recipe_name, text, ctx)
-            }
+            } => override_name.as_deref().unwrap_or(content.name()),
+            Input::Stdin { name, .. } => name,
+        }
+    }
+
+    pub fn text(&self) -> &str {
+        match self {
+            Input::File { content, .. } => content.text(),
+            Input::Stdin { text, .. } => text,
         }
     }
 
@@ -65,13 +77,13 @@ impl Input {
     }
 }
 
-fn unwrap_recipe(
+pub fn unwrap_recipe(
     r: cooklang::RecipeResult,
     file_name: &str,
     text: &str,
     ctx: &Context,
 ) -> Result<cooklang::Recipe> {
-    if r.invalid() || ctx.global_args.warnings_as_errors && r.has_warnings() {
+    if !r.is_valid() || ctx.global_args.warnings_as_errors && r.has_warnings() {
         r.into_report().eprint(
             file_name,
             text,
