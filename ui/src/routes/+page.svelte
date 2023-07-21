@@ -6,7 +6,7 @@
 	import Loader from '$lib/Loader.svelte';
 	import FolderCard from './FolderCard.svelte';
 	import RecipeCard from './RecipeCard.svelte';
-	import { showFolders } from '$lib/settings';
+	import { showFolders as divideInFolders } from '$lib/settings';
 	import type { Entry } from './+page';
 	import { derived, get, writable } from 'svelte/store';
 	import { page } from '$app/stores';
@@ -18,6 +18,8 @@
 		type Search
 	} from '$lib/search';
 	import { browser } from '$app/environment';
+	import Divider from '$lib/Divider.svelte';
+	import Breadcrum from '$lib/Breadcrum.svelte';
 
 	// Chained stores for search may lead to too much memory usage ?
 
@@ -31,7 +33,7 @@
 	$: searchQuery.set(query($search));
 	$: search.setQuery($searchQuery);
 	$: {
-		if ($showFolders === false) {
+		if ($divideInFolders === false) {
 			search.update((s) => {
 				s.dir = null;
 				return s;
@@ -63,29 +65,19 @@
 	}
 
 	const filtered = filterData(search, dataStore);
-	const splitted = derived([filtered, showFolders], ([$filtered, $showFolders]) => {
+	const splitted = derived([filtered, divideInFolders], ([$filtered, $showFolders]) => {
 		if ($filtered === null) return null;
 		if ($showFolders) {
 			return splitEntries($filtered);
 		} else {
-			return $filtered.map((e) => ({ type: 'recipe', entry: e })) as RecipeOrFolder[];
+			return { recipes: $filtered, folders: [] };
 		}
 	});
 
-	type RecipeOrFolder =
-		| {
-				type: 'recipe';
-				entry: Entry;
-		  }
-		| {
-				type: 'folder';
-				src_path: string;
-		  };
-
-	function splitEntries(entries: Entry[]): RecipeOrFolder[] {
+	function splitEntries(entries: Entry[]) {
 		const dir = $search.dir ?? '';
 
-		const recipes: RecipeOrFolder[] = [];
+		const recipes = [];
 
 		const dirParts = dir?.split('/').filter((p) => p.length > 0) ?? [];
 		const dirs = new Set<string>();
@@ -93,22 +85,31 @@
 			const parts = entry.src_path.split('/');
 			const restParts = parts.slice(dirParts.length);
 			if (restParts.length === 1 && restParts[0].endsWith('.cook')) {
-				recipes.push({ type: 'recipe', entry });
+				recipes.push(entry);
 			} else {
 				const src_path = dirParts.concat(restParts[0]).join('/');
 				dirs.add(src_path);
 			}
 		}
 
-		const folders: RecipeOrFolder[] = [];
+		const folders = [];
 		for (const dir of dirs) {
-			folders.push({ type: 'folder', src_path: dir });
+			folders.push(dir);
 		}
-		return folders.concat(recipes);
+		return { recipes, folders };
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key.toLowerCase() == 's') {
+			document.getElementById('search')?.focus();
+			e.preventDefault();
+		}
 	}
 </script>
 
 <svelte:head><title>chef</title></svelte:head>
+
+<svelte:document on:keydown={handleKeydown} />
 
 <form
 	class="mb-8 flex gap-4 items-center justify-center"
@@ -134,26 +135,44 @@
 	</div>
 
 	<div>
-		<input type="checkbox" id="showFolders" bind:checked={$showFolders} />
-		<label for="showFolders">Show folders</label>
+		<input type="checkbox" id="divideInFolders" bind:checked={$divideInFolders} />
+		<label for="divideInFolders">Divide in folders</label>
 	</div>
 </form>
 
-<div class="flex flex-wrap gap-6 items-stretch md:justify-center" data-sveltekit-preload-data="tap">
-	{#if $splitted === null}
+{#if $divideInFolders}
+	<div class="m-4">
+		<Breadcrum dir={$search.dir ?? ''} />
+	</div>
+{/if}
+
+{#if $splitted === null}
+	<div class="mx-auto grid place-items-center">
 		<Loader />
-	{:else}
-		{#each $splitted as recipeOrFolder}
-			{#if recipeOrFolder.type === 'folder'}
-				<FolderCard dir={recipeOrFolder.src_path} />
-			{:else}
-				<RecipeCard entry={recipeOrFolder.entry} />
-			{/if}
-		{:else}
-			<div class="container w-fit bg-base-3 bg-opacity-50 p-8 rounded-xl shadow-xl h-fit">
-				<p class="font-bold text-center mt-4 mb-8 text-2xl">No recipes found</p>
-				<img class="mx-auto max-w-sm" src={emptyCart} alt="Empty" />
-			</div>
+	</div>
+{:else}
+	<div class="flex flex-col sm:flex-row flex-wrap gap-6">
+		{#each $splitted.folders as folder}
+			<FolderCard dir={folder} />
 		{/each}
+	</div>
+	{#if $splitted.folders.length > 0}
+		<Divider class="m-4" />
 	{/if}
-</div>
+	<div
+		class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 justify-items-stretch items-stretch"
+		data-sveltekit-preload-data="tap"
+	>
+		{#each $splitted.recipes as recipe}
+			<RecipeCard entry={recipe} />
+		{/each}
+	</div>
+	{#if $splitted.recipes.length === 0}
+		<div
+			class="container w-fit bg-base-3 bg-opacity-50 p-8 rounded-xl shadow-xl h-fit mx-auto my-4"
+		>
+			<p class="font-bold text-center mt-4 mb-8 text-2xl">No recipes found</p>
+			<img class="mx-auto max-w-sm" src={emptyCart} alt="Empty" />
+		</div>
+	{/if}
+{/if}

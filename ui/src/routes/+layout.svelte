@@ -21,7 +21,7 @@
 
 <SvelteToast options={{ pausable: true }} />
 
-<div class="bg-b flex min-h-screen flex-col">
+<div class="flex min-h-screen flex-col">
 	<header>
 		<nav class="mx-auto flex max-w-screen-xl items-center px-4 py-2">
 			<div class="flex-1">
@@ -56,7 +56,7 @@
 		</Divider>
 	</header>
 
-	<main class="container mx-auto my-10 px-3 xl:max-w-screen-xl flex-grow">
+	<main class="container mx-auto my-10 px-3 flex-grow">
 		<slot />
 	</main>
 

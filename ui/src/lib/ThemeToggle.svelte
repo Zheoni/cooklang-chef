@@ -28,7 +28,6 @@
 		&& !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 	async function changeTheme(adjusted: AdjustedColorScheme) {
-		console.log(adjusted);
 		const cs = resolveAdjustedColors(adjusted, $systemColorScheme);
 		if (!isAppearanceTransition || cs == $colorScheme) {
 			adjustedColorScheme.set(adjusted);
