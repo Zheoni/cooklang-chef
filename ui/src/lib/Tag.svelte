@@ -1,21 +1,23 @@
 <script lang="ts">
 	import TagLink from './TagLink.svelte';
 	import twemoji from './twemoji';
+	import { uiConfig } from './ui_config';
 
 	export let text: string;
-	export let color: string | null = null;
-	export let emoji: string | null = null;
 
 	export let link = true;
 </script>
 
 {#if link}
-	<TagLink {text} {color} {emoji} />
+	<TagLink {text} />
 {:else}
+	{@const emoji = $uiConfig?.tags[text]?.emoji}
 	<div
-		class="tag radix-solid-primary inline-flex h-6 w-auto flex-shrink-0 select-none items-center justify-center overflow-hidden text-ellipsis rounded px-2 text-sm font-bold tracking-wide"
+		class="tag text-primary-12 border-2 border-primary-7 bg-primary-3 hover:border-primary-8 hover:bg-primary-4
+		inline-flex h-7 w-auto flex-shrink-0 select-none items-center justify-center overflow-hidden text-ellipsis
+		rounded px-2 text-sm font-semibold tracking-wide"
 	>
-		<span class="mr-1 text-base inline-flex items-center">
+		<span class="mr-1 text-base text-primary-11 inline-flex items-center">
 			{#if emoji}
 				<span use:twemoji>{emoji}</span>
 			{:else}

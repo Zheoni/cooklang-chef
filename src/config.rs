@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use anstream::{print, println};
 use anyhow::Result;
@@ -21,6 +24,7 @@ pub struct Config {
     #[serde(skip_serializing_if = "Load::is_empty")]
     pub load: Load,
     pub editor_command: Option<Vec<String>>,
+    pub ui: UiConfig,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -30,6 +34,17 @@ pub struct Load {
     pub units: Vec<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aisle: Option<PathBuf>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct UiConfig {
+    tags: HashMap<String, TagProps>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+#[serde(default)]
+pub struct TagProps {
+    emoji: Option<String>,
 }
 
 impl Load {
@@ -48,6 +63,7 @@ impl Default for Config {
             max_depth: 10,
             load: Default::default(),
             editor_command: None,
+            ui: Default::default(),
         }
     }
 }

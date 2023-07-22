@@ -16,6 +16,9 @@ export default defineConfig({
 			'/api': {
 				target: 'http://127.0.0.1:8080',
 				ws: true
+			},
+			'/ui_config': {
+				target: 'http://127.0.0.1:8080'
 			}
 		}
 	}

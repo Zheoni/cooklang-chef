@@ -43,9 +43,18 @@ pub struct ServeArgs {
 
 #[tokio::main]
 pub async fn run(ctx: Context, args: ServeArgs) -> Result<()> {
-    let app = Router::new().nest("/api", api(ctx)?);
+    let state = build_state(ctx)?;
+
+    let app = Router::new().nest("/api", api(&state)?);
+
     #[cfg(feature = "ui")]
-    let app = app.fallback(ui::ui);
+    let app = app.merge(ui::ui());
+
+    let app = app.with_state(state).layer(
+        CorsLayer::new()
+            .allow_origin("*".parse::<HeaderValue>().unwrap())
+            .allow_methods([Method::GET]),
+    );
 
     let addr = if args.host {
         SocketAddr::from(([0, 0, 0, 0], args.port))
@@ -79,6 +88,39 @@ pub async fn run(ctx: Context, args: ServeArgs) -> Result<()> {
     Ok(())
 }
 
+fn build_state(ctx: Context) -> Result<Arc<AppState>> {
+    ctx.parser()?;
+    let Context {
+        parser,
+        recipe_index,
+        base_path,
+        config,
+        ..
+    } = ctx;
+    let parser = parser.into_inner().unwrap();
+    let (recipe_index, updates) = AsyncFsIndex::new(recipe_index)?;
+
+    // from mpsc to debounced broadcast
+    let (updates_tx, updates_rx) = broadcast::channel(1);
+    tokio::spawn(async move {
+        let mut debounced_updates = debounced::debounced(
+            tokio_stream::wrappers::ReceiverStream::new(updates),
+            std::time::Duration::from_millis(500),
+        );
+        while let Some(u) = debounced_updates.next().await {
+            let _ = updates_tx.send(u);
+        }
+    });
+
+    Ok(Arc::new(AppState {
+        parser,
+        base_path,
+        recipe_index,
+        updates_stream: updates_rx,
+        config,
+    }))
+}
+
 async fn shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c()
@@ -110,11 +152,17 @@ mod ui {
     use super::*;
     use rust_embed::RustEmbed;
 
+    pub fn ui() -> Router<Arc<AppState>> {
+        Router::new()
+            .route("/ui_config", get(config))
+            .fallback(static_ui)
+    }
+
     #[derive(RustEmbed)]
     #[folder = "./ui/build/"]
     struct Assets;
 
-    pub async fn ui(uri: Uri) -> impl axum::response::IntoResponse {
+    async fn static_ui(uri: Uri) -> impl axum::response::IntoResponse {
         use axum::response::IntoResponse;
 
         const INDEX_HTML: &str = "index.html";
@@ -154,9 +202,13 @@ mod ui {
             }
         }
     }
+
+    async fn config(State(state): State<Arc<AppState>>) -> impl axum::response::IntoResponse {
+        Json(state.config.ui.clone())
+    }
 }
 
-struct ApiState {
+pub struct AppState {
     parser: CooklangParser,
     base_path: Utf8PathBuf,
     recipe_index: AsyncFsIndex,
@@ -164,58 +216,22 @@ struct ApiState {
     config: crate::config::Config,
 }
 
-fn api(ctx: Context) -> Result<Router> {
-    ctx.parser()?;
-    let Context {
-        parser,
-        recipe_index,
-        base_path,
-        config,
-        ..
-    } = ctx;
-    let parser = parser.into_inner().unwrap();
-    let (recipe_index, updates) = AsyncFsIndex::new(recipe_index)?;
-
-    // from mpsc to debounced broadcast
-    let (updates_tx, updates_rx) = broadcast::channel(1);
-    tokio::spawn(async move {
-        let mut debounced_updates = debounced::debounced(
-            tokio_stream::wrappers::ReceiverStream::new(updates),
-            std::time::Duration::from_millis(500),
-        );
-        while let Some(u) = debounced_updates.next().await {
-            let _ = updates_tx.send(u);
-        }
-    });
-
-    let shared_state = Arc::new(ApiState {
-        parser,
-        base_path,
-        recipe_index,
-        updates_stream: updates_rx,
-        config,
-    });
-
+fn api(state: &AppState) -> Result<Router<Arc<AppState>>> {
     let router = Router::new()
         .nest_service(
             "/src",
             ServiceBuilder::new()
                 .layer(middleware::from_fn(filter_files))
                 .layer(middleware::from_fn(cook_mime_type))
-                .service(tower_http::services::ServeDir::new(&shared_state.base_path)),
+                .service(tower_http::services::ServeDir::new(&state.base_path)),
         )
         .route("/updates", get(ws_handler))
         .route("/recipe", get(all_recipes))
         .route("/recipe/metadata", get(all_recipes_metadata))
         .route("/recipe/*path", get(recipe))
         .route("/recipe/metadata/*path", get(recipe_metadata))
-        .route("/recipe/open_editor/*path", get(open_editor))
-        .with_state(shared_state)
-        .layer(
-            CorsLayer::new()
-                .allow_origin("*".parse::<HeaderValue>().unwrap())
-                .allow_methods([Method::GET]),
-        );
+        .route("/recipe/open_editor/*path", get(open_editor));
+
     Ok(router)
 }
 
@@ -244,7 +260,7 @@ async fn cook_mime_type<B>(req: Request<B>, next: Next<B>) -> Response {
 async fn ws_handler(
     ws: WebSocketUpgrade,
     ConnectInfo(who): ConnectInfo<SocketAddr>,
-    State(state): State<Arc<ApiState>>,
+    State(state): State<Arc<AppState>>,
 ) -> Response {
     tracing::debug!("Preparing web socket connection to {who}");
     ws.on_upgrade(move |socket| handle_ws_socket(socket, who, state.updates_stream.resubscribe()))
@@ -336,7 +352,7 @@ fn images(entry: &cooklang_fs::RecipeEntry, base_path: &Utf8Path) -> Vec<cooklan
     images
 }
 
-async fn all_recipes(State(state): State<Arc<ApiState>>) -> Result<Json<Vec<String>>, StatusCode> {
+async fn all_recipes(State(state): State<Arc<AppState>>) -> Result<Json<Vec<String>>, StatusCode> {
     let recipes = cooklang_fs::all_recipes(&state.base_path, state.config.max_depth)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(|e| {
@@ -355,7 +371,7 @@ struct ColorConfig {
 }
 
 async fn all_recipes_metadata(
-    State(state): State<Arc<ApiState>>,
+    State(state): State<Arc<AppState>>,
     Query(color): Query<ColorConfig>,
 ) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
     let mut handles = Vec::new();
@@ -395,7 +411,7 @@ struct RecipeQuery {
 
 async fn recipe(
     Path(path): Path<String>,
-    State(state): State<Arc<ApiState>>,
+    State(state): State<Arc<AppState>>,
     Query(query): Query<RecipeQuery>,
     Query(color): Query<ColorConfig>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -487,7 +503,7 @@ async fn recipe(
 
 async fn recipe_metadata(
     Path(path): Path<String>,
-    State(state): State<Arc<ApiState>>,
+    State(state): State<Arc<AppState>>,
     Query(color): Query<ColorConfig>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     check_path(&path)?;
@@ -522,7 +538,7 @@ async fn recipe_metadata(
 
 async fn open_editor(
     Path(path): Path<String>,
-    State(state): State<Arc<ApiState>>,
+    State(state): State<Arc<AppState>>,
     ConnectInfo(who): ConnectInfo<SocketAddr>,
 ) -> Result<(), StatusCode> {
     if !who.ip().is_loopback() {
