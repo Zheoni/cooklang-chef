@@ -4,7 +4,7 @@
 
 	export let dir: string;
 
-	$: parts = dir.split('/');
+	$: parts = dir.split('/').filter((p) => p.length != 0);
 
 	function dirHref(partIndex: number) {
 		const path = parts.slice(0, partIndex + 1);
@@ -25,4 +25,6 @@
 {#each parts as part, i}
 	<span class="m-1 font-bold font-mono text-base-11">/</span>
 	<a href={dirHref(i)} class="link font-mono">{part}</a>
+{:else}
+	<span class="m-1 font-bold font-mono text-base-11">/</span>
 {/each}
