@@ -83,6 +83,3 @@ textwrap = "0.16"
 lto = "thin"
 # strip = true
 # opt-level = "s"
-
-[patch.crates-io]
-cooklang = { path = "../cooklang-rs" }

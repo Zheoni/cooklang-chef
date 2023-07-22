@@ -1,7 +1,8 @@
 # on every release:
-#   1. builds for windows, linux and macos
-#   2. compress in native formats
-#   3. attaches the artifacts to the release
+#   1. builds ui
+#   2. builds for windows, linux and macos
+#   3. compress in native formats
+#   4. attaches the artifacts to the release
 
 on:
   release:
@@ -23,10 +24,21 @@ jobs:
             archive: zip
     steps:
       - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: true
+      - name: Build UI
+        shell: "bash"
+        run: |
+          cd ui
+          pnpm run build
       - name: Compile and release
         uses: rust-build/rust-build.action@v1.4.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          TOOLCHAIN_VERSION: stable
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
+          EXTRA_FILES: "README.md LICENSE"
