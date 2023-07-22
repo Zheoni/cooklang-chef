@@ -13,8 +13,7 @@ some more flour.
 Bake in a preheated #oven at 230ºC for ~{30%min}.
 ```
 
-When we display this recipe we get this:
-![](../images/bread1.png)
+When we display this recipe we get this: ![](../images/bread1.png)
 
 Honestly, I would like the flour used in step 3 to be highlighted in green too.
 But without references this would add a new ingredient to the list, which we do
@@ -98,8 +97,8 @@ Bake in a preheated #oven at 230ºC for ~{30%min}.
 ```
 ![](../images/bread4.png)
 
-Obviously, we lose the amounts in each use. Don't try to add those amounts,
-it is an error.
+Obviously, we lose the amounts in each use. Don't try to add those amounts, it
+is an error.
 ```cooklang
 [- ... -]
 
@@ -108,13 +107,12 @@ with some more @flour.
 
 [- ... -]
 ```
-![](../images/bread5.png)
-This is because it's confusing when trying to add the values to calculate
-the total quantity.
+![](../images/bread5.png) This is because it's confusing when trying to add the
+values to calculate the total quantity.
 
-However, if we dont add a quantity in the ingredient list, we can add it
-on the references. This is allowed but probably not very useful because
-then the ingredient list has little value.
+However, if we dont add a quantity in the ingredient list, we can add it on the
+references. This is allowed but probably not very useful because then the
+ingredient list has little value.
 ```cooklang
 [- ... -]
 - @flour
@@ -123,3 +121,18 @@ Sprinkle work surface with @flour{10%g} and shape the dough. Sprinkle the top
 with some more @flour{5%g}.
 [- ... -]
 ```
+
+## Using intermediate ingredients
+_This is another extension extending the modifiers extension._
+
+The last thing we can reference are ingredients that we create during the
+recipe. For example, in step 3 we shape the dough from the last step. We can
+express that with intermediate ingredients references.
+```cooklang
+[- ... -]
+Sprinkle work surface with @flour{10%g} and shape the @&(~1)dough. Sprinkle the
+top with some more @flour{5%g}.
+[- ... -]
+```
+
+![](../images/bread6.png)

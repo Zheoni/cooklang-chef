@@ -5,7 +5,12 @@ use cooklang::Extensions;
 use crate::{convert, generate_completions, list, recipe, serve, shopping_list, units};
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(
+    author,
+    version,
+    about,
+    after_help = "Docs: https://github.com/Zheoni/cooklang-chef/blob/main/docs/README.md"
+)]
 pub struct CliArgs {
     #[command(subcommand)]
     pub command: Command,

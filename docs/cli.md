@@ -1,19 +1,19 @@
 # The `cooklang-rs` CLI
 
-The CLI is currently named `chef`. This may change. I don't want to
-call it `cook` to avoid using the same name as the original `CookCLI`.
+The CLI is currently named `chef`. This may change. I don't want to call it
+`cook` to avoid using the same name as the original `CookCLI`.
 
 ## Key features
 - Read a recipe:
     ```sh
     chef recipe Bread.cook
     ```
-    ![](../images/bread3.png)
-    You can also specify a `markdown`, `json` or back to `cooklang` output.
+    ![](../images/bread3.png) You can also specify a `markdown`, `json` or back
+    to `cooklang` output.
 
 - List all recipes, even check if they contain errors.
     ```sh
-    chef recipe list --long
+    chef list -l
     ```
     ![](../images/list.png)
 
@@ -27,8 +27,8 @@ call it `cook` to avoid using the same name as the original `CookCLI`.
     chef serve --open
     ```
     This starts a web server and opens it in the default web browser. You can
-    edit the recipe files and it will automatically update the web on save.
-    The web server also exposes a REST API for the recipes.
+    edit the recipe files and it will automatically update the web on save. The
+    web server also exposes a REST API for the recipes.
 
     ![](../images/webui.png)
     
@@ -38,16 +38,23 @@ call it `cook` to avoid using the same name as the original `CookCLI`.
     disk and parsed.
 
 ## Installing
-### Prebuilt binaries
-For now, prebuilt binaries are not distributed. However, maybe in
-[the releases page](https://github.com/Zheoni/cooklang-rs/releases) you
-can find one for Windows.
+### Install with cargo
+```sh
+cargo install cooklang-chef
+```
+This will automatically download and compile the CLI.
 
-### Compiling the CLI
+### Prebuilt binaries
+Binaries are provided with [Github
+releases](https://github.com/Zheoni/cooklang-chef/releases). However it's
+guaranteed.
+
+### Manually compiling the CLI
 1. Install the rust compiler and `cargo`, the best way is with
     [rustup](https://rustup.rs/).
 
-    Also, if you want to compile the web UI, you need to install [node](https://nodejs.org/) and [pnpm](https://pnpm.io/).
+    Also, if you want to compile the web UI, you need to install
+    [node](https://nodejs.org/) and [pnpm](https://pnpm.io/).
 2. Clone [this repo](https://github.com/Zheoni/cooklang-rs).
     ```sh
     git clone https://github.com/Zheoni/cooklang-rs
@@ -80,9 +87,9 @@ can find one for Windows.
     If the `ui` feature is enabled and there is no `ui/build` dir, it will
     result in a compile error.
 
-    This will install the cli in the `cargo` install dir, in your home dir.
-    If you followed the instructions when using `rustup`, this dir should be
-    in your `PATH` and the binary accesible.
+    This will install the cli in the `cargo` install dir, in your home dir. If
+    you followed the instructions when using `rustup`, this dir should be in
+    your `PATH` and the binary accesible.
 
 6. Test it:
     ```sh
@@ -92,10 +99,10 @@ can find one for Windows.
 
 
 ## Configuration
-A configuration [TOML](https://toml.io) file will be loaded by the CLI.
-First, it will try to load it from `.cooklang/config.toml`, if that cannot
-be found, a global configuration file will be loaded. If it does not
-exist, it will be created with default values.
+A configuration [TOML](https://toml.io) file will be loaded by the CLI. First,
+it will try to load it from `.cooklang/config.toml`, if that cannot be found, a
+global configuration file will be loaded. If it does not exist, it will be
+created with default values.
 
 The configuration file can be override with the CLI args.
 
