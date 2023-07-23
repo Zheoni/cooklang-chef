@@ -1,4 +1,4 @@
-import { readable } from 'svelte/store';
+import { readonly, writable } from 'svelte/store';
 
 export type UiConfig = {
 	tags: Record<string, TagProps>;
@@ -20,4 +20,8 @@ async function getConfig() {
 	}
 }
 
-export const uiConfig = readable(await getConfig());
+const store = writable<Awaited<ReturnType<typeof getConfig>>>(null);
+
+getConfig().then((c) => store.set(c));
+
+export const uiConfig = readonly(store);
