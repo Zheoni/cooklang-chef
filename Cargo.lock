@@ -273,9 +273,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "clap"
-version = "4.3.18"
+version = "4.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21b6396aa128fe4149d2af114f746eb048b5667e2844cc51ae90830f45de7ccb"
+checksum = "5fd304a20bff958a57f04c4e96a2e7594cc4490a0e809cbd48bb6437edaa452d"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -284,9 +284,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.3.18"
+version = "4.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d011140df54d9c4c592974ccd7d694dd4ab5b92ea0436435fa900a211d6b0f6"
+checksum = "01c6a3f08f1fe5662a35cfe393aec09c4df95f60ee93b7556505260f75eee9e1"
 dependencies = [
  "anstream",
  "anstyle",
@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-chef"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anstream",
  "anyhow",
@@ -558,9 +558,9 @@ dependencies = [
 
 [[package]]
 name = "either"
-version = "1.8.1"
+version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91"
+checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
 
 [[package]]
 name = "emojis"
