@@ -413,7 +413,9 @@
 									class="capitalize"
 									use:componentHighlight={{ index, component: item, componentKind: 'cookware' }}
 									>{displayName(item)}</span
-								>{#if item.quantity}
+								>{#if item.modifiers.includes('OPT')}
+									{' '}(opt)
+								{/if}{#if item.quantity}
 									: <span class="text-base-11">{qValueFmt(item.quantity)}</span>
 								{/if}
 							</li>

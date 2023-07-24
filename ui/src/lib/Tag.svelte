@@ -14,8 +14,8 @@
 	{@const emoji = $uiConfig?.tags[text]?.emoji}
 	<div
 		class="tag text-primary-12 border-2 border-primary-7 bg-primary-3 hover:border-primary-8 hover:bg-primary-4
-		inline-flex h-7 w-auto flex-shrink-0 select-none items-center justify-center overflow-hidden text-ellipsis
-		rounded px-2 text-sm font-semibold tracking-wide"
+		inline-flex h-7 w-auto select-none items-center justify-center overflow-hidden text-ellipsis
+		rounded px-2 font-semibold tracking-wide"
 	>
 		<span class="mr-1 text-base text-primary-11 inline-flex items-center">
 			{#if emoji}
@@ -24,7 +24,7 @@
 				<div class="i-lucide-hash" />
 			{/if}
 		</span>
-		<span class="overflow-hidden text-ellipsis whitespace-nowrap">
+		<span class="overflow-hidden text-ellipsis whitespace-nowrap lowercase">
 			{text}
 		</span>
 	</div>
