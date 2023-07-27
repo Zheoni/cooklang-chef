@@ -1,5 +1,4 @@
 import { error } from '@sveltejs/kit';
-import type { PageLoad } from './$types';
 import { API } from '$lib/constants';
 import type { Image, Metadata, Report } from '$lib/types';
 
@@ -11,7 +10,7 @@ export type Entry = {
 	images: Image[];
 };
 
-export const load = (({ fetch, url }) => {
+export function load({ fetch }) {
 	const apiUrl = `${API}/recipe/metadata`;
 	try {
 		const entries = fetch(apiUrl).then((r) => r.json() as Promise<Entry[]>);
@@ -19,4 +18,4 @@ export const load = (({ fetch, url }) => {
 	} catch (_e) {
 		throw error(400);
 	}
-}) satisfies PageLoad;
+}

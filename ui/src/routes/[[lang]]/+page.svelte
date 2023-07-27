@@ -20,6 +20,7 @@
 	import { browser } from '$app/environment';
 	import Divider from '$lib/Divider.svelte';
 	import Breadcrum from '$lib/Breadcrum.svelte';
+	import { t } from '$lib/i18n';
 
 	// Chained stores for search may lead to too much memory usage ?
 
@@ -51,8 +52,12 @@
 	}
 
 	function updateUrl(search: Search) {
-		const params = searchToUrlSearchParams(search);
-		goto(`/?${params}`, {
+		const params = searchToUrlSearchParams(search).toString();
+		let url = window.location.pathname;
+		if (params.length > 0) {
+			url += '?' + params;
+		}
+		goto(url, {
 			replaceState: true,
 			noScroll: true,
 			keepFocus: true
@@ -121,7 +126,7 @@
 			type="text"
 			name="search"
 			id="search"
-			placeholder="Search"
+			placeholder={$t('index.search')}
 			autocomplete="off"
 			class="border-base-7 hover:border-base-8 focus:border-base-8 light color-base-12 focus-within:ring-base-7 z-1 rounded-bl rounded-tl border border-r-0 px-2"
 			bind:value={$searchQuery}
@@ -136,7 +141,7 @@
 
 	<div>
 		<input type="checkbox" id="divideInFolders" bind:checked={$divideInFolders} />
-		<label for="divideInFolders">Divide in folders</label>
+		<label for="divideInFolders">{$t('index.divideInFolders')}</label>
 	</div>
 </form>
 
@@ -171,7 +176,7 @@
 		<div
 			class="container w-fit bg-base-3 bg-opacity-50 p-8 rounded-xl shadow-xl h-fit mx-auto my-4"
 		>
-			<p class="font-bold text-center mt-4 mb-8 text-2xl">No recipes found</p>
+			<p class="font-bold text-center mt-4 mb-8 text-2xl">{$t('index.noRecipes')}</p>
 			<img class="mx-auto max-w-sm" src={emptyCart} alt="Empty" />
 		</div>
 	{/if}

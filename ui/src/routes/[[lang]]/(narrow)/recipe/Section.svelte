@@ -22,7 +22,7 @@
 	import { setContext } from 'svelte';
 	import RegularStep from './RegularStep.svelte';
 	import TextStep from './TextStep.svelte';
-	import { readonly, writable, type Readable, readable } from 'svelte/store';
+	import { readonly, writable, type Readable } from 'svelte/store';
 	import { isTextStep } from '$lib/util';
 
 	export let section: Section;
@@ -82,9 +82,9 @@
 	class="section bg-transparent transition-colors"
 >
 	{#if section.name}
-		<h2 class="text-xl my-3 font-semibold">{section.name}</h2>
+		<h2 class="text-2xl my-3 font-semibold">{section.name}</h2>
 	{:else if section_index > 0}
-		<h2 class="text-xl my-3 font-semibold">Section {section_index + 1}</h2>
+		<h2 class="text-2xl my-3 font-semibold">Section {section_index + 1}</h2>
 	{/if}
 
 	{#each slices as slice}

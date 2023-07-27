@@ -1,0 +1,66 @@
+{
+    "index": {
+        "divideInFolders": null,
+        "search": null,
+        "noRecipes": null
+    },
+    "header": {
+        "autoUpdating": null,
+        "notAutoUpdating": null
+    },
+    "footer": {
+        "about": null,
+        "cookedWith": null
+    },
+    "themeToggle": {
+        "label": null,
+        "light": null,
+        "dark": null,
+        "system": null
+    },
+    "openInEditor": {
+        "error": null,
+        "success": null,
+        "text": null
+    },
+    "r": {
+        "warnings": null,
+        "meta": {
+            "servings": null,
+            "author": null,
+            "source": null,
+            "totalTime": null,
+            "prepTime": null,
+            "cookTime": null,
+            "moreData": null,
+            "added": null,
+            "modified": null,
+            "sourceFile": null
+        },
+        "convertSelector": {
+            "label": null,
+            "default": null,
+            "metric": null,
+            "imperial": null
+        },
+        "scaleSelector": {
+            "label": null,
+            "presets": null,
+            "reset": null
+        },
+        "ingredients": null,
+        "cookware": null,
+        "optMarker": null,
+        "method": null,
+        "stepIngredientsView": {
+            "label": null,
+            "compact": null,
+            "list": null,
+            "hidden": null
+        }
+    },
+    "outcome": {
+        "error": null,
+        "fixed": null
+    }
+}

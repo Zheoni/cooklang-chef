@@ -24,7 +24,7 @@
 		<div
 			transition:scale={{ duration: 150, start: 0.9 }}
 			use:floatingContent
-			class="absolute origin-top-right"
+			class="absolute origin-top-right z-100"
 		>
 			<slot {open} />
 		</div>

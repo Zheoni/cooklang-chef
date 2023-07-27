@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '@unocss/reset/tailwind.css';
-	import '../app.css';
+	import '../../app.css';
 	import 'svooltip/styles.css';
 
 	import ChefHat from '~icons/lucide/chef-hat';
@@ -15,6 +15,8 @@
 	import { scale } from 'svelte/transition';
 
 	import { tooltip } from 'svooltip';
+	import LangSelector from '$lib/LangSelector.svelte';
+	import { t } from '$lib/i18n';
 
 	onMount(() => connect());
 </script>
@@ -40,9 +42,7 @@
 					class:border-red-6={$connected === 'disconnected'}
 					use:tooltip={{
 						content:
-							$connected === 'connected'
-								? 'Auto updating content'
-								: 'Auto update unavailable. Reload to retry.'
+							$connected === 'connected' ? $t('header.autoUpdating') : $t('header.notAutoUpdating')
 					}}
 					transition:scale={{ delay: 500 }}
 				/>
@@ -63,9 +63,11 @@
 	<div class="mt-auto">
 		<Divider class="my-10 px-10" variant="dashed">
 			<footer class="flex px-3 items-stretch gap-2">
-				<span use:twemoji>Cooked with ❤️</span>
-				<div aria-hidden="true" class=" border-l border-base-6" />
-				<a href="/about" class="link">About</a>
+				<span use:twemoji>{$t('footer.cookedWith')} ❤️</span>
+				<div aria-hidden="true" class="border-l border-base-6" />
+				<LangSelector />
+				<div aria-hidden="true" class="border-l border-base-6" />
+				<a href="/about" class="link">{$t('footer.about')}</a>
 			</footer>
 		</Divider>
 	</div>

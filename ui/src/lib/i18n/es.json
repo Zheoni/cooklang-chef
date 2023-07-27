@@ -1,0 +1,66 @@
+{
+    "index": {
+        "divideInFolders": "Por carpetas",
+        "search": "Buscar",
+        "noRecipes": "No se han encontrado recetas"
+    },
+    "header": {
+        "autoUpdating": "Actualizando automáticamente",
+        "notAutoUpdating": "No se actualiza. Recarga para reintentar."
+    },
+    "footer": {
+        "about": "Acerca de",
+        "cookedWith": "Cocinado con"
+    },
+    "themeToggle": {
+        "label": "Tema",
+        "light": "Claro",
+        "dark": "Oscuro",
+        "system": "Sistema"
+    },
+    "openInEditor": {
+        "error": "No se ha podido abrir el editor",
+        "success": "Receta abierta",
+        "text": "Abrir en editor"
+    },
+    "r": {
+        "warnings": "Avisos",
+        "meta": {
+            "servings": "Raciones",
+            "author": "Autor",
+            "source": "Fuente",
+            "totalTime": "Tiempo total",
+            "prepTime": "Tiempo preparación",
+            "cookTime": "Tiempo cocinado",
+            "moreData": "Más datos",
+            "added": "Añadido",
+            "modified": "Modificado",
+            "sourceFile": "Fichero fuente"
+        },
+        "convertSelector": {
+            "label": "Convertir unidades",
+            "default": "Por defecto",
+            "metric": "Métrico",
+            "imperial": "Imperial"
+        },
+        "scaleSelector": {
+            "label": "Escalar",
+            "presets": "Preajustes",
+            "reset": "Reiniciar"
+        },
+        "ingredients": "Ingredientes",
+        "cookware": "Menaje",
+        "optMarker": "opcional",
+        "method": "Método",
+        "stepIngredientsView": {
+            "label": "Vista de ingredients del paso",
+            "compact": "Compacto",
+            "list": "Lista",
+            "hidden": "Oculto"
+        }
+    },
+    "outcome": {
+        "error": "Error escalando",
+        "fixed": "Este valor no escala"
+    }
+}

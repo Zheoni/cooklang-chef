@@ -4,6 +4,7 @@
 	import type { Ingredient, Quantity as Q } from './types';
 	import ChefHat from '~icons/lucide/chef-hat';
 	import { displayName } from './util';
+	import { t } from './i18n';
 
 	export let index: number;
 	export let ingredient: Ingredient;
@@ -23,7 +24,7 @@
 			<ChefHat />
 		{/if}</svelte:element
 	>{#if ingredient.modifiers.includes('OPT')}
-		{' '}(opt)
+		{' '}({$t('r.optMarker')})
 	{/if}{#if quantities.length > 0}
 		:
 		{#each quantities.slice(0, quantities.length - 1) as q}

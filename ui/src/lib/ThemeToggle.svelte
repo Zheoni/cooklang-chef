@@ -15,11 +15,12 @@
 	import ListboxOptions from './listbox/ListboxOptions.svelte';
 	import { tick } from 'svelte';
 	import { get } from 'svelte/store';
+	import { t } from './i18n';
 
 	const themes = [
-		{ id: 'light', name: 'Light', icon: Sun },
-		{ id: 'dark', name: 'Dark', icon: Moon },
-		{ id: 'system', name: 'System', icon: DeviceDesktop }
+		{ id: 'light', icon: Sun },
+		{ id: 'dark', icon: Moon },
+		{ id: 'system', icon: DeviceDesktop }
 	] as const;
 
 	// @ts-expect-error: Transition API
@@ -95,7 +96,7 @@
 		</ListboxButton>
 	</svelte:fragment>
 	<svelte:fragment slot="label">
-		<ListboxLabel class="sr-only">Theme</ListboxLabel>
+		<ListboxLabel class="sr-only">{$t('themeToggle.label')}</ListboxLabel>
 	</svelte:fragment>
 	<ListboxOptions>
 		{#each themes as theme}
@@ -108,7 +109,7 @@
 					class:active
 				>
 					<span class="px-2 pt-1"><svelte:component this={theme.icon} /></span>
-					{theme.name}
+					{$t('themeToggle.' + theme.id)}
 				</button>
 			</ListboxOption>
 		{/each}

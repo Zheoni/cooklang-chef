@@ -44,7 +44,7 @@
 	import { displayName, formatTime } from '$lib/util';
 	import VideoEmbed from '$lib/VideoEmbed.svelte';
 	import TimerClock from '$lib/TimerClock.svelte';
-	import { onMount } from 'svelte';
+	import { t } from '$lib/i18n';
 
 	export let data: PageData;
 
@@ -138,7 +138,7 @@
 
 {#if warnings.length > 0}
 	<details bind:open={state.warningsOpen}>
-		<summary class="text-yellow-11 font-bold">Warnings</summary>
+		<summary class="text-yellow-11 font-bold">{$t('r.warings')}</summary>
 
 		<DisplayReport ansiString={fancy_report} errors={warnings} {srcPath} kind="warning" />
 	</details>
@@ -170,7 +170,7 @@
 {#if recipe.metadata.servings}
 	<MetadataGroup>
 		<Utensils slot="icon" />
-		<Metadata key="Servings">
+		<Metadata key={$t('r.meta.servings')}>
 			<div class="flex divide-x divide-base-6">
 				{#each recipe.metadata.servings as serving}
 					{@const selected = serving === selectedServings}
@@ -200,7 +200,7 @@
 		<User slot="icon" />
 		{#if recipe.metadata.author}
 			{@const author = recipe.metadata.author}
-			<Metadata key="Author">
+			<Metadata key={$t('r.meta.author')}>
 				{#if author.name !== null && author.url === null}
 					{recipe.metadata.author.name ?? ''}
 				{:else if author.name === null && author.url !== null}
@@ -212,7 +212,7 @@
 		{/if}
 		{#if recipe.metadata.source}
 			{@const source = recipe.metadata.source}
-			<Metadata key="Source">
+			<Metadata key={$t('r.meta.source')}>
 				{#if source.name !== null && source.url === null}
 					{recipe.metadata.source.name ?? ''}
 				{:else if source.name === null && source.url !== null}
@@ -229,22 +229,22 @@
 	<MetadataGroup>
 		<Hourglass slot="icon" />
 		{#if typeof time === 'number'}
-			<Metadata key="Total time">
+			<Metadata key={$t('r.meta.totalTime')}>
 				{formatTime(time)}
 			</Metadata>
 		{:else}
 			{#if time.prep_time && time.cook_time}
-				<Metadata key="Total time">
+				<Metadata key={$t('r.meta.totalTime')}>
 					{formatTime(time.cook_time + time.prep_time)}
 				</Metadata>
 			{/if}
 			{#if time.prep_time}
-				<Metadata key="Prep time">
+				<Metadata key={$t('r.meta.prepTime')}>
 					{formatTime(time.prep_time)}
 				</Metadata>
 			{/if}
 			{#if time.cook_time}
-				<Metadata key="Cook time">
+				<Metadata key={$t('r.meta.cookTime')}>
 					{formatTime(time.cook_time)}
 				</Metadata>
 			{/if}
@@ -253,18 +253,18 @@
 {/if}
 
 <details bind:open={state.moreDataOpen}>
-	<summary class="w-fit">More data</summary>
+	<summary class="w-fit">{$t('r.meta.moreData')}</summary>
 
 	{#if created || modified}
 		<MetadataGroup>
 			<Calendar slot="icon" />
 			{#if created}
-				<Metadata key="Added">
+				<Metadata key={$t('r.meta.added')}>
 					{fromEpochFormat(created)}
 				</Metadata>
 			{/if}
 			{#if modified}
-				<Metadata key="Modified">
+				<Metadata key={$t('r.meta.modified')}>
 					{fromEpochFormat(modified)}
 				</Metadata>
 			{/if}
@@ -273,7 +273,7 @@
 
 	<MetadataGroup>
 		<Code slot="icon" />
-		<Metadata key="Source file">
+		<Metadata key={$t('r.meta.sourceFile')}>
 			<span class="bg-base-1 dark -my-1 rounded px-4 py-1 font-mono text-base-12">
 				{srcPath}
 			</span>
@@ -289,19 +289,19 @@
 <VideoEmbed youtubeUrl={recipe.metadata.source?.url} />
 
 <div class="flex justify-end items-center gap-2">
-	<Listbox bind:value={selectedUnits}>
+	<Listbox bind:value={selectedUnits} placement="bottom">
 		<svelte:fragment slot="button">
 			<ListboxButton class="btn-square-9 radix-solid-primary">
 				<Ruler />
 			</ListboxButton>
 		</svelte:fragment>
 		<svelte:fragment slot="label">
-			<ListboxLabel class="sr-only">Convert recipe units</ListboxLabel>
+			<ListboxLabel class="sr-only">{$t('r.convertSelector.label')}</ListboxLabel>
 		</svelte:fragment>
 		<ListboxOptions>
 			{#each ['default', 'metric', 'imperial'] as system}
 				<ListboxOption value={system}>
-					<span class="capitalize">{system}</span>
+					<span>{$t(`r.convertSelector.${system}`)}</span>
 				</ListboxOption>
 			{/each}
 		</ListboxOptions>
@@ -309,7 +309,7 @@
 
 	<Popover let:open class="flex items-center">
 		<PopoverButton class="btn-square-9 radix-solid-primary" use={[floatingRef]}>
-			<Scale /><span class="sr-only">Scale</span>
+			<Scale /><span class="sr-only">{$t('r.scaleSelector.label')}</span>
 		</PopoverButton>
 
 		{#if open}
@@ -360,7 +360,7 @@
 
 					{#if recipe.metadata.servings}
 						<Divider />
-						<div class="text-sm text-base-11 mt-2 ms-1">Presets</div>
+						<div class="text-sm text-base-11 mt-2 ms-1">{$t('r.scaleSelector.presets')}</div>
 						<div class="flex flex-row flex-wrap gap-2 justify-center">
 							{#each recipe.metadata.servings as serving}
 								<button
@@ -376,8 +376,10 @@
 					<div class="flex mb-1 me-1 gap-2">
 						<button
 							class="ms-auto text-base-11 text-sm"
-							on:click={() => (selectedServings = defaultServings)}>Reset</button
+							on:click={() => (selectedServings = defaultServings)}
 						>
+							{$t('r.scaleSelector.reset')}
+						</button>
 					</div>
 				</PopoverPanel>
 			</div>
@@ -389,7 +391,7 @@
 	<div class="md:grid md:grid-cols-2">
 		{#if recipe.grouped_ingredients.length > 0}
 			<div>
-				<h2 class="text-2xl my-2 font-heading">Ingredients</h2>
+				<h2 class="text-3xl my-2 font-heading">{$t('r.ingredients')}</h2>
 				<ul class="list-disc ms-6">
 					{#each recipe.grouped_ingredients as { index, outcome, quantity }}
 						{@const ingredient = recipe.ingredients[index]}
@@ -404,7 +406,7 @@
 		{/if}
 		{#if recipe.cookware.length > 0}
 			<div>
-				<h2 class="text-2xl my-2 font-heading">Cookware</h2>
+				<h2 class="text-3xl my-2 font-heading">{$t('r.cookware')}</h2>
 				<ul class="list-disc ms-6">
 					{#each recipe.cookware as item, index}
 						{#if !item.modifiers.includes('HIDDEN') && !item.modifiers.includes('REF')}
@@ -414,7 +416,7 @@
 									use:componentHighlight={{ index, component: item, componentKind: 'cookware' }}
 									>{displayName(item)}</span
 								>{#if item.modifiers.includes('OPT')}
-									{' '}(opt)
+									{' '}({$t('r.optMarker')})
 								{/if}{#if item.quantity}
 									: <span class="text-base-11">{qValueFmt(item.quantity)}</span>
 								{/if}
@@ -428,7 +430,7 @@
 
 	{#if recipe.sections.length > 0}
 		<div class="flex flex-wrap justify-between">
-			<h2 class="text-2xl my-3 font-heading">Method</h2>
+			<h2 class="text-3xl my-3 font-heading">{$t('r.method')}</h2>
 			<div class="flex items-center">
 				<Listbox bind:value={$stepIngredientsView}>
 					<svelte:fragment slot="button">
@@ -437,12 +439,12 @@
 						</ListboxButton>
 					</svelte:fragment>
 					<svelte:fragment slot="label">
-						<ListboxLabel class="sr-only">Step ingredients view:</ListboxLabel>
+						<ListboxLabel class="sr-only">{$t('r.stepIngredientsView.label')}</ListboxLabel>
 					</svelte:fragment>
 					<ListboxOptions>
 						{#each ['compact', 'list', 'hidden'] as view}
 							<ListboxOption value={view}>
-								<span class="capitalize">{view}</span>
+								<span>{$t(`r.stepIngredientsView.${view}`)}</span>
 							</ListboxOption>
 						{/each}
 					</ListboxOptions>

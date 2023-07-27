@@ -13,9 +13,9 @@
 
 	export let entry: Entry;
 
-	$: params = new URLSearchParams({ r: entry.path });
 	$: valid = isValid(entry.metadata);
-	$: href = `/recipe?${params}`;
+	$: params = new URLSearchParams({ r: entry.path });
+	$: href = `recipe?${params}`;
 </script>
 
 <article
@@ -45,7 +45,7 @@ min-w-50 md:h-50 overflow-hidden rounded-xl border-2 border-transparent shadow-x
 			</a>
 			<Divider class="mt-2 mb-4 px-1 text-xl" labelPos="right">
 				{#if entry.metadata.value?.emoji}
-					<span use:twemoji>
+					<span use:twemoji={{ emoji: entry.metadata.value.emoji }}>
 						{entry.metadata.value.emoji}
 					</span>
 				{/if}

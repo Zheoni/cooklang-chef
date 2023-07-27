@@ -1,5 +1,7 @@
 import { tooltip } from 'svooltip';
 import type { Recipe, ScaleOutcome } from './types';
+import { get } from 'svelte/store';
+import { t } from './i18n';
 
 export function scaleOutcomeTooltip(node: HTMLElement, outcome: ScaleOutcome | null) {
 	let tt = tooltip(node, { visibility: false, content: 'empty', placement: 'bottom' });
@@ -8,10 +10,10 @@ export function scaleOutcomeTooltip(node: HTMLElement, outcome: ScaleOutcome | n
 		tt?.update({ visibility: false });
 		if (outcome === 'Scaled') return;
 		if (outcome === 'Error') {
-			tt?.update({ content: 'Error scaling', placement: 'bottom', visibility: true });
+			tt?.update({ content: get(t)('outcome.error'), placement: 'bottom', visibility: true });
 			node.classList.add('scale-error');
 		} else if (outcome === 'Fixed') {
-			tt?.update({ content: 'This value does not scale', placement: 'bottom', visibility: true });
+			tt?.update({ content: get(t)('outcome.fixed'), placement: 'bottom', visibility: true });
 			node.classList.add('scale-fixed');
 		}
 	}
