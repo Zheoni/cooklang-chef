@@ -5,13 +5,16 @@ use std::{fmt::Write, io};
 use cooklang::{
     ast::{IntermediateData, Modifiers},
     metadata::Metadata,
-    model::{ComponentKind, Item, Section, Step},
-    quantity::Quantity,
-    IngredientReferenceTarget, ScaledRecipe,
+    model::{Item, Section, Step},
+    quantity::{Quantity, QuantityValue},
+    IngredientReferenceTarget, Recipe,
 };
 use regex::Regex;
 
-pub fn print_cooklang(recipe: &ScaledRecipe, mut writer: impl io::Write) -> io::Result<()> {
+pub fn print_cooklang<D, V: QuantityValue>(
+    recipe: &Recipe<D, V>,
+    mut writer: impl io::Write,
+) -> io::Result<()> {
     let w = &mut writer;
 
     metadata(w, &recipe.metadata)?;
@@ -22,23 +25,26 @@ pub fn print_cooklang(recipe: &ScaledRecipe, mut writer: impl io::Write) -> io::
 }
 
 fn metadata(w: &mut impl io::Write, metadata: &Metadata) -> io::Result<()> {
+    // TODO if the recipe has been scaled and multiple servings are defined
+    // it can lead to the recipe not parsing.
+
     for (key, value) in &metadata.map {
         writeln!(w, ">> {key}: {value}")?;
     }
     Ok(())
 }
 
-fn sections(w: &mut impl io::Write, recipe: &ScaledRecipe) -> io::Result<()> {
+fn sections<D, V: QuantityValue>(w: &mut impl io::Write, recipe: &Recipe<D, V>) -> io::Result<()> {
     for (index, section) in recipe.sections.iter().enumerate() {
         w_section(w, section, recipe, index)?;
     }
     Ok(())
 }
 
-fn w_section(
+fn w_section<D, V: QuantityValue>(
     w: &mut impl io::Write,
     section: &Section,
-    recipe: &ScaledRecipe,
+    recipe: &Recipe<D, V>,
     index: usize,
 ) -> io::Result<()> {
     if let Some(name) = &section.name {
@@ -53,62 +59,62 @@ fn w_section(
     Ok(())
 }
 
-fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> io::Result<()> {
+fn w_step<D, V: QuantityValue>(
+    w: &mut impl io::Write,
+    step: &Step,
+    recipe: &Recipe<D, V>,
+) -> io::Result<()> {
     let mut step_str = String::new();
     for item in &step.items {
         match item {
             Item::Text { value } => step_str.push_str(value),
-            Item::ItemComponent { value } => {
-                match value.kind {
-                    ComponentKind::IngredientKind => {
-                        let igr = &recipe.ingredients[value.index];
+            &Item::ItemIngredient { index } => {
+                let igr = &recipe.ingredients[index];
 
-                        let intermediate_data = igr
-                            .relation
-                            .references_to()
-                            .and_then(|(index, target)| calculate_intermediate_data(index, target));
+                let intermediate_data = igr
+                    .relation
+                    .references_to()
+                    .and_then(|(index, target)| calculate_intermediate_data(index, target));
 
-                        ComponentFormatter {
-                            kind: value.kind,
-                            modifiers: igr.modifiers(),
-                            intermediate_data,
-                            name: Some(&igr.name),
-                            alias: igr.alias.as_deref(),
-                            quantity: igr.quantity.as_ref(),
-                            note: igr.note.as_deref(),
-                        }
-                        .format(&mut step_str)
-                    }
-                    ComponentKind::CookwareKind => {
-                        let cw = &recipe.cookware[value.index];
-                        ComponentFormatter {
-                            kind: value.kind,
-                            modifiers: cw.modifiers(),
-                            intermediate_data: None,
-                            name: Some(&cw.name),
-                            alias: cw.alias.as_deref(),
-                            quantity: cw.quantity.clone().map(|v| Quantity::new(v, None)).as_ref(),
-                            note: None,
-                        }
-                        .format(&mut step_str)
-                    }
-                    ComponentKind::TimerKind => {
-                        let t = &recipe.timers[value.index];
-                        ComponentFormatter {
-                            kind: value.kind,
-                            modifiers: Modifiers::empty(),
-                            intermediate_data: None,
-                            name: t.name.as_deref(),
-                            alias: None,
-                            quantity: t.quantity.as_ref(),
-                            note: None,
-                        }
-                        .format(&mut step_str)
-                    }
-                };
+                ComponentFormatter {
+                    kind: ComponentKind::Ingredient,
+                    modifiers: igr.modifiers(),
+                    intermediate_data,
+                    name: Some(&igr.name),
+                    alias: igr.alias.as_deref(),
+                    quantity: igr.quantity.as_ref(),
+                    note: igr.note.as_deref(),
+                }
+                .format(&mut step_str)
             }
-            Item::InlineQuantity { value } => {
-                let q = &recipe.inline_quantities[*value];
+            &Item::ItemCookware { index } => {
+                let cw = &recipe.cookware[index];
+                ComponentFormatter {
+                    kind: ComponentKind::Cookware,
+                    modifiers: cw.modifiers(),
+                    intermediate_data: None,
+                    name: Some(&cw.name),
+                    alias: cw.alias.as_deref(),
+                    quantity: cw.quantity.clone().map(|v| Quantity::new(v, None)).as_ref(),
+                    note: None,
+                }
+                .format(&mut step_str)
+            }
+            &Item::ItemTimer { index } => {
+                let t = &recipe.timers[index];
+                ComponentFormatter {
+                    kind: ComponentKind::Timer,
+                    modifiers: Modifiers::empty(),
+                    intermediate_data: None,
+                    name: t.name.as_deref(),
+                    alias: None,
+                    quantity: t.quantity.as_ref(),
+                    note: None,
+                }
+                .format(&mut step_str)
+            }
+            &Item::InlineQuantity { index } => {
+                let q = &recipe.inline_quantities[index];
                 write!(&mut step_str, "{}", q.value).unwrap();
                 if let Some(u) = q.unit_text() {
                     step_str.push_str(u);
@@ -159,22 +165,28 @@ fn component_word_separator<'a>(
     Box::new(words.into_iter())
 }
 
-struct ComponentFormatter<'a> {
+struct ComponentFormatter<'a, V: QuantityValue> {
     kind: ComponentKind,
     modifiers: Modifiers,
     intermediate_data: Option<IntermediateData>,
     name: Option<&'a str>,
     alias: Option<&'a str>,
-    quantity: Option<&'a Quantity>,
+    quantity: Option<&'a Quantity<V>>,
     note: Option<&'a str>,
 }
 
-impl<'a> ComponentFormatter<'a> {
+enum ComponentKind {
+    Ingredient,
+    Cookware,
+    Timer,
+}
+
+impl<'a, V: QuantityValue> ComponentFormatter<'a, V> {
     fn format(self, w: &mut String) {
         w.push(match self.kind {
-            ComponentKind::IngredientKind => '@',
-            ComponentKind::CookwareKind => '#',
-            ComponentKind::TimerKind => '~',
+            ComponentKind::Ingredient => '@',
+            ComponentKind::Cookware => '#',
+            ComponentKind::Timer => '~',
         });
         for m in self.modifiers {
             w.push(match m {
@@ -216,18 +228,7 @@ impl<'a> ComponentFormatter<'a> {
         }
         if let Some(q) = self.quantity {
             w.push('{');
-            match &q.value {
-                cooklang::quantity::QuantityValue::Fixed { value } => write!(w, "{value}").unwrap(),
-                cooklang::quantity::QuantityValue::Linear { value } => {
-                    write!(w, "{value}*").unwrap()
-                }
-                cooklang::quantity::QuantityValue::ByServings { values } => {
-                    write!(w, "{}", &values[0]).unwrap();
-                    for v in &values[1..] {
-                        write!(w, "|{v}").unwrap()
-                    }
-                }
-            }
+            w.push_str(&q.value.to_string());
             if let Some(unit) = q.unit_text() {
                 write!(w, "%{}", unit).unwrap();
             }

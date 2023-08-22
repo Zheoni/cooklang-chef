@@ -5,7 +5,7 @@ use std::{fmt::Write, io};
 use cooklang::{
     convert::Converter,
     metadata::{IndexMap, Metadata, NameAndUrl, RecipeTime},
-    model::{Component, ComponentKind, Item, Section, Step},
+    model::{Item, Section, Step},
     ScaledRecipe,
 };
 
@@ -202,30 +202,25 @@ fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> Result 
     for item in &step.items {
         match item {
             Item::Text { value } => step_str.push_str(value),
-            Item::ItemComponent { value } => {
-                let Component { index, kind } = *value;
-                match kind {
-                    ComponentKind::IngredientKind => {
-                        let igr = &recipe.ingredients[index];
-                        step_str.push_str(igr.display_name().as_ref());
-                    }
-                    ComponentKind::CookwareKind => {
-                        let cw = &recipe.cookware[index];
-                        step_str.push_str(&cw.name);
-                    }
-                    ComponentKind::TimerKind => {
-                        let t = &recipe.timers[index];
-                        if let Some(name) = &t.name {
-                            write!(&mut step_str, "({name})").unwrap();
-                        }
-                        if let Some(quantity) = &t.quantity {
-                            write!(&mut step_str, "{}", quantity).unwrap();
-                        }
-                    }
-                };
+            &Item::ItemIngredient { index } => {
+                let igr = &recipe.ingredients[index];
+                step_str.push_str(igr.display_name().as_ref());
             }
-            Item::InlineQuantity { value } => {
-                let q = &recipe.inline_quantities[*value];
+            &Item::ItemCookware { index } => {
+                let cw = &recipe.cookware[index];
+                step_str.push_str(&cw.name);
+            }
+            &Item::ItemTimer { index } => {
+                let t = &recipe.timers[index];
+                if let Some(name) = &t.name {
+                    write!(&mut step_str, "({name})").unwrap();
+                }
+                if let Some(quantity) = &t.quantity {
+                    write!(&mut step_str, "{}", quantity).unwrap();
+                }
+            }
+            &Item::InlineQuantity { index } => {
+                let q = &recipe.inline_quantities[index];
                 write!(&mut step_str, "{}", q.value).unwrap();
                 if let Some(u) = q.unit_text() {
                     step_str.push_str(u);

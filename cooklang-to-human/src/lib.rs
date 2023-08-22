@@ -8,7 +8,7 @@ use std::{collections::HashMap, io, time::Duration};
 use cooklang::{
     convert::Converter,
     ingredient_list::GroupedIngredient,
-    model::{Component, ComponentKind, Ingredient, IngredientReferenceTarget, Item},
+    model::{Ingredient, IngredientReferenceTarget, Item},
     quantity::Quantity,
     scale::ScaleOutcome,
     ScaledRecipe, Section, Step,
@@ -345,54 +345,51 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
     for item in &step.items {
         match item {
             Item::Text { value } => step_text += value,
-            Item::ItemComponent { value } => match value.kind {
-                ComponentKind::IngredientKind => {
-                    let igr = &recipe.ingredients[value.index];
-                    write!(
-                        &mut step_text,
-                        "{}",
-                        igr.display_name().style(styles().ingredient)
-                    )
-                    .unwrap();
-                    let pos =
-                        write_igr_count(&mut step_text, &step_igrs_dedup, value.index, &igr.name);
-                    if step_igrs_dedup[igr.name.as_str()].contains(&value.index) {
-                        step_igrs_line.push((igr, pos));
-                    }
+            &Item::ItemIngredient { index } => {
+                let igr = &recipe.ingredients[index];
+                write!(
+                    &mut step_text,
+                    "{}",
+                    igr.display_name().style(styles().ingredient)
+                )
+                .unwrap();
+                let pos = write_igr_count(&mut step_text, &step_igrs_dedup, index, &igr.name);
+                if step_igrs_dedup[igr.name.as_str()].contains(&index) {
+                    step_igrs_line.push((igr, pos));
                 }
-                ComponentKind::CookwareKind => {
-                    let cookware = &recipe.cookware[value.index];
-                    write!(&mut step_text, "{}", cookware.name.style(styles().cookware)).unwrap();
-                }
-                ComponentKind::TimerKind => {
-                    let timer = &recipe.timers[value.index];
+            }
+            &Item::ItemCookware { index } => {
+                let cookware = &recipe.cookware[index];
+                write!(&mut step_text, "{}", cookware.name.style(styles().cookware)).unwrap();
+            }
+            &Item::ItemTimer { index } => {
+                let timer = &recipe.timers[index];
 
-                    match (&timer.quantity, &timer.name) {
-                        (Some(quantity), Some(name)) => {
-                            let s = format!(
-                                "{} ({})",
-                                quantity_fmt(quantity).style(styles().timer),
-                                name.style(styles().timer),
-                            );
-                            write!(&mut step_text, "{}", s).unwrap();
-                        }
-                        (Some(quantity), None) => {
-                            write!(
-                                &mut step_text,
-                                "{}",
-                                quantity_fmt(quantity).style(styles().timer)
-                            )
-                            .unwrap();
-                        }
-                        (None, Some(name)) => {
-                            write!(&mut step_text, "{}", name.style(styles().timer)).unwrap();
-                        }
-                        (None, None) => unreachable!(), // guaranteed in parsing
+                match (&timer.quantity, &timer.name) {
+                    (Some(quantity), Some(name)) => {
+                        let s = format!(
+                            "{} ({})",
+                            quantity_fmt(quantity).style(styles().timer),
+                            name.style(styles().timer),
+                        );
+                        write!(&mut step_text, "{}", s).unwrap();
                     }
+                    (Some(quantity), None) => {
+                        write!(
+                            &mut step_text,
+                            "{}",
+                            quantity_fmt(quantity).style(styles().timer)
+                        )
+                        .unwrap();
+                    }
+                    (None, Some(name)) => {
+                        write!(&mut step_text, "{}", name.style(styles().timer)).unwrap();
+                    }
+                    (None, None) => unreachable!(), // guaranteed in parsing
                 }
-            },
-            Item::InlineQuantity { value } => {
-                let q = &recipe.inline_quantities[*value];
+            }
+            &Item::InlineQuantity { index } => {
+                let q = &recipe.inline_quantities[index];
                 write!(
                     &mut step_text,
                     "{}",
@@ -481,20 +478,13 @@ fn inter_ref_text(igr: &Ingredient, section: &Section) -> Option<String> {
 
 fn build_step_igrs_dedup<'a>(
     step: &'a Step,
-    recipe: &'a cooklang::Recipe<cooklang::scale::Scaled>,
+    recipe: &'a ScaledRecipe,
 ) -> HashMap<&'a str, Vec<usize>> {
     // contain all ingredients used in the step (the names), the vec
     // contains the exact indices used
     let mut step_igrs_dedup: HashMap<&str, Vec<usize>> = HashMap::new();
     for item in &step.items {
-        if let Item::ItemComponent {
-            value:
-                Component {
-                    kind: ComponentKind::IngredientKind,
-                    index,
-                },
-        } = item
-        {
+        if let Item::ItemIngredient { index } = item {
             let igr = &recipe.ingredients[*index];
             step_igrs_dedup.entry(&igr.name).or_default().push(*index);
         }

@@ -23,13 +23,13 @@
 	function buildStepIngredients(recipe: Recipe, items: Item[]) {
 		const stepIngredientsDedup = new Map<string, number[]>();
 		for (const item of items) {
-			if (item.type === 'component' && item.value.kind === 'ingredient') {
-				const igr = recipe.ingredients[item.value.index];
+			if (item.type === 'ingredient') {
+				const igr = recipe.ingredients[item.index];
 				const group = stepIngredientsDedup.get(igr.name);
 				if (group) {
-					group.push(item.value.index);
+					group.push(item.index);
 				} else {
-					stepIngredientsDedup.set(igr.name, [item.value.index]);
+					stepIngredientsDedup.set(igr.name, [item.index]);
 				}
 			}
 		}
@@ -47,20 +47,20 @@
 		const stepIngredients = new Map<number, { subscript: number | null }>();
 		const stepIngredientsLine = [];
 		for (const item of items) {
-			if (item.type === 'component' && item.value.kind === 'ingredient') {
-				const igr = recipe.ingredients[item.value.index];
+			if (item.type === 'ingredient') {
+				const igr = recipe.ingredients[item.index];
 				const group = stepIngredientsDedup.get(igr.name);
 				if (!group) continue;
 				let subscript = null;
 				if (group.length > 1) {
-					const pos = group.indexOf(item.value.index);
+					const pos = group.indexOf(item.index);
 					subscript = pos === -1 ? null : pos + 1;
 				}
-				stepIngredients.set(item.value.index, {
+				stepIngredients.set(item.index, {
 					subscript
 				});
-				if (group.includes(item.value.index)) {
-					stepIngredientsLine.push({ index: item.value.index, subscript });
+				if (group.includes(item.index)) {
+					stepIngredientsLine.push({ index: item.index, subscript });
 				}
 			}
 		}
@@ -84,39 +84,33 @@
 				{#if i.type === 'text'}
 					{i.value}
 				{:else if i.type === 'inlineQuantity'}
-					{@const q = recipe.inline_quantities[i.value]}
+					{@const q = recipe.inline_quantities[i.index]}
 					<span class="text-red-11">
 						<Quantity quantity={q} />
 					</span>
-				{:else if i.type === 'component'}
-					{@const component = i.value}
-					{#if component.kind === 'ingredient'}
-						{@const entry = stepIngredients.get(component.index)}
-						<!-- this should always be true -->
-						{#if entry}
-							<InlineIngredient
-								index={component.index}
-								ingredient={recipe.ingredients[component.index]}
-								subscript={entry.subscript}
-							/>
-						{/if}
-					{:else if component.kind === 'cookware'}
-						{@const cw = recipe.cookware[component.index]}
-						<span
-							class="text-yellow-11 font-semibold"
-							use:componentHighlight={{
-								index: component.index,
-								component: cw,
-								componentKind: 'cookware',
-								currentSectionIndex: $sectionIndex
-							}}>{displayName(cw)}</span
-						>
-					{:else if component.kind === 'timer'}
-						<Timer
-							timer={recipe.timers[component.index]}
-							seconds={recipe.timers_seconds[component.index]}
+				{:else if i.type === 'ingredient'}
+					{@const entry = stepIngredients.get(i.index)}
+					<!-- this should always be true -->
+					{#if entry}
+						<InlineIngredient
+							index={i.index}
+							ingredient={recipe.ingredients[i.index]}
+							subscript={entry.subscript}
 						/>
 					{/if}
+				{:else if i.type === 'cookware'}
+					{@const cw = recipe.cookware[i.index]}
+					<span
+						class="text-yellow-11 font-semibold"
+						use:componentHighlight={{
+							index: i.index,
+							component: cw,
+							componentKind: 'cookware',
+							currentSectionIndex: $sectionIndex
+						}}>{displayName(cw)}</span
+					>
+				{:else if i.type === 'timer'}
+					<Timer timer={recipe.timers[i.index]} seconds={recipe.timers_seconds[i.index]} />
 				{/if}
 			{/each}
 		</p>

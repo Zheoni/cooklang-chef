@@ -16,7 +16,7 @@
 	import Metadata from '$lib/Metadata.svelte';
 	import MetadataGroup from '$lib/MetadataGroup.svelte';
 	import DisplayReport from '$lib/DisplayReport.svelte';
-	import Section from './Section.svelte';
+	import Section from '$lib/Section.svelte';
 	import { API } from '$lib/constants';
 	import Listbox from '$lib/listbox/Listbox.svelte';
 	import {
@@ -28,7 +28,7 @@
 	} from '@rgossiaux/svelte-headlessui';
 	import ListboxOptions from '$lib/listbox/ListboxOptions.svelte';
 	import ListboxOption from '$lib/listbox/ListboxOption.svelte';
-	import { qValueFmt } from '$lib/Quantity.svelte';
+	import { valueToString } from '$lib/Quantity.svelte';
 	import { componentHighlight } from '$lib/componentHighlight';
 	import { stepIngredientsView } from '$lib/settings';
 	import OpenInEditor from '$lib/OpenInEditor.svelte';
@@ -418,7 +418,7 @@
 								>{#if item.modifiers.includes('OPT')}
 									{' '}({$t('r.optMarker')})
 								{/if}{#if item.quantity}
-									: <span class="text-base-11">{qValueFmt(item.quantity)}</span>
+									: <span class="text-base-11">{valueToString(item.quantity)}</span>
 								{/if}
 							</li>
 						{/if}

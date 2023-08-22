@@ -31,7 +31,7 @@ pub enum Input {
 }
 
 impl Input {
-    pub fn parse(&self, ctx: &Context) -> Result<cooklang::Recipe> {
+    pub fn parse(&self, ctx: &Context) -> Result<cooklang::ScalableRecipe> {
         self.parse_result(ctx)
             .and_then(|r| unwrap_recipe(r, self.name(), self.text(), ctx))
     }
@@ -82,7 +82,7 @@ pub fn unwrap_recipe(
     file_name: &str,
     text: &str,
     ctx: &Context,
-) -> Result<cooklang::Recipe> {
+) -> Result<cooklang::ScalableRecipe> {
     if !r.is_valid() || ctx.global_args.warnings_as_errors && r.has_warnings() {
         r.into_report().eprint(
             file_name,

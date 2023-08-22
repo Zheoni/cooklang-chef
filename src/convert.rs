@@ -31,7 +31,7 @@ pub fn run(converter: &Converter, args: ConvertArgs) -> anyhow::Result<()> {
         _ => ConvertTo::Unit(cooklang::convert::ConvertUnit::Key(&args.to)),
     };
 
-    let (value, unit) = converter.convert2(args.value.into(), args.unit.as_str().into(), to)?;
+    let (value, unit) = converter.convert(args.value.into(), args.unit.as_str().into(), to)?;
 
     let ConvertValue::Number(mut n) = value else { panic!("unexpected range value") };
     if !args.no_round {

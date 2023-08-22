@@ -4,7 +4,7 @@ use clap::{Args, CommandFactory, ValueEnum};
 use cooklang::{
     aisle::AisleConf,
     ingredient_list::IngredientList,
-    quantity::{GroupedQuantity, Quantity, QuantityValue, TotalQuantity, Value},
+    quantity::{GroupedQuantity, Quantity, TotalQuantity, Value},
 };
 use cooklang_fs::resolve_recipe;
 use serde::Serialize;
@@ -187,8 +187,7 @@ fn build_json_value<'a>(
     impl From<cooklang::quantity::Quantity> for Quantity {
         fn from(qty: cooklang::quantity::Quantity) -> Self {
             let unit = qty.unit_text().map(|s| s.to_owned());
-            let QuantityValue::Fixed { value } = qty.value
-            else { panic!("Unexpected unscaled value while serializing") };
+            let value = qty.value;
             Self { value, unit }
         }
     }

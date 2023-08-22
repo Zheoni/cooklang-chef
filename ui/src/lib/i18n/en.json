@@ -57,6 +57,11 @@
             "compact": "Compact",
             "list": "List",
             "hidden": "Hidden"
+        },
+        "ref": {
+            "fromPrevStep": "from a previous step",
+            "fromStep": "from step {{step}}",
+            "fromPrevSect": "from a previous section"
         }
     },
     "outcome": {

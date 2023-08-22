@@ -1,5 +1,5 @@
 <script lang="ts" context="module">
-	import type { Quantity, QuantityValue, Value } from './types';
+	import type { Quantity, Value } from './types';
 
 	const num = Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
 	export function valueToString(val: Value) {
@@ -12,22 +12,12 @@
 				return val.value;
 		}
 	}
-
-	export function qValueFmt(val: QuantityValue) {
-		switch (val.type) {
-			case 'fixed':
-			case 'linear':
-				return valueToString(val.value);
-			case 'byServings':
-				return valueToString(val.values[0]);
-		}
-	}
 </script>
 
 <script lang="ts">
 	export let quantity: Quantity;
 
-	$: value = qValueFmt(quantity.value);
+	$: value = valueToString(quantity.value);
 </script>
 
 <span {...$$restProps}>

@@ -14,6 +14,7 @@ use std::{
 };
 
 use camino::{Utf8Path, Utf8PathBuf};
+use cooklang::quantity::QuantityValue;
 use serde::Serialize;
 pub use walker::DirEntry;
 use walker::Walker;
@@ -479,9 +480,9 @@ pub enum RecipeImageError {
 ///
 /// For example the image `Recipe.14.jpeg` references step 15th, but the
 /// recipe may not have 15 steps, so this function returns an error.
-pub fn check_recipe_images<D: serde::Serialize>(
+pub fn check_recipe_images<D, V: QuantityValue>(
     images: &[Image],
-    recipe: &cooklang::Recipe<D>,
+    recipe: &cooklang::Recipe<D, V>,
 ) -> Result<(), Vec<RecipeImageError>> {
     let mut errors = Vec::new();
     for image in images {

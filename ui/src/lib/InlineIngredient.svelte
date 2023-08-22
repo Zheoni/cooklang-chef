@@ -4,7 +4,7 @@
 	import { stepIngredientsView } from './settings';
 	import { displayName } from './util';
 	import { getContext } from 'svelte';
-	import type { SectionContext } from '../routes/(narrow)/recipe/Section.svelte';
+	import type { SectionContext } from './Section.svelte';
 
 	export let index: number;
 	export let ingredient: Ingredient;

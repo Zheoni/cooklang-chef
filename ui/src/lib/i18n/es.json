@@ -57,6 +57,11 @@
             "compact": "Compacto",
             "list": "Lista",
             "hidden": "Oculto"
+        },
+        "ref": {
+            "fromPrevStep": "de un paso anterior",
+            "fromStep": "del paso {{step}}",
+            "fromPrevSect": "de una sección anterior"
         }
     },
     "outcome": {

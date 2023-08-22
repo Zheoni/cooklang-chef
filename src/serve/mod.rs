@@ -470,13 +470,13 @@ async fn recipe(
                 .timers
                 .iter()
                 .map(|t| {
-                    t.quantity
-                        .as_ref()
-                        .and_then(|q| state.parser.converter().convert(q, "s").ok())
-                        .and_then(|q| match q.value {
-                            cooklang::QuantityValue::Fixed { value } => Some(value),
-                            _ => None,
-                        })
+                    t.quantity.clone().and_then(|mut q| {
+                        if let Err(_) = q.convert("s", state.parser.converter()) {
+                            return None;
+                        } else {
+                            return Some(q.value);
+                        }
+                    })
                 })
                 .collect();
 

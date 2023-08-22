@@ -36,7 +36,8 @@ pub fn run(ctx: &Context, args: AstArgs) -> Result<()> {
         Input::Stdin { name, .. } => name,
     };
 
-    let r = cooklang::parser::parse(text, ctx.parser()?.extensions());
+    let events = cooklang::parser::PullParser::new(text, ctx.parser()?.extensions());
+    let r = cooklang::parser::build_ast(events);
     if !r.is_valid() || ctx.global_args.warnings_as_errors && r.has_warnings() {
         r.into_report().eprint(
             file_name,

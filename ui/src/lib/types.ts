@@ -34,13 +34,10 @@ export type Step = {
 };
 export type Item =
 	| { type: 'text'; value: string }
-	| { type: 'component'; value: Component }
-	| { type: 'inlineQuantity'; value: number };
-
-export type Component = {
-	kind: 'ingredient' | 'cookware' | 'timer';
-	index: number;
-};
+	| { type: 'ingredient'; index: number }
+	| { type: 'cookware'; index: number }
+	| { type: 'timer'; index: number }
+	| { type: 'inlineQuantity'; index: number };
 
 export type Ingredient = {
 	name: string;
@@ -53,7 +50,7 @@ export type Ingredient = {
 export type Cookware = {
 	name: string;
 	alias: string | null;
-	quantity: QuantityValue | null;
+	quantity: Value | null;
 	note: string | null;
 	modifiers: string;
 	relation: ComponentRelation;
@@ -64,13 +61,10 @@ export type Timer = {
 };
 
 export type Quantity = {
-	value: QuantityValue;
+	value: Value;
 	unit: string | null;
 };
-export type QuantityValue =
-	| { type: 'fixed'; value: Value }
-	| { type: 'linear'; value: Value }
-	| { type: 'byServings'; values: Value[] };
+
 export type Value =
 	| { type: 'number'; value: number }
 	| { type: 'range'; value: { start: number; end: number } }

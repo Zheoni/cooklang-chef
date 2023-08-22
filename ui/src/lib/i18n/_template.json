@@ -57,6 +57,11 @@
             "compact": null,
             "list": null,
             "hidden": null
+        },
+        "ref": {
+            "fromPrevStep": null,
+            "fromStep": null,
+            "fromPrevSect": null
         }
     },
     "outcome": {
