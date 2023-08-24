@@ -109,7 +109,8 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
         .path
         .as_deref()
         .or_else(|| Utf8Path::new(COOK_DIR).is_dir().then_some(Path::new(".")))
-        .unwrap_or(&global_config.base_path);
+        .or(global_config.base_path.as_deref())
+        .unwrap_or(Path::new("."));
 
     if !base_path.is_dir() {
         bail!(

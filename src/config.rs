@@ -12,21 +12,25 @@ use crate::{APP_NAME, COOK_DIR, UTF8_PATH_PANIC};
 
 #[derive(Serialize, Deserialize)]
 pub struct GlobalConfig {
-    pub base_path: PathBuf,
+    pub base_path: Option<PathBuf>,
     pub editor_command: Option<Vec<String>>,
 }
 
 impl Default for GlobalConfig {
     fn default() -> Self {
-        let base_path = dirs::document_dir()
-            .or_else(dirs::home_dir)
-            .unwrap_or_default()
-            .join("Recipes");
+        let base_path = default_base_path();
         Self {
-            base_path,
+            base_path: Some(base_path),
             editor_command: None,
         }
     }
+}
+
+pub fn default_base_path() -> PathBuf {
+    dirs::document_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_default()
+        .join("Recipes")
 }
 
 #[derive(Serialize, Deserialize)]
