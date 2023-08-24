@@ -354,18 +354,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "confy"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e37668cb35145dcfaa1931a5f37fde375eeae8068b4c0d2f289da28a270b2d2c"
-dependencies = [
- "directories",
- "serde",
- "thiserror",
- "toml 0.5.11",
-]
-
-[[package]]
 name = "cooklang"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -387,7 +375,7 @@ dependencies = [
  "smallvec",
  "strum",
  "thiserror",
- "toml 0.7.6",
+ "toml",
  "tracing",
  "url",
 ]
@@ -404,14 +392,13 @@ dependencies = [
  "clap",
  "clap_complete",
  "colorchoice-clap",
- "confy",
  "cooklang",
  "cooklang-fs",
  "cooklang-to-cooklang",
  "cooklang-to-human",
  "cooklang-to-md",
  "debounced",
- "dirs",
+ "directories",
  "futures",
  "humantime",
  "mime_guess",
@@ -427,7 +414,7 @@ dependencies = [
  "textwrap",
  "tokio",
  "tokio-stream",
- "toml 0.7.6",
+ "toml",
  "tower",
  "tower-http",
  "tracing",
@@ -555,31 +542,11 @@ dependencies = [
 
 [[package]]
 name = "directories"
-version = "4.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f51c5d4ddabd36886dd3e1438cb358cdcb0d7c499cb99cb4ac2e38e18b5cb210"
-dependencies = [
- "dirs-sys 0.3.7",
-]
-
-[[package]]
-name = "dirs"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
+checksum = "9a49173b84e034382284f27f1af4dcbbd231ffa358c0fe316541a7337f376a35"
 dependencies = [
- "dirs-sys 0.4.1",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1d1d91c932ef41c0f2663aa8b0ca0342d444d842c06914aa0a7e352d0bada6"
-dependencies = [
- "libc",
- "redox_users",
- "winapi",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -1961,15 +1928,6 @@ dependencies = [
  "futures-sink",
  "pin-project-lite",
  "tokio",
-]
-
-[[package]]
-name = "toml"
-version = "0.5.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
-dependencies = [
- "serde",
 ]
 
 [[package]]

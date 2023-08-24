@@ -1,19 +1,33 @@
 use std::{
     collections::HashMap,
+    fs::{self, File},
+    io::{self, Read},
     path::{Path, PathBuf},
 };
 
 use anyhow::{Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
 use cooklang::Extensions;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{APP_NAME, COOK_DIR, UTF8_PATH_PANIC};
+
+pub const CONFIG_FILE: &str = "config.toml";
+pub const AUTO_AISLE: &str = "aisle.conf";
+pub const AUTO_UNITS: &str = "units.toml";
+pub const DEFAULT_CONFIG_FILE: &str = "default-config.toml";
+pub const GLOBAL_CONFIG_FILE: &str = "global-config.toml";
 
 #[derive(Serialize, Deserialize)]
 pub struct GlobalConfig {
     pub base_path: Option<PathBuf>,
     pub editor_command: Option<Vec<String>>,
+}
+
+impl GlobalConfig {
+    pub fn read() -> Result<Self> {
+        global_load(GLOBAL_CONFIG_FILE, true)
+    }
 }
 
 impl Default for GlobalConfig {
@@ -27,10 +41,13 @@ impl Default for GlobalConfig {
 }
 
 pub fn default_base_path() -> PathBuf {
-    dirs::document_dir()
-        .or_else(dirs::home_dir)
-        .unwrap_or_default()
-        .join("Recipes")
+    let dirs = directories::UserDirs::new();
+    let parent = if let Some(d) = &dirs {
+        d.document_dir().unwrap_or(d.home_dir())
+    } else {
+        Path::new(".")
+    };
+    parent.join("Recipes")
 }
 
 #[derive(Serialize, Deserialize)]
@@ -94,16 +111,12 @@ pub struct TagProps {
     emoji: Option<String>,
 }
 
-const CONFIG_FILE: &str = "config.toml";
-const AUTO_AISLE: &str = "aisle.conf";
-const AUTO_UNITS: &str = "units.toml";
-
 impl Config {
     pub fn read(base_path: &Utf8Path) -> Result<Self> {
         let local = config_file_path(base_path);
         if !local.is_file() {
             tracing::debug!("Local config not found, loading global default");
-            let global = confy::load(APP_NAME, Some("default-config"))
+            let global = global_load(DEFAULT_CONFIG_FILE, true)
                 .context("Error loading default global config file")?;
             return Ok(global);
         }
@@ -159,8 +172,7 @@ impl Config {
                 auto.is_file().then_some(auto)
             })
             .or_else(|| {
-                let global = confy::get_configuration_file_path(APP_NAME, Some(AUTO_AISLE)).ok()?;
-                let global = Utf8PathBuf::from_path_buf(global).ok()?.with_extension("");
+                let global = global_file_path(AUTO_AISLE).ok()?;
                 tracing::trace!("checking global auto aisle file: {global}");
                 global.is_file().then_some(global)
             })
@@ -181,8 +193,7 @@ impl Config {
                 auto.is_file().then_some(vec![auto])
             })
             .or_else(|| {
-                let global = confy::get_configuration_file_path(APP_NAME, Some(AUTO_UNITS)).ok()?;
-                let global = Utf8PathBuf::from_path_buf(global).ok()?.with_extension("");
+                let global = global_file_path(AUTO_UNITS).ok()?;
                 tracing::trace!("checking global auto aisle file: {global}");
                 global.is_file().then_some(vec![global])
             })
@@ -201,6 +212,50 @@ pub fn resolve_path(base_path: &Utf8Path, path: &Path) -> Utf8PathBuf {
 
 pub fn config_file_path(base_path: &Utf8Path) -> Utf8PathBuf {
     base_path.join(COOK_DIR).join(CONFIG_FILE)
+}
+
+pub fn global_file_path(name: &str) -> Result<Utf8PathBuf> {
+    let dirs = directories::ProjectDirs::from("", "", APP_NAME)
+        .context("Could not determine home directory path")?;
+    let config = Utf8Path::from_path(dirs.config_dir()).expect(UTF8_PATH_PANIC);
+    let path = config.join(name);
+    Ok(path)
+}
+
+pub fn global_load<T: DeserializeOwned + Serialize + Default>(
+    name: &str,
+    create: bool,
+) -> Result<T> {
+    let path = global_file_path(name)?;
+    match File::open(&path) {
+        Ok(mut f) => {
+            let mut content = String::new();
+            f.read_to_string(&mut content)?;
+            toml::from_str(&content).context("Bad TOML data")
+        }
+        Err(e) if create && e.kind() == io::ErrorKind::NotFound => {
+            let val = T::default();
+            global_store_path(path, &val)?;
+            Ok(val)
+        }
+        Err(e) => Err(e).context("Failed to load config file"),
+    }
+}
+
+pub fn global_store<T: Serialize>(name: &str, val: T) -> Result<()> {
+    let path = global_file_path(name)?;
+    global_store_path(path, val)
+}
+
+fn global_store_path<T: Serialize>(path: impl AsRef<Path>, val: T) -> Result<()> {
+    let parent = path
+        .as_ref()
+        .parent()
+        .expect("Invalid config dir: no parent");
+    fs::create_dir_all(parent).context("Failed to create config directory")?;
+    let toml_str = toml::to_string_pretty(&val)?;
+    fs::write(path, toml_str)?;
+    Ok(())
 }
 
 mod extensions_serde {

@@ -34,7 +34,6 @@ tracing-subscriber = "0.3"
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 camino = { version = "1", features = ["serde1"] }
-confy = "0.5"
 once_cell = { workspace = true }
 bitflags = { version = "2", features = ["std"] }
 tokio = { version = "1", features = ["full"], optional = true }
@@ -51,7 +50,7 @@ open = { version = "5.0", optional = true }
 colorchoice-clap = "1.0"
 anstream = "0.5"
 owo-colors = { workspace = true }
-dirs = "5.0.1"
+directories = "5.0.1"
 
 [features]
 default = ["ui"]

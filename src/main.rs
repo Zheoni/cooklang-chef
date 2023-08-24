@@ -102,8 +102,7 @@ pub struct Context {
 
 // #[tracing::instrument(level = "debug", skip_all)]
 fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Context> {
-    let global_config: GlobalConfig =
-        confy::load(APP_NAME, Some("global-config")).context("Error loading global config file")?;
+    let global_config = GlobalConfig::read().context("Error loading global config file")?;
 
     let base_path = args
         .path
@@ -113,6 +112,7 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
         .unwrap_or(Path::new("."));
 
     if !base_path.is_dir() {
+        // TODO maybe give information on how to fix it
         bail!(
             "Base path '{}' is not a directory",
             base_path.to_string_lossy()
