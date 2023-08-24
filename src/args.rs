@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use camino::Utf8PathBuf;
 use clap::{Args, Parser, Subcommand};
 use cooklang::Extensions;
@@ -103,7 +105,7 @@ pub struct GlobalArgs {
     /// This path is used to load configuration files, search for images and
     /// recipe references.
     #[arg(long, value_name = "PATH", value_hint = clap::ValueHint::DirPath, global = true)]
-    pub path: Option<Utf8PathBuf>,
+    pub path: Option<PathBuf>,
 
     /// Skip checking if referenced recipes exist
     #[arg(long, hide_short_help = true, global = true)]

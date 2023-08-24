@@ -95,6 +95,7 @@ fn build_state(ctx: Context) -> Result<Arc<AppState>> {
         recipe_index,
         base_path,
         config,
+        global_config,
         ..
     } = ctx;
     let parser = parser.into_inner().unwrap();
@@ -118,6 +119,7 @@ fn build_state(ctx: Context) -> Result<Arc<AppState>> {
         recipe_index,
         updates_stream: updates_rx,
         config,
+        editor_command: global_config.editor_command,
     }))
 }
 
@@ -214,6 +216,7 @@ pub struct AppState {
     recipe_index: AsyncFsIndex,
     updates_stream: broadcast::Receiver<Update>,
     config: crate::config::Config,
+    editor_command: Option<Vec<String>>,
 }
 
 fn api(state: &AppState) -> Result<Router<Arc<AppState>>> {
@@ -471,10 +474,10 @@ async fn recipe(
                 .iter()
                 .map(|t| {
                     t.quantity.clone().and_then(|mut q| {
-                        if let Err(_) = q.convert("s", state.parser.converter()) {
-                            return None;
+                        if q.convert("s", state.parser.converter()).is_err() {
+                            None
                         } else {
-                            return Some(q.value);
+                            Some(q.value)
                         }
                     })
                 })
@@ -556,7 +559,7 @@ async fn open_editor(
 
     tracing::info!("Opening editor for '{}'", entry.path());
 
-    let args = if let Some(editor_command) = &state.config.editor_command {
+    let args = if let Some(editor_command) = &state.editor_command {
         editor_command.iter().map(String::as_str).collect()
     } else {
         // TODO get system editor

@@ -1,17 +1,17 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anstream::ColorChoice;
 use anyhow::{bail, Context as _, Result};
 use args::{CliArgs, Command, GlobalArgs};
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::Parser;
-use config::Config;
+use config::{Config, GlobalConfig};
 use cooklang::{convert::ConverterBuilder, Converter, CooklangParser};
 use cooklang_fs::{resolve_recipe, FsIndex};
 use once_cell::sync::OnceCell;
 
 // commands
-mod config;
+mod config_cmd;
 mod convert;
 mod generate_completions;
 mod list;
@@ -23,10 +23,12 @@ mod units;
 
 // other modules
 mod args;
+mod config;
 mod util;
 
 const COOK_DIR: &str = ".cooklang";
 const APP_NAME: &str = "cooklang-chef";
+const UTF8_PATH_PANIC: &str = "chef currently only supports UTF-8 paths. If this is problem for you, file an issue in the cooklang-chef github repository";
 
 pub fn main() -> Result<()> {
     let args = CliArgs::parse();
@@ -60,7 +62,7 @@ pub fn main() -> Result<()> {
         Command::ShoppingList(args) => shopping_list::run(&ctx, args),
         Command::Units(args) => units::run(ctx.parser()?.converter(), args),
         Command::Convert(args) => convert::run(ctx.parser()?.converter(), args),
-        Command::Config => config::run(&ctx),
+        Command::Config => config_cmd::run(&ctx),
         Command::GenerateCompletions(args) => generate_completions::run(args),
     }
 }
@@ -82,22 +84,46 @@ pub struct Context {
     global_args: GlobalArgs,
     base_path: Utf8PathBuf,
     config: config::Config,
-    config_path: PathBuf,
+    global_config: config::GlobalConfig,
     color: ColorContext,
 }
 
-#[tracing::instrument(level = "debug", skip_all)]
+/*
+
+    open app
+        -> load global config
+        -> if --path is provided, use that
+           elif "./.cooklang" exists, use current path
+           else use global base path
+        -> try load local config if any and merge
+           (local config cannot have base_path)
+
+*/
+
+// #[tracing::instrument(level = "debug", skip_all)]
 fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Context> {
+    let global_config: GlobalConfig =
+        confy::load(APP_NAME, Some("global-config")).context("Error loading global config file")?;
+
     let base_path = args
         .path
         .as_deref()
-        .unwrap_or(Utf8Path::new("."))
-        .to_path_buf();
-    let (mut config, config_path) = Config::read(&base_path)?;
-    config.override_with_args(&args);
+        .or_else(|| Utf8Path::new(COOK_DIR).is_dir().then_some(Path::new(".")))
+        .unwrap_or(&global_config.base_path);
+
     if !base_path.is_dir() {
-        bail!("Base path '{base_path}' is not a directory");
+        bail!(
+            "Base path '{}' is not a directory",
+            base_path.to_string_lossy()
+        );
     }
+
+    let base_path = Utf8Path::from_path(base_path)
+        .expect(UTF8_PATH_PANIC)
+        .to_path_buf();
+
+    let mut config = Config::read(&base_path)?;
+    config.override_with_args(&args);
 
     let mut index = FsIndex::new(&base_path, config.max_depth)?;
     index.set_config_dir(COOK_DIR.to_string());
@@ -106,7 +132,7 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
         parser: OnceCell::new(),
         recipe_index: index,
         config,
-        config_path,
+        global_config,
         global_args: args,
         base_path,
         color: color_ctx,
@@ -115,13 +141,8 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
 
 impl Context {
     fn parser(&self) -> Result<&CooklangParser> {
-        self.parser.get_or_try_init(|| {
-            configure_parser(
-                &self.config,
-                self.base_path.as_std_path(),
-                &self.config_path,
-            )
-        })
+        self.parser
+            .get_or_try_init(|| configure_parser(&self.config, &self.base_path))
     }
 
     fn checker(&self, relative_to: Option<&Utf8Path>) -> Option<cooklang::RecipeRefChecker> {
@@ -148,12 +169,8 @@ impl Context {
 }
 
 #[tracing::instrument(level = "debug", skip_all)]
-fn configure_parser(
-    config: &Config,
-    base_path: &Path,
-    config_path: &Path,
-) -> Result<CooklangParser> {
-    let units = config.units(config_path, base_path);
+fn configure_parser(config: &Config, base_path: &Utf8Path) -> Result<CooklangParser> {
+    let units = config.units(base_path);
     let converter = if config.default_units || !units.is_empty() {
         let mut builder = ConverterBuilder::new();
         if config.default_units {
@@ -162,9 +179,9 @@ fn configure_parser(
                 .expect("Failed to add bundled units");
         }
         for file in units {
-            tracing::debug!("Loading units {}", file.display());
+            tracing::debug!("Loading units {}", file);
             let text = std::fs::read_to_string(&file)
-                .with_context(|| format!("Cannot find units file: {}", file.display()))?;
+                .with_context(|| format!("Cannot find units file: {}", file))?;
             let units = toml::from_str(&text)?;
             builder.add_units_file(units)?;
         }

@@ -43,8 +43,7 @@ pub fn run(ctx: &Context, args: ShoppingListArgs) -> Result<()> {
     let aile_path = args
         .global_args
         .aisle
-        .map(|a| a.into_std_path_buf())
-        .or_else(|| ctx.config.aisle(ctx))
+        .or_else(|| ctx.config.aisle(&ctx.base_path))
         .map(|path| -> Result<(_, _)> {
             let content = std::fs::read_to_string(&path).context("Failed to read aisle file")?;
             Ok((path, content))
@@ -57,13 +56,7 @@ pub fn run(ctx: &Context, args: ShoppingListArgs) -> Result<()> {
             Err(e) => {
                 let stderr = std::io::stderr();
                 let color = anstream::AutoStream::choice(&stderr) != ColorChoice::Never;
-                cooklang::error::write_rich_error(
-                    &e,
-                    path.to_str().unwrap_or("<aisle.conf>"),
-                    content,
-                    color,
-                    stderr,
-                )?;
+                cooklang::error::write_rich_error(&e, path.as_str(), content, color, stderr)?;
                 bail!("Error parsing aisle file")
             }
         }

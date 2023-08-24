@@ -45,12 +45,13 @@ notify = { version = "6.0", optional = true }
 debounced = { version = "0.1", optional = true }
 tokio-stream = { version = "0.1", optional = true }
 futures = { version = "0.3", optional = true }
-rust-embed = { version = "6.6", features = ["compression"], optional = true }
+rust-embed = { version = "8.0", features = ["compression"], optional = true }
 mime_guess = { version = "2.0", optional = true }
 open = { version = "5.0", optional = true }
 colorchoice-clap = "1.0"
-anstream = "0.3"
+anstream = "0.5"
 owo-colors = { workspace = true }
+dirs = "5.0.1"
 
 [features]
 default = ["ui"]
