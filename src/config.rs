@@ -1,11 +1,12 @@
 use std::{
     collections::HashMap,
+    env,
     fs::{self, File},
     io::{self, Read},
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
 use cooklang::Extensions;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -22,6 +23,35 @@ pub const GLOBAL_CONFIG_FILE: &str = "global-config.toml";
 pub struct GlobalConfig {
     pub default_collection: Option<Utf8PathBuf>,
     pub editor_command: Option<Vec<String>>,
+}
+
+impl GlobalConfig {
+    pub fn editor(&self) -> Result<Vec<String>> {
+        let cmd = if let Some(custom) = &self.editor_command {
+            if custom.is_empty() {
+                bail!("Invalid custom editor command in global config. Fix it please.");
+            }
+            custom.clone()
+        } else {
+            const ENV_VARS: &[&str] = &["VISUAL", "EDITOR"];
+            // TODO should this be notepad.exe that is installed by default?
+            const HARD_CODED: &str = if cfg!(windows) {
+                "code.cmd -n -w"
+            } else {
+                "nano"
+            };
+
+            let editor = ENV_VARS
+                .iter()
+                .filter_map(|v| env::var(v).ok())
+                .filter(|v| v.is_empty())
+                .next()
+                .unwrap_or_else(|| HARD_CODED.to_string());
+
+            shell_words::split(&editor)?
+        };
+        Ok(cmd)
+    }
 }
 
 impl Default for GlobalConfig {

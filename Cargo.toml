@@ -52,6 +52,7 @@ anstream = "0.5"
 owo-colors = { workspace = true }
 directories = "5.0.1"
 inquire = "0.6.2"
+shell-words = "1.1"
 
 [features]
 default = ["ui"]

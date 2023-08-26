@@ -33,7 +33,9 @@ pub fn run(converter: &Converter, args: ConvertArgs) -> anyhow::Result<()> {
 
     let (value, unit) = converter.convert(args.value.into(), args.unit.as_str().into(), to)?;
 
-    let ConvertValue::Number(mut n) = value else { panic!("unexpected range value") };
+    let ConvertValue::Number(mut n) = value else {
+        panic!("unexpected range value")
+    };
     if !args.no_round {
         n = (n * 1000.0).round() / 1000.0;
     }

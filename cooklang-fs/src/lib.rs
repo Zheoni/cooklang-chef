@@ -106,7 +106,9 @@ impl FsIndex {
     pub fn index_all(&mut self) -> Result<(), Error> {
         for entry in self.walker.get_mut() {
             let entry = entry?;
-            let Some((entry_name, path)) = process_entry(&entry) else { continue; };
+            let Some((entry_name, path)) = process_entry(&entry) else {
+                continue;
+            };
             self.cache.borrow_mut().insert(entry_name, path);
         }
         Ok(())
@@ -133,7 +135,9 @@ impl FsIndex {
         while let Some(entry) = self.walker.borrow_mut().next() {
             let entry = entry?;
 
-            let Some((entry_name, entry_path)) = process_entry(&entry) else { continue; };
+            let Some((entry_name, entry_path)) = process_entry(&entry) else {
+                continue;
+            };
 
             // Add to cache
             self.cache.borrow_mut().insert(entry_name, entry_path);
@@ -416,12 +420,13 @@ pub const IMAGE_EXTENSIONS: &[&str] = &["jpeg", "jpg", "png", "heic", "gif", "we
 ///
 /// See [IMAGE_EXTENSIONS].
 pub fn recipe_images(path: &Utf8Path) -> Vec<Image> {
-    let Some(dir) = path
-        .parent()
-        .and_then(|dir| dir.read_dir_utf8().ok())
-    else { return vec![]; };
+    let Some(dir) = path.parent().and_then(|dir| dir.read_dir_utf8().ok()) else {
+        return vec![];
+    };
 
-    let Some(recipe_name) = path.file_stem() else { return vec![]; };
+    let Some(recipe_name) = path.file_stem() else {
+        return vec![];
+    };
 
     let mut images = dir
         .filter_map(|e| e.ok()) // skip error
@@ -487,11 +492,10 @@ pub fn check_recipe_images<D, V: QuantityValue>(
     let mut errors = Vec::new();
     for image in images {
         if let Some(ImageIndexes { section, step }) = image.indexes {
-            let Some(recipe_section) = recipe.sections.get(section as usize)
-            else {
+            let Some(recipe_section) = recipe.sections.get(section as usize) else {
                 errors.push(RecipeImageError::MissingSection {
                     section,
-                    image: image.path.clone()
+                    image: image.path.clone(),
                 });
                 continue;
             };

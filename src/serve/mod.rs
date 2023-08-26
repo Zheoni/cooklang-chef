@@ -119,7 +119,7 @@ fn build_state(ctx: Context) -> Result<Arc<AppState>> {
         recipe_index,
         updates_stream: updates_rx,
         config,
-        editor_command: global_config.editor_command,
+        editor_command: global_config.editor().ok(),
     }))
 }
 
@@ -383,7 +383,9 @@ async fn all_recipes_metadata(
     {
         let state = Arc::clone(&state);
         handles.push(tokio::spawn(async move {
-            let Ok(content) = tokio::fs::read_to_string(entry.path()).await else { return None; };
+            let Ok(content) = tokio::fs::read_to_string(entry.path()).await else {
+                return None;
+            };
             let metadata = state.parser.parse_metadata(&content);
             let path = clean_path(entry.path(), &state.base_path);
             let report = Report::from_pass_result(metadata, path.as_str(), &content, color.color);
@@ -559,15 +561,10 @@ async fn open_editor(
 
     tracing::info!("Opening editor for '{}'", entry.path());
 
-    let args = if let Some(editor_command) = &state.editor_command {
-        editor_command.iter().map(String::as_str).collect()
+    let args = if let Some(args) = &state.editor_command {
+        args
     } else {
-        // TODO get system editor
-        if cfg!(windows) {
-            vec!["code.cmd", "-n"]
-        } else {
-            vec!["code", "-n"]
-        }
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
     };
     let (editor, args) = (&args[0], &args[1..]);
 

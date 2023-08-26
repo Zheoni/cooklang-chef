@@ -14,6 +14,7 @@ mod config_cmd;
 mod convert;
 mod generate_completions;
 mod list;
+mod new;
 mod recipe;
 #[cfg(feature = "serve")]
 mod serve;
@@ -64,6 +65,7 @@ pub fn main() -> Result<()> {
         Command::Config(args) => config_cmd::run(&ctx, args),
         Command::Collection(args) => collection::run(&ctx, args),
         Command::GenerateCompletions(args) => generate_completions::run(args),
+        Command::New(args) => new::run(args, &ctx),
     }
 }
 

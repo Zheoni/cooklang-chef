@@ -56,7 +56,10 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
             }
 
             let Ok(metadata) = entry.metadata(ctx, args.check) else {
-                tracing::warn!("Skipping '{}': could not parse metadata", entry.entry.path());
+                tracing::warn!(
+                    "Skipping '{}': could not parse metadata",
+                    entry.entry.path()
+                );
                 return false;
             };
 
