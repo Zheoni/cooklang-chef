@@ -1,8 +1,5 @@
 # The `cooklang-rs` CLI
 
-The CLI is currently named `chef`. This may change. I don't want to call it
-`cook` to avoid using the same name as the original `CookCLI`.
-
 ## Key features
 - Read a recipe:
     ```sh

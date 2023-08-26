@@ -38,16 +38,19 @@ are enabled by default[^1].
 
 You can see a detailed list of all extensions explained in [the parser repo](https://github.com/cooklang/cooklang-rs/blob/main/extensions.md).
 
-Full user documentation [here](./docs/main.md).
+Full user documentation [here](./docs/README.md).
 
-You can install `chef` with[^2]:
+You can install `chef` with:
 ```sh
 cargo install cooklang-chef
 ```
 
-[^2]: This method currently has a problem. A dependency has a bug which is solved
-but pending a release. Until then error colors won't work. If that is a big
-problem for you, manually [cloning the repo and compiling will work](./docs/cli.md#compiling-the-cli).
+You can also get a prebuilt binary from the github releases.
+
+After installing it, run:
+```sh
+chef config --setup
+```
 
 Key features:
 
