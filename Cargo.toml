@@ -27,7 +27,7 @@ cooklang-fs = { version = "0.7", path = "./cooklang-fs" }
 cooklang-to-human = { version = "0.7", path = "./cooklang-to-human" }
 cooklang-to-cooklang = { version = "0.7", path = "./cooklang-to-cooklang" }
 cooklang-to-md = { version = "0.7", path = "./cooklang-to-md" }
-textwrap = { workspace = true }
+textwrap = { workspace = true, features = ["terminal_size"] }
 humantime = "2.1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
@@ -51,6 +51,7 @@ colorchoice-clap = "1.0"
 anstream = "0.5"
 owo-colors = { workspace = true }
 directories = "5.0.1"
+inquire = "0.6.2"
 
 [features]
 default = ["ui"]

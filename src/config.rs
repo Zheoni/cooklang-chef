@@ -18,39 +18,26 @@ pub const AUTO_UNITS: &str = "units.toml";
 pub const DEFAULT_CONFIG_FILE: &str = "default-config.toml";
 pub const GLOBAL_CONFIG_FILE: &str = "global-config.toml";
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct GlobalConfig {
-    pub base_path: Option<PathBuf>,
+    pub default_collection: Option<Utf8PathBuf>,
     pub editor_command: Option<Vec<String>>,
-}
-
-impl GlobalConfig {
-    pub fn read() -> Result<Self> {
-        global_load(GLOBAL_CONFIG_FILE, true)
-    }
 }
 
 impl Default for GlobalConfig {
     fn default() -> Self {
-        let base_path = default_base_path();
         Self {
-            base_path: Some(base_path),
+            default_collection: None,
             editor_command: None,
         }
     }
 }
 
-pub fn default_base_path() -> PathBuf {
-    let dirs = directories::UserDirs::new();
-    let parent = if let Some(d) = &dirs {
-        d.document_dir().unwrap_or(d.home_dir())
-    } else {
-        Path::new(".")
-    };
-    parent.join("Recipes")
+pub fn default_config() -> Result<Config> {
+    global_load(DEFAULT_CONFIG_FILE)
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Config {
     pub default_units: bool,
@@ -79,7 +66,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(default)]
 pub struct Load {
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -116,9 +103,7 @@ impl Config {
         let local = config_file_path(base_path);
         if !local.is_file() {
             tracing::debug!("Local config not found, loading global default");
-            let global = global_load(DEFAULT_CONFIG_FILE, true)
-                .context("Error loading default global config file")?;
-            return Ok(global);
+            return default_config().context("Error loading default global config file");
         }
         tracing::debug!("Loading local config from {local}");
         let content = std::fs::read_to_string(&local)?;
@@ -222,10 +207,7 @@ pub fn global_file_path(name: &str) -> Result<Utf8PathBuf> {
     Ok(path)
 }
 
-pub fn global_load<T: DeserializeOwned + Serialize + Default>(
-    name: &str,
-    create: bool,
-) -> Result<T> {
+pub fn global_load<T: DeserializeOwned + Serialize + Default>(name: &str) -> Result<T> {
     let path = global_file_path(name)?;
     match File::open(&path) {
         Ok(mut f) => {
@@ -233,9 +215,9 @@ pub fn global_load<T: DeserializeOwned + Serialize + Default>(
             f.read_to_string(&mut content)?;
             toml::from_str(&content).context("Bad TOML data")
         }
-        Err(e) if create && e.kind() == io::ErrorKind::NotFound => {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
             let val = T::default();
-            global_store_path(path, &val)?;
+            store_at_path(path, &val)?;
             Ok(val)
         }
         Err(e) => Err(e).context("Failed to load config file"),
@@ -244,10 +226,10 @@ pub fn global_load<T: DeserializeOwned + Serialize + Default>(
 
 pub fn global_store<T: Serialize>(name: &str, val: T) -> Result<()> {
     let path = global_file_path(name)?;
-    global_store_path(path, val)
+    store_at_path(path, val)
 }
 
-fn global_store_path<T: Serialize>(path: impl AsRef<Path>, val: T) -> Result<()> {
+pub fn store_at_path<T: Serialize>(path: impl AsRef<Path>, val: T) -> Result<()> {
     let parent = path
         .as_ref()
         .parent()
@@ -270,13 +252,11 @@ mod extensions_serde {
         } else if extensions.is_empty() {
             se.serialize_str("none")
         } else {
-            let enabled = extensions.iter_names().map(|(name, _)| (name, true));
-            let disabled = extensions
-                .complement()
-                .iter_names()
-                .map(|(name, _)| (name, false));
-
-            se.collect_map(enabled.chain(disabled))
+            se.collect_map(
+                Extensions::all()
+                    .iter_names()
+                    .map(|(name, flag)| (name, extensions.contains(flag))),
+            )
         }
     }
 
@@ -319,7 +299,9 @@ mod extensions_serde {
                 use serde::de::Error;
 
                 let mut extensions = Extensions::empty();
-                while let Ok(Some((name, enabled))) = map.next_entry::<&str, bool>() {
+                // TODO change String for &str when this is solved
+                // https://github.com/serde-rs/serde/issues/2467
+                while let Some((name, enabled)) = map.next_entry::<String, bool>()? {
                     let e = Extensions::from_name(&name.replace(' ', "_").to_uppercase())
                         .ok_or_else(|| A::Error::custom("Unknown extension name"))?;
                     if enabled {

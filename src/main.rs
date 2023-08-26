@@ -1,16 +1,15 @@
-use std::path::Path;
-
 use anstream::ColorChoice;
 use anyhow::{bail, Context as _, Result};
 use args::{CliArgs, Command, GlobalArgs};
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::Parser;
-use config::{Config, GlobalConfig};
+use config::{global_load, Config, GlobalConfig, GLOBAL_CONFIG_FILE};
 use cooklang::{convert::ConverterBuilder, Converter, CooklangParser};
 use cooklang_fs::{resolve_recipe, FsIndex};
 use once_cell::sync::OnceCell;
 
 // commands
+mod collection;
 mod config_cmd;
 mod convert;
 mod generate_completions;
@@ -62,7 +61,8 @@ pub fn main() -> Result<()> {
         Command::ShoppingList(args) => shopping_list::run(&ctx, args),
         Command::Units(args) => units::run(ctx.parser()?.converter(), args),
         Command::Convert(args) => convert::run(ctx.parser()?.converter(), args),
-        Command::Config => config_cmd::run(&ctx),
+        Command::Config(args) => config_cmd::run(&ctx, args),
+        Command::Collection(args) => collection::run(&ctx, args),
         Command::GenerateCompletions(args) => generate_completions::run(args),
     }
 }
@@ -88,40 +88,26 @@ pub struct Context {
     color: ColorContext,
 }
 
-/*
-
-    open app
-        -> load global config
-        -> if --path is provided, use that
-           elif "./.cooklang" exists, use current path
-           else use global base path
-        -> try load local config if any and merge
-           (local config cannot have base_path)
-
-*/
-
-// #[tracing::instrument(level = "debug", skip_all)]
+#[tracing::instrument(level = "debug", skip_all)]
 fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Context> {
-    let global_config = GlobalConfig::read().context("Error loading global config file")?;
+    let global_config: GlobalConfig =
+        global_load(GLOBAL_CONFIG_FILE).context("Error loading global config file")?;
 
     let base_path = args
         .path
         .as_deref()
-        .or_else(|| Utf8Path::new(COOK_DIR).is_dir().then_some(Path::new(".")))
-        .or(global_config.base_path.as_deref())
-        .unwrap_or(Path::new("."));
+        .or_else(|| {
+            Utf8Path::new(COOK_DIR)
+                .is_dir()
+                .then_some(Utf8Path::new("."))
+        })
+        .or(global_config.default_collection.as_deref())
+        .unwrap_or(Utf8Path::new("."))
+        .to_path_buf();
 
     if !base_path.is_dir() {
-        // TODO maybe give information on how to fix it
-        bail!(
-            "Base path '{}' is not a directory",
-            base_path.to_string_lossy()
-        );
+        bail!("Base path is not a directory: {base_path}");
     }
-
-    let base_path = Utf8Path::from_path(base_path)
-        .expect(UTF8_PATH_PANIC)
-        .to_path_buf();
 
     let mut config = Config::read(&base_path)?;
     config.override_with_args(&args);

@@ -1,10 +1,11 @@
-use std::path::PathBuf;
-
 use camino::Utf8PathBuf;
 use clap::{Args, Parser, Subcommand};
 use cooklang::Extensions;
 
-use crate::{convert, generate_completions, list, recipe, serve, shopping_list, units};
+use crate::{
+    collection, config_cmd, convert, generate_completions, list, recipe, serve, shopping_list,
+    units,
+};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -41,7 +42,9 @@ pub enum Command {
     #[command(visible_alias = "c")]
     Convert(convert::ConvertArgs),
     /// See loaded configuration
-    Config,
+    Config(config_cmd::ConfigArgs),
+    /// Manage recipe collections
+    Collection(collection::CollectionArgs),
     /// Generate shell completions
     GenerateCompletions(generate_completions::GenerateCompletionsArgs),
 }
@@ -105,7 +108,7 @@ pub struct GlobalArgs {
     /// This path is used to load configuration files, search for images and
     /// recipe references.
     #[arg(long, value_name = "PATH", value_hint = clap::ValueHint::DirPath, global = true)]
-    pub path: Option<PathBuf>,
+    pub path: Option<Utf8PathBuf>,
 
     /// Skip checking if referenced recipes exist
     #[arg(long, hide_short_help = true, global = true)]
@@ -114,7 +117,7 @@ pub struct GlobalArgs {
     /// Override recipe indexing depth
     ///
     /// This is used to search for referenced recipes.
-    #[arg(long, global = true, default_value_t = 10)]
+    #[arg(long, hide_short_help = true, global = true, default_value_t = 10)]
     pub max_depth: usize,
 
     #[arg(long, hide_short_help = true, global = true)]
