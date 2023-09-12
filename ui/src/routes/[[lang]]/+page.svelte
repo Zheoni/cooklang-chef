@@ -105,8 +105,9 @@
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key.toLowerCase() == 's') {
-			document.getElementById('search')?.focus();
+		const searchbox = document.getElementById('search');
+		if (document.activeElement !== searchbox && e.key.toLowerCase() === 's') {
+			searchbox?.focus();
 			e.preventDefault();
 		}
 	}
