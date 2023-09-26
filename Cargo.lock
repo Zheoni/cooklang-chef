@@ -329,9 +329,9 @@ dependencies = [
 
 [[package]]
 name = "cooklang"
-version = "0.7.1"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67ace08d4329942280a142daad6949703ef62c96b4333f95914244adb209be97"
+checksum = "488740f809b384e59a056468959fc1b60cccbf71901a64e00876c5f86d6929b8"
 dependencies = [
  "ariadne",
  "bitflags 2.4.0",
@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-chef"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -399,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-fs"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "camino",
  "cooklang",
@@ -410,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-cooklang"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "cooklang",
  "regex",
@@ -419,7 +419,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-human"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anstyle",
  "anstyle-owo-colors",
@@ -433,7 +433,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-md"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "cooklang",
  "once_cell",

@@ -1,6 +1,6 @@
 [package]
 name = "cooklang-to-cooklang"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "Format cooklang back to cooklang"
