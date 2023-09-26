@@ -138,7 +138,7 @@
 
 {#if warnings.length > 0}
 	<details bind:open={state.warningsOpen}>
-		<summary class="text-yellow-11 font-bold">{$t('r.warings')}</summary>
+		<summary class="text-yellow-11 font-bold">{$t('r.warnings')}</summary>
 
 		<DisplayReport ansiString={fancy_report} errors={warnings} {srcPath} kind="warning" />
 	</details>

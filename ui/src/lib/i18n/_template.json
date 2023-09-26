@@ -67,5 +67,10 @@
     "outcome": {
         "error": null,
         "fixed": null
+    },
+    "error": {
+        "notFound": null,
+        "parse": null,
+        "unknown": null
     }
 }

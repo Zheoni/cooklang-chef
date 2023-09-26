@@ -67,5 +67,10 @@
     "outcome": {
         "error": "Error escalando",
         "fixed": "Este valor no escala"
+    },
+    "error": {
+        "notFound": "Receta no econtrada",
+        "parse": "Error interpretando la receta",
+        "unknown": "Error desconocido"
     }
 }

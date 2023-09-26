@@ -67,5 +67,10 @@
     "outcome": {
         "error": "Error scaling",
         "fixed": "This values does not scale"
+    },
+    "error": {
+        "notFound": "Recipe not found",
+        "parse": "Error parsing recipe",
+        "unknown": "Unknown error"
     }
 }

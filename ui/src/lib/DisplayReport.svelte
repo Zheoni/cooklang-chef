@@ -6,6 +6,7 @@
 
 	import { API } from './constants';
 	import OpenInEditor from './OpenInEditor.svelte';
+	import { t } from './i18n';
 
 	export let errors: string[];
 	export let ansiString: string | null;
@@ -32,7 +33,7 @@
 				class="btn radix-solid-primary px-2 py-1 flex items-center gap-1"
 				href={`${API}/src/${srcPath}`}
 				data-sveltekit-reload
-				target="_blank"><FileCode /> View .cook</a
+				target="_blank"><FileCode /> {$t('r.meta.sourceFile')}</a
 			>
 		{/if}
 	</div>

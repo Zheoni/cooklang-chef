@@ -3,6 +3,8 @@ import type { PageLoad } from './$types';
 import { API } from '$lib/constants';
 import type { Recipe, Report, Image } from '$lib/types';
 import { isValid } from '$lib/util';
+import { t } from '$lib/i18n';
+import { get } from 'svelte/store';
 
 type Resp = {
 	recipe: Report<Recipe>;
@@ -29,7 +31,7 @@ export const load = (async ({ fetch, url }) => {
 
 async function fetchRecipe(resp: Response) {
 	if (resp.status === 404) {
-		throw error(404, 'Recipe not found');
+		throw error(404, get(t)('error.notFound'));
 	}
 	if (!resp.ok) {
 		throw error(400);
@@ -37,7 +39,7 @@ async function fetchRecipe(resp: Response) {
 	const data = (await resp.json()) as Resp;
 	if (!isValid(data.recipe)) {
 		throw error(500, {
-			message: 'Error parsing recipe',
+			message: get(t)('error.parse'),
 			code: 'PARSE',
 			srcPath: data.src_path,
 			images: data.images,
