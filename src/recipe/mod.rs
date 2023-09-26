@@ -7,8 +7,8 @@ use cooklang_fs::{resolve_recipe, FsIndex};
 
 use crate::{util::Input, Context};
 
-mod ast;
 mod check;
+mod debug;
 mod read;
 
 #[derive(Debug, Args)]
@@ -23,14 +23,15 @@ pub struct RecipeArgs {
 
 #[derive(Debug, Subcommand)]
 enum RecipeCommand {
-    /// Reads a recipe file
+    /// Reads a recipe
     #[command(alias = "r")]
     Read(read::ReadArgs),
-    /// Checks a recipe file for errors or warnings
+    /// Checks a recipe for errors or warnings
     #[command(alias = "c")]
     Check(check::CheckArgs),
-    /// Get the recipe abstract syntax tree
-    Ast(ast::AstArgs),
+    /// Debug parse of the recipe
+    #[command(hide = true)]
+    Debug(debug::DebugArgs),
 }
 
 pub fn run(ctx: &Context, args: RecipeArgs) -> Result<()> {
@@ -39,7 +40,7 @@ pub fn run(ctx: &Context, args: RecipeArgs) -> Result<()> {
     match command {
         RecipeCommand::Read(args) => read::run(ctx, args),
         RecipeCommand::Check(args) => check::run(ctx, args),
-        RecipeCommand::Ast(args) => ast::run(ctx, args),
+        RecipeCommand::Debug(args) => debug::run(ctx, args),
     }
 }
 
