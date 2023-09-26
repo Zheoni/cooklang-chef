@@ -44,8 +44,7 @@ impl GlobalConfig {
             let editor = ENV_VARS
                 .iter()
                 .filter_map(|v| env::var(v).ok())
-                .filter(|v| v.is_empty())
-                .next()
+                .find(|v| v.is_empty())
                 .unwrap_or_else(|| HARD_CODED.to_string());
 
             shell_words::split(&editor)?
@@ -54,6 +53,7 @@ impl GlobalConfig {
     }
 }
 
+#[allow(clippy::derivable_impls)] // I like to see the exact defaults of the config
 impl Default for GlobalConfig {
     fn default() -> Self {
         Self {

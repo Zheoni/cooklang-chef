@@ -53,7 +53,7 @@ pub fn run(ctx: &Context, args: CollectionArgs) -> Result<()> {
                 if default.is_file() {
                     fs::copy(default, config).context("Failed to copy default config file")?;
                 } else {
-                    store_at_path(config, &Config::default())?;
+                    store_at_path(config, Config::default())?;
                 }
             }
             if set_default {
@@ -93,7 +93,7 @@ fn create_collection(path: &Utf8Path) -> Result<()> {
             bail!("Path exists and it's not empty");
         }
     } else {
-        fs::create_dir_all(&path).context("Failed to create collection dir")?;
+        fs::create_dir_all(path).context("Failed to create collection dir")?;
     }
     fs::create_dir_all(path.join(COOK_DIR))?;
     Ok(())

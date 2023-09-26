@@ -77,7 +77,7 @@ pub fn run_setup(config: &Config, global_config: &GlobalConfig) -> Result<()> {
         .with_help_message("Leave empty or press ESC for none")
         .prompt_skippable()?
         .filter(|s| !s.is_empty())
-        .map(|s| Utf8PathBuf::from(s));
+        .map(Utf8PathBuf::from);
 
     if let Some(path) = &path {
         if path.exists() {
@@ -97,7 +97,7 @@ pub fn run_setup(config: &Config, global_config: &GlobalConfig) -> Result<()> {
         }
 
         if path.exists() {
-            let config_path = config_file_path(&path);
+            let config_path = config_file_path(path);
             if let Some(parent) = config_path.parent() {
                 fs::create_dir_all(parent)?;
             }
@@ -129,7 +129,7 @@ pub fn run_setup(config: &Config, global_config: &GlobalConfig) -> Result<()> {
 
     global_store(
         GLOBAL_CONFIG_FILE,
-        &GlobalConfig {
+        GlobalConfig {
             default_collection: path,
             ..global_config.clone()
         },
