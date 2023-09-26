@@ -93,19 +93,27 @@ pub fn run_setup(config: &Config, global_config: &GlobalConfig) -> Result<()> {
                 .prompt()?;
             if create {
                 fs::create_dir_all(path).context("Failed to create recipes directory")?;
+            } else {
+                bail!("Cancelled");
             }
         }
 
-        if path.exists() {
-            let config_path = config_file_path(path);
+        let config_path = config_file_path(path);
+        if config_path.is_file() {
+            let override_file = Confirm::new(&format!("The config file '{config_path}' already exists and it's content will be lost, do you want to override it?"))
+                .with_default(false)
+                .prompt()?;
+            if override_file {
+                store_at_path(&config_path, &config)?;
+            }
+        } else {
             if let Some(parent) = config_path.parent() {
                 fs::create_dir_all(parent)?;
             }
             store_at_path(&config_path, &config)?;
         }
     }
-
-    println!("Default collection created and configured");
+    println!("Default collection configured");
 
     println!();
     for line in textwrap::wrap(
