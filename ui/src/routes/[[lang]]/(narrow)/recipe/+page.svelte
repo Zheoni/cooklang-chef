@@ -11,6 +11,7 @@
 	import FileCode from '~icons/lucide/file-code';
 	import Scale from '~icons/lucide/scale';
 	import Ruler from '~icons/lucide/ruler';
+	import Component from '~icons/lucide/component';
 
 	import StepIngredientsViewIcon from '~icons/lucide/align-vertical-distribute-center';
 	import Metadata from '$lib/Metadata.svelte';
@@ -249,6 +250,14 @@
 				</Metadata>
 			{/if}
 		{/if}
+	</MetadataGroup>
+{/if}
+{#if recipe.filtered_metadata.length > 0}
+	<MetadataGroup>
+		<Component slot="icon" />
+		{#each recipe.filtered_metadata as [key, val]}
+			<Metadata {key}>{val}</Metadata>
+		{/each}
 	</MetadataGroup>
 {/if}
 

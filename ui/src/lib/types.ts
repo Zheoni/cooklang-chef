@@ -8,6 +8,7 @@ export type Recipe = {
 	inline_quantities: Quantity[];
 	grouped_ingredients: IngredientListEntry[];
 	timers_seconds: (Value | null)[];
+	filtered_metadata: [string, string][];
 	data: Scale;
 };
 

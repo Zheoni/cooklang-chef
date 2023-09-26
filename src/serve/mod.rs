@@ -458,6 +458,7 @@ async fn recipe(
                 recipe: cooklang::ScaledRecipe,
                 grouped_ingredients: Vec<serde_json::Value>,
                 timers_seconds: Vec<Option<cooklang::Value>>,
+                filtered_metadata: Vec<serde_json::Value>,
             }
 
             let grouped_ingredients = r
@@ -484,11 +485,18 @@ async fn recipe(
                     })
                 })
                 .collect();
+            let filtered_metadata = r
+                .metadata
+                .map_filtered()
+                .into_iter()
+                .map(|e| serde_json::to_value(e).unwrap())
+                .collect();
 
             let api_recipe = ApiRecipe {
                 recipe: r,
                 grouped_ingredients,
                 timers_seconds,
+                filtered_metadata,
             };
 
             serde_json::to_value(api_recipe).unwrap()
