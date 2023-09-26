@@ -3,6 +3,7 @@
 	import Quantity from './Quantity.svelte';
 	import type { Timer, Value } from './types';
 	import { timer as recipeTimer, setTimer } from './timer';
+	import { t } from './i18n';
 
 	export let timer: Timer;
 	export let seconds: Value | null;
@@ -31,7 +32,7 @@
 <button
 	class="inline text-indigo-11 font-semibold"
 	class:hover:underline={setTimerAvailable}
-	use:tooltip={{ content: 'Start timer', visibility: setTimerAvailable }}
+	use:tooltip={{ content: $t('timer.start'), visibility: setTimerAvailable }}
 	on:click={handleClick}
 	disabled={!setTimerAvailable}
 >

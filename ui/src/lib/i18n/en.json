@@ -72,5 +72,8 @@
         "notFound": "Recipe not found",
         "parse": "Error parsing recipe",
         "unknown": "Unknown error"
+    },
+    "timer": {
+        "start": "Start timer"
     }
 }

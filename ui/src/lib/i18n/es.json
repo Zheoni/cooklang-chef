@@ -72,5 +72,8 @@
         "notFound": "Receta no econtrada",
         "parse": "Error interpretando la receta",
         "unknown": "Error desconocido"
+    },
+    "timer": {
+        "start": "Iniciar temporizador"
     }
 }
