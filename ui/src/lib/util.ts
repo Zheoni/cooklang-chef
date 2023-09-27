@@ -1,4 +1,5 @@
-import type { Report, Step } from './types';
+import { API } from './constants';
+import type { Image, Report, Step } from './types';
 
 export function isValid<T>(report: Report<T>) {
 	return report.value !== null && report.errors.length === 0;
@@ -30,4 +31,16 @@ export function formatTime(minutes: number) {
 		parts.push(new Intl.NumberFormat(undefined, { style: 'unit', unit: 'minute' }).format(minutes));
 	}
 	return parts.join(' ');
+}
+
+export function mainImages(external_image: string | null, images: Image[]) {
+	const i = [];
+	if (external_image) {
+		i.push(external_image);
+	}
+	const local = images.find((i) => i.indexes === null);
+	if (local) {
+		i.push(`${API}/src/${local.path}`);
+	}
+	return i;
 }

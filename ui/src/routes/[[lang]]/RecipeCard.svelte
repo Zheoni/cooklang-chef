@@ -1,10 +1,9 @@
 <script lang="ts">
 	import Divider from '$lib/Divider.svelte';
-	import { API } from '$lib/constants';
 	import twemoji from '$lib/twemoji';
 	import Tag from '$lib/Tag.svelte';
 	import type { Entry } from './+page';
-	import { isValid } from '$lib/util';
+	import { isValid, mainImages } from '$lib/util';
 	import ChefHat from '~icons/lucide/chef-hat';
 
 	function unwrap<T>(val: T | null) {
@@ -16,6 +15,7 @@
 	$: valid = isValid(entry.metadata);
 	$: params = new URLSearchParams({ r: entry.path });
 	$: href = `recipe?${params}`;
+	$: images = mainImages(entry.metadata.value?.map['image'] ?? null, entry.images);
 </script>
 
 <article
@@ -23,7 +23,7 @@
 min-w-50 md:h-50 overflow-hidden rounded-xl border-2 border-transparent shadow-xl"
 >
 	<div class="flex flex-col md:flex-row h-full">
-		{#if entry.images.length > 0}
+		{#if images.length > 0}
 			<a {href} class="flex-1">
 				<figure
 					class="border-primary-9 lt-md:border-b-4 overflow-hidden md:border-r-4 h-full max-h-50 md:max-h-none"
@@ -31,7 +31,7 @@ min-w-50 md:h-50 overflow-hidden rounded-xl border-2 border-transparent shadow-x
 					<img
 						loading="lazy"
 						class="hover:scale-101 h-full w-full object-cover transition-transform"
-						src={`${API}/src/${entry.images[0].path}`}
+						src={images[0]}
 						alt={entry.name}
 					/>
 				</figure>

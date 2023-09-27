@@ -42,7 +42,7 @@
 	import Divider from '$lib/Divider.svelte';
 	import { scaleOutcomeTooltip } from '$lib/scaleOutcomeTooltip';
 	import IngredientListItem from '$lib/IngredientListItem.svelte';
-	import { displayName, formatTime } from '$lib/util';
+	import { displayName, formatTime, mainImages } from '$lib/util';
 	import VideoEmbed from '$lib/VideoEmbed.svelte';
 	import TimerClock from '$lib/TimerClock.svelte';
 	import { t } from '$lib/i18n';
@@ -130,12 +130,12 @@
 	<title>{recipe.name}</title>
 </svelte:head>
 
-{#if images.length > 0}
+{#each mainImages(recipe.external_image, images) as image}
 	<div class="w-full max-h-70vh overflow-hidden rounded shadow-lg mb-8">
 		<!-- svelte-ignore a11y-missing-attribute -->
-		<img class="object-cover h-full w-full" src={`${API}/src/${images[0].path}`} />
+		<img class="object-cover h-full w-full" src={image} />
 	</div>
-{/if}
+{/each}
 
 {#if warnings.length > 0}
 	<details bind:open={state.warningsOpen}>

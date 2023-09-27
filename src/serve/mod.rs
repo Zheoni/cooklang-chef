@@ -459,6 +459,7 @@ async fn recipe(
                 grouped_ingredients: Vec<serde_json::Value>,
                 timers_seconds: Vec<Option<cooklang::Value>>,
                 filtered_metadata: Vec<serde_json::Value>,
+                external_image: Option<String>,
             }
 
             let grouped_ingredients = r
@@ -489,10 +490,12 @@ async fn recipe(
                 .metadata
                 .map_filtered()
                 .into_iter()
+                .filter(|(k, _)| k != "image")
                 .map(|e| serde_json::to_value(e).unwrap())
                 .collect();
 
             let api_recipe = ApiRecipe {
+                external_image: r.metadata.map.get("image").cloned(),
                 recipe: r,
                 grouped_ingredients,
                 timers_seconds,

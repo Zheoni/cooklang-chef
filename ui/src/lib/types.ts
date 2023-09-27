@@ -9,6 +9,7 @@ export type Recipe = {
 	grouped_ingredients: IngredientListEntry[];
 	timers_seconds: (Value | null)[];
 	filtered_metadata: [string, string][];
+	external_image: string | null;
 	data: Scale;
 };
 
