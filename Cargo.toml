@@ -1,6 +1,6 @@
 [package]
 name = "cooklang-chef"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "CLI to manage cooklang recipes"
