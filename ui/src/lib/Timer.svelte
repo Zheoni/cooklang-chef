@@ -4,6 +4,7 @@
 	import type { Timer, Value } from './types';
 	import { timer as recipeTimer, setTimer } from './timer';
 	import { t } from './i18n';
+	import { getNumVal } from './util';
 
 	export let timer: Timer;
 	export let seconds: Value | null;
@@ -13,12 +14,12 @@
 
 	function handleClick() {
 		if (!setTimerAvailable || seconds === null) return;
-		let secs;
+		let secs = 0;
 		if (seconds.type === 'number') {
-			secs = seconds.value;
+			secs = getNumVal(seconds.value);
 		} else if (seconds.type === 'range') {
 			// TODO let user choose maybe
-			secs = seconds.value.start;
+			secs = getNumVal(seconds.value.start);
 		} else {
 			console.error('Text value in timer');
 			return;
@@ -37,5 +38,5 @@
 	disabled={!setTimerAvailable}
 >
 	{timer.name ?? ''}
-	<Quantity quantity={timer.quantity} />
+	<Quantity quantity={timer.quantity} editable={false} />
 </button>

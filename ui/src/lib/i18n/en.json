@@ -75,5 +75,10 @@
     },
     "timer": {
         "start": "Start timer"
+    },
+    "quantity": {
+        "roundError": "Error",
+        "cantConvert": "There was an error trying to convert the quantity",
+        "reset": "Reset"
     }
 }

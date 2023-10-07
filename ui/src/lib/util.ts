@@ -1,5 +1,5 @@
 import { API } from './constants';
-import type { Image, Report, Step } from './types';
+import type { Image, NumOrFrac, Report, Step } from './types';
 
 export function isValid<T>(report: Report<T>) {
 	return report.value !== null && report.errors.length === 0;
@@ -43,4 +43,13 @@ export function mainImages(external_image: string | null, images: Image[]) {
 		i.push(`${API}/src/${local.path}`);
 	}
 	return i;
+}
+
+export function getNumVal(n: NumOrFrac) {
+	if (n.type === 'regular') {
+		return n.value;
+	} else {
+		const { whole, num, den, err } = n.value;
+		return whole + num / den + err;
+	}
 }

@@ -75,5 +75,10 @@
     },
     "timer": {
         "start": "Iniciar temporizador"
+    },
+    "quantity": {
+        "roundError": "Error",
+        "cantConvert": "Ha habido un error convirtiendo la cantidad",
+        "reset": "Reset"
     }
 }

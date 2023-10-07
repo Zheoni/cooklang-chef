@@ -202,15 +202,15 @@ fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> Result 
     for item in &step.items {
         match item {
             Item::Text { value } => step_str.push_str(value),
-            &Item::ItemIngredient { index } => {
+            &Item::Ingredient { index } => {
                 let igr = &recipe.ingredients[index];
                 step_str.push_str(igr.display_name().as_ref());
             }
-            &Item::ItemCookware { index } => {
+            &Item::Cookware { index } => {
                 let cw = &recipe.cookware[index];
                 step_str.push_str(&cw.name);
             }
-            &Item::ItemTimer { index } => {
+            &Item::Timer { index } => {
                 let t = &recipe.timers[index];
                 if let Some(name) = &t.name {
                     write!(&mut step_str, "({name})").unwrap();

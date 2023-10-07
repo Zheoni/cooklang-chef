@@ -68,9 +68,13 @@ export type Quantity = {
 };
 
 export type Value =
-	| { type: 'number'; value: number }
-	| { type: 'range'; value: { start: number; end: number } }
+	| { type: 'number'; value: NumOrFrac }
+	| { type: 'range'; value: { start: NumOrFrac; end: NumOrFrac } }
 	| { type: 'text'; value: string };
+
+export type NumOrFrac =
+	| { type: 'regular'; value: number }
+	| { type: 'fraction'; value: { whole: number; num: number; den: number; err: number } };
 
 export type IngredientListEntry = {
 	index: number;

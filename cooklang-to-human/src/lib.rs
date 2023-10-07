@@ -345,7 +345,7 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
     for item in &step.items {
         match item {
             Item::Text { value } => step_text += value,
-            &Item::ItemIngredient { index } => {
+            &Item::Ingredient { index } => {
                 let igr = &recipe.ingredients[index];
                 write!(
                     &mut step_text,
@@ -358,11 +358,11 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
                     step_igrs_line.push((igr, pos));
                 }
             }
-            &Item::ItemCookware { index } => {
+            &Item::Cookware { index } => {
                 let cookware = &recipe.cookware[index];
                 write!(&mut step_text, "{}", cookware.name.style(styles().cookware)).unwrap();
             }
-            &Item::ItemTimer { index } => {
+            &Item::Timer { index } => {
                 let timer = &recipe.timers[index];
 
                 match (&timer.quantity, &timer.name) {
@@ -440,10 +440,10 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
 
 fn inter_ref_text(igr: &Ingredient, section: &Section) -> Option<String> {
     match igr.relation.references_to() {
-        Some((target_sect, IngredientReferenceTarget::SectionTarget)) => {
+        Some((target_sect, IngredientReferenceTarget::Section)) => {
             Some(format!("section {}", target_sect + 1))
         }
-        Some((target_step, IngredientReferenceTarget::StepTarget)) => {
+        Some((target_step, IngredientReferenceTarget::Step)) => {
             let step = &section.steps[target_step];
             let s = if let Some(target_number) = step.number {
                 format!("step {target_number}")
@@ -484,7 +484,7 @@ fn build_step_igrs_dedup<'a>(
     // contains the exact indices used
     let mut step_igrs_dedup: HashMap<&str, Vec<usize>> = HashMap::new();
     for item in &step.items {
-        if let Item::ItemIngredient { index } = item {
+        if let Item::Ingredient { index } = item {
             let igr = &recipe.ingredients[*index];
             step_igrs_dedup.entry(&igr.name).or_default().push(*index);
         }

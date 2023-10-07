@@ -174,7 +174,7 @@ fn configure_parser(config: &Config, base_path: &Utf8Path) -> Result<CooklangPar
             let units = toml::from_str(&text)?;
             builder.add_units_file(units)?;
         }
-        builder.finish()?
+        builder.finish().context("Can't build unit configuration")?
     } else {
         Converter::default()
     };

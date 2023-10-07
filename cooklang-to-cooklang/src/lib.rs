@@ -68,7 +68,7 @@ fn w_step<D, V: QuantityValue>(
     for item in &step.items {
         match item {
             Item::Text { value } => step_str.push_str(value),
-            &Item::ItemIngredient { index } => {
+            &Item::Ingredient { index } => {
                 let igr = &recipe.ingredients[index];
 
                 let intermediate_data = igr
@@ -87,7 +87,7 @@ fn w_step<D, V: QuantityValue>(
                 }
                 .format(&mut step_str)
             }
-            &Item::ItemCookware { index } => {
+            &Item::Cookware { index } => {
                 let cw = &recipe.cookware[index];
                 ComponentFormatter {
                     kind: ComponentKind::Cookware,
@@ -100,7 +100,7 @@ fn w_step<D, V: QuantityValue>(
                 }
                 .format(&mut step_str)
             }
-            &Item::ItemTimer { index } => {
+            &Item::Timer { index } => {
                 let t = &recipe.timers[index];
                 ComponentFormatter {
                     kind: ComponentKind::Timer,
@@ -251,13 +251,13 @@ fn calculate_intermediate_data(
 
     // TODO maybe use relative references for "close enough" references?
     let d = match target {
-        IngredientReferenceTarget::IngredientTarget => return None,
-        IngredientReferenceTarget::StepTarget => IntermediateData {
+        IngredientReferenceTarget::Ingredient => return None,
+        IngredientReferenceTarget::Step => IntermediateData {
             ref_mode: Index,
             target_kind: Step,
             val: index as i16,
         },
-        IngredientReferenceTarget::SectionTarget => IntermediateData {
+        IngredientReferenceTarget::Section => IntermediateData {
             ref_mode: Index,
             target_kind: Section,
             val: index as i16,

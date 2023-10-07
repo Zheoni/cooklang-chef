@@ -1,6 +1,10 @@
 use anstream::println;
 use clap::Args;
-use cooklang::convert::{ConvertTo, ConvertValue, Converter, System};
+use cooklang::{
+    convert::{ConvertTo, Converter, System},
+    quantity::Number,
+    Quantity, Value,
+};
 
 #[derive(Debug, Args)]
 pub struct ConvertArgs {
@@ -25,22 +29,21 @@ pub fn run(converter: &Converter, args: ConvertArgs) -> anyhow::Result<()> {
     use owo_colors::OwoColorize;
 
     let to = match args.to.as_str() {
-        "fit" => ConvertTo::SameSystem,
+        "fit" | "best" => ConvertTo::SameSystem,
         "metric" => ConvertTo::Best(System::Metric),
         "imperial" => ConvertTo::Best(System::Imperial),
         _ => ConvertTo::Unit(cooklang::convert::ConvertUnit::Key(&args.to)),
     };
 
-    let (value, unit) = converter.convert(args.value.into(), args.unit.as_str().into(), to)?;
+    let mut quantity = Quantity::new(Value::Number(Number::Regular(args.value)), Some(args.unit));
 
-    let ConvertValue::Number(mut n) = value else {
-        panic!("unexpected range value")
-    };
-    if !args.no_round {
-        n = (n * 1000.0).round() / 1000.0;
-    }
+    quantity.convert(to, converter)?;
 
-    println!("{} {}", n, unit.italic());
+    println!(
+        "{:#} {}",
+        quantity.value,
+        quantity.unit_text().unwrap().italic()
+    );
 
     Ok(())
 }

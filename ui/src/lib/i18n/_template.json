@@ -75,5 +75,10 @@
     },
     "timer": {
         "start": null
+    },
+    "quantity": {
+        "roundError": null,
+        "cantConvert": null,
+        "reset": null
     }
 }

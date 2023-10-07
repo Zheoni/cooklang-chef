@@ -11,7 +11,7 @@ use axum::{
     http::{header::CONTENT_TYPE, HeaderValue, Method, Request, StatusCode, Uri},
     middleware::{self, Next},
     response::Response,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
@@ -233,7 +233,8 @@ fn api(state: &AppState) -> Result<Router<Arc<AppState>>> {
         .route("/recipe/metadata", get(all_recipes_metadata))
         .route("/recipe/*path", get(recipe))
         .route("/recipe/metadata/*path", get(recipe_metadata))
-        .route("/recipe/open_editor/*path", get(open_editor));
+        .route("/recipe/open_editor/*path", get(open_editor))
+        .route("/select_conversion", post(select_conversion));
 
     Ok(router)
 }
@@ -647,4 +648,33 @@ impl<T> Report<T> {
             fancy_report,
         }
     }
+}
+
+#[derive(Deserialize, Serialize)]
+struct ConvertQuantity {
+    value: cooklang::Value,
+    unit: String,
+}
+async fn select_conversion(
+    State(state): State<Arc<AppState>>,
+    Json(ConvertQuantity { value, unit }): Json<ConvertQuantity>,
+) -> Result<Json<Vec<cooklang::Quantity<cooklang::Value>>>, StatusCode> {
+    let converter = state.parser.converter();
+
+    let quantity = cooklang::Quantity::new(value, Some(unit));
+    let unit = match quantity.unit().unwrap().unit_info_or_parse(converter) {
+        cooklang::UnitInfo::Known(unit) => unit,
+        cooklang::UnitInfo::Unknown => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let all = converter
+        .best_units(unit.physical_quantity, None)
+        .into_iter()
+        .filter_map(|target| {
+            let mut q = quantity.clone();
+            q.convert(&target, converter).ok()?;
+            Some(q)
+        })
+        .collect();
+    Ok(Json(all))
 }
