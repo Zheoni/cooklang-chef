@@ -399,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-fs"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "camino",
  "cooklang",
@@ -410,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-cooklang"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "cooklang",
  "regex",
@@ -419,7 +419,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-human"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anstyle",
  "anstyle-owo-colors",
@@ -433,7 +433,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-md"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "cooklang",
  "once_cell",
