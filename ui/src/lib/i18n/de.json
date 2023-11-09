@@ -1,0 +1,84 @@
+{
+    "index": {
+        "divideInFolders": "Ordneransicht",
+        "search": "Suche",
+        "noRecipes": "Keine Rezepte gefunden"
+    },
+    "header": {
+        "autoUpdating": "automatische Aktualisierung der Inhalte",
+        "notAutoUpdating": "automatische Aktualisierung der Inhalte deaktiviert. Neu laden, um erneut zu versuchen."
+    },
+    "footer": {
+        "about": "Über",
+        "cookedWith": "Gekocht mit"
+    },
+    "themeToggle": {
+        "label": "Erscheinungsbild",
+        "light": "Hell",
+        "dark": "Dunkel",
+        "system": "System"
+    },
+    "openInEditor": {
+        "error": "Konnte Editor nicht öffnen",
+        "success": "Rezept geöffnet",
+        "text": "In Editor öffnen"
+    },
+    "r": {
+        "warnings": "Warnungen",
+        "meta": {
+            "servings": "Portionen",
+            "author": "Autor",
+            "source": "Quelle",
+            "totalTime": "Zeit insgesamt",
+            "prepTime": "Vorbereitungszeit",
+            "cookTime": "Kochzeit",
+            "moreData": "Weitere Angaben",
+            "added": "Hinzugefügt",
+            "modified": "Geändert",
+            "sourceFile": "Quelldatei"
+        },
+        "convertSelector": {
+            "label": "Einheiten umrechnen",
+            "default": "Standard",
+            "metric": "metrisch",
+            "imperial": "imperial"
+        },
+        "scaleSelector": {
+            "label": "Größenordnung",
+            "presets": "Vorgaben",
+            "reset": "Zurücksetzen"
+        },
+        "ingredients": "Zutaten",
+        "cookware": "Kochutensilien",
+        "optMarker": "wählen",
+        "method": "Zubereitung",
+        "stepIngredientsView": {
+            "label": "Zutatenansicht",
+            "compact": "kompakt",
+            "list": "Liste",
+            "hidden": "versteckt"
+        },
+        "ref": {
+            "fromPrevStep": "aus einem voherigen Schritt",
+            "fromStep": "aus Schritt {{step}}",
+            "fromPrevSect": "aus einem voherigen Abschnitt"
+        }
+    },
+    "outcome": {
+        "error": "Fehler beim Umrechnen",
+        "fixed": "Dieser Wert lässt sich nicht umrechnen"
+    },
+    "error": {
+        "notFound": "Rezept nicht gefunden",
+        "parse": "Fehler beim Verarbeiten des Rezepts",
+        "unknown": "unbekannter Fehler"
+    },
+    "timer": {
+        "start": "Timer starten"
+    },
+    "quantity": {
+        "roundError": "Fehler",
+        "cantConvert": "Bei der Umrechnung der Menge ist ein Fehler aufgetreten.",
+        "reset": "Reset"
+    }
+}

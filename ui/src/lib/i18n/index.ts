@@ -6,6 +6,7 @@ import { derived, get, writable } from 'svelte/store';
 
 register('en', { loader: () => import('./en.json'), emoji: '🇬🇧', name: 'English' });
 register('es', { loader: () => import('./es.json'), emoji: '🇪🇸', name: 'Español' });
+register('de', { loader: () => import('./de.json'), emoji: '🇩🇪', name: 'Deutsche' });
 
 const i18n = rosetta();
 
