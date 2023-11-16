@@ -11,6 +11,10 @@
 	{#await import('./es.svelte') then c}
 		<svelte:component this={c.default} />
 	{/await}
+{:else if $locale === 'de'}
+	{#await import('./de.svelte') then c}
+		<svelte:component this={c.default} />
+	{/await}
 {:else}
 	<En />
 {/if}
