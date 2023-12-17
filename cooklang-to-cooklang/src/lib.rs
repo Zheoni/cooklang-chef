@@ -3,9 +3,9 @@
 use std::{fmt::Write, io};
 
 use cooklang::{
-    ast::{IntermediateData, Modifiers},
     metadata::Metadata,
     model::{Item, Section, Step},
+    parser::{IntermediateData, Modifiers},
     quantity::{Quantity, QuantityValue},
     IngredientReferenceTarget, Recipe,
 };
@@ -52,8 +52,11 @@ fn w_section<D, V: QuantityValue>(
     } else if index > 0 {
         writeln!(w, "====")?;
     }
-    for step in &section.steps {
-        w_step(w, step, recipe)?;
+    for content in &section.content {
+        match content {
+            cooklang::Content::Step(step) => w_step(w, step, recipe)?,
+            cooklang::Content::Text(text) => w_text_block(w, text)?,
+        }
         writeln!(w)?;
     }
     Ok(())
@@ -123,15 +126,24 @@ fn w_step<D, V: QuantityValue>(
         }
     }
     let width = textwrap::termwidth().min(80);
-    let mut options = textwrap::Options::new(width)
+    let options = textwrap::Options::new(width)
         .word_separator(textwrap::WordSeparator::Custom(component_word_separator));
-    if step.is_text() {
-        let indent = "> ";
-        options = options.initial_indent(indent).subsequent_indent(indent);
-    }
     let lines = textwrap::wrap(step_str.trim(), options);
     for line in lines {
-        writeln!(w, "{}", line)?;
+        writeln!(w, "{line}")?;
+    }
+    Ok(())
+}
+
+fn w_text_block(w: &mut impl io::Write, text: &str) -> io::Result<()> {
+    let width = textwrap::termwidth().min(80);
+    let indent = "> ";
+    let options = textwrap::Options::new(width)
+        .initial_indent(indent)
+        .subsequent_indent(indent);
+    let lines = textwrap::wrap(text.trim(), options);
+    for line in lines {
+        writeln!(w, "{line}")?;
     }
     Ok(())
 }
@@ -198,17 +210,17 @@ impl<'a, V: QuantityValue> ComponentFormatter<'a, V> {
                 _ => panic!("Unknown modifier: {:?}", m),
             });
             if m == Modifiers::REF && self.intermediate_data.is_some() {
-                use cooklang::ast::IntermediateRefMode::*;
-                use cooklang::ast::IntermediateTargetKind::*;
+                use cooklang::parser::IntermediateRefMode::*;
+                use cooklang::parser::IntermediateTargetKind::*;
                 let IntermediateData {
                     ref_mode,
                     target_kind,
                     val,
                 } = self.intermediate_data.unwrap();
                 let repr = match (target_kind, ref_mode) {
-                    (Step, Index) => format!("{val}"),
+                    (Step, Number) => format!("{val}"),
                     (Step, Relative) => format!("~{val}"),
-                    (Section, Index) => format!("={val}"),
+                    (Section, Number) => format!("={val}"),
                     (Section, Relative) => format!("=~{val}"),
                 };
                 w.push_str(&format!("({repr})"));
@@ -246,19 +258,19 @@ fn calculate_intermediate_data(
     index: usize,
     target: IngredientReferenceTarget,
 ) -> Option<IntermediateData> {
-    use cooklang::ast::IntermediateRefMode::*;
-    use cooklang::ast::IntermediateTargetKind::*;
+    use cooklang::parser::IntermediateRefMode::*;
+    use cooklang::parser::IntermediateTargetKind::*;
 
     // TODO maybe use relative references for "close enough" references?
     let d = match target {
         IngredientReferenceTarget::Ingredient => return None,
         IngredientReferenceTarget::Step => IntermediateData {
-            ref_mode: Index,
+            ref_mode: Number,
             target_kind: Step,
             val: index as i16,
         },
         IngredientReferenceTarget::Section => IntermediateData {
-            ref_mode: Index,
+            ref_mode: Number,
             target_kind: Section,
             val: index as i16,
         },

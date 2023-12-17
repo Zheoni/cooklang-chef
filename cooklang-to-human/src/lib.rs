@@ -25,12 +25,13 @@ pub type Result<T = ()> = std::result::Result<T, io::Error>;
 
 pub fn print_human(
     recipe: &ScaledRecipe,
+    name: &str,
     converter: &Converter,
     mut writer: impl std::io::Write,
 ) -> Result {
     let w = &mut writer;
 
-    header(w, recipe)?;
+    header(w, recipe, name)?;
     metadata(w, recipe)?;
     ingredients(w, recipe, converter)?;
     cookware(w, recipe)?;
@@ -39,7 +40,7 @@ pub fn print_human(
     Ok(())
 }
 
-fn header(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
+fn header(w: &mut impl io::Write, recipe: &ScaledRecipe, name: &str) -> Result {
     let title_text = format!(
         " {}{} ",
         recipe
@@ -48,7 +49,7 @@ fn header(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             .as_ref()
             .map(|s| format!("{s} "))
             .unwrap_or_default(),
-        recipe.name
+        name
     );
     writeln!(w, "{}", title_text.style(styles().title))?;
     if !recipe.metadata.tags.is_empty() {
@@ -212,17 +213,11 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
         } else {
             row.add_cell("");
         }
-        let content = match quantity.total() {
-            cooklang::quantity::TotalQuantity::None => "".to_string(),
-            cooklang::quantity::TotalQuantity::Single(quantity) => {
-                quantity_fmt(&quantity).style(outcome_style).to_string()
-            }
-            cooklang::quantity::TotalQuantity::Many(list) => list
-                .into_iter()
-                .map(|q| quantity_fmt(&q).style(outcome_style).to_string())
-                .reduce(|s, q| format!("{s}, {q}"))
-                .unwrap(),
-        };
+        let content = quantity
+            .iter()
+            .map(|q| quantity_fmt(q).style(outcome_style).to_string())
+            .reduce(|s, q| format!("{s}, {q}"))
+            .unwrap_or_default();
         row.add_ansi_cell(format!("{content}{}", outcome_char.style(outcome_style)));
 
         if let Some(note) = &igr.note {
@@ -268,10 +263,16 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             },
         );
 
-        if let Some(q) = &item.quantity {
-            row.add_cell(q.to_string());
-        } else {
+        let amount = item.group_amounts(&recipe.cookware);
+        if amount.is_empty() {
             row.add_cell("");
+        } else {
+            let t = amount
+                .iter()
+                .map(|q| q.to_string())
+                .reduce(|s, q| format!("{s}, {q}"))
+                .unwrap();
+            row.add_ansi_cell(t);
         }
 
         if let Some(note) = &item.note {
@@ -302,38 +303,29 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             writeln!(w, "{}:", name.style(styles().section_name))?;
         }
 
-        for step in &section.steps {
-            let (step_text, step_ingredients) = step_text(recipe, section, step);
-            if step.is_text() {
-                print_wrapped_with_options(w, step_text.trim(), |o| o.initial_indent(" "))?;
-                writeln!(w)?;
-            } else {
-                write!(w, "{:>2}. ", step.number.unwrap())?;
-                print_wrapped_with_options(w, step_text.trim(), |o| o.subsequent_indent("    "))?;
-            }
-            if let Some(step_ingredients) = step_ingredients {
-                print_wrapped_with_options(w, &step_ingredients, |o| {
-                    let indent = "     "; // 5
-                    o.initial_indent(indent).subsequent_indent(indent)
-                })?;
+        for content in &section.content {
+            match content {
+                cooklang::Content::Step(step) => {
+                    let (step_text, step_ingredients) = step_text(recipe, section, step);
+                    let step_text = format!("{:>2}. {}", step.number, step_text.trim());
+                    print_wrapped_with_options(w, &step_text, |o| o.subsequent_indent("    "))?;
+                    print_wrapped_with_options(w, &step_ingredients, |o| {
+                        let indent = "     "; // 5
+                        o.initial_indent(indent).subsequent_indent(indent)
+                    })?;
+                }
+                cooklang::Content::Text(t) => {
+                    writeln!(w)?;
+                    print_wrapped_with_options(w, t.trim(), |o| o.initial_indent("  "))?;
+                    writeln!(w)?;
+                }
             }
         }
     }
     Ok(())
 }
 
-fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, Option<String>) {
-    if step.is_text() {
-        let mut step_text = String::new();
-        for item in &step.items {
-            if let Item::Text { value } = item {
-                step_text.push_str(value);
-            } else {
-                panic!("Not text in text step");
-            }
-        }
-        return (step_text, None);
-    }
+fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, String) {
     let mut step_text = String::new();
 
     let step_igrs_dedup = build_step_igrs_dedup(step, recipe);
@@ -403,7 +395,7 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
     // This is only for the line where ingredients are placed
 
     if step_igrs_line.is_empty() {
-        return (step_text, Some("[-]".into()));
+        return (step_text, "[-]".into());
     }
     let mut igrs_text = String::from("[");
     for (i, (igr, pos)) in step_igrs_line.iter().enumerate() {
@@ -435,7 +427,7 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
         }
     }
     igrs_text += "]";
-    (step_text, Some(igrs_text))
+    (step_text, igrs_text)
 }
 
 fn inter_ref_text(igr: &Ingredient, section: &Section) -> Option<String> {
@@ -444,33 +436,8 @@ fn inter_ref_text(igr: &Ingredient, section: &Section) -> Option<String> {
             Some(format!("section {}", target_sect + 1))
         }
         Some((target_step, IngredientReferenceTarget::Step)) => {
-            let step = &section.steps[target_step];
-            let s = if let Some(target_number) = step.number {
-                format!("step {target_number}")
-            } else {
-                let from = section.steps[..target_step]
-                    .iter()
-                    .rev()
-                    .find_map(|s| s.number);
-                let to = section.steps[target_step..].iter().find_map(|s| s.number);
-                match (from, to) {
-                    (Some(from), Some(to)) => {
-                        format!("between steps {from}-{to}")
-                    }
-                    // It means that the text step is the first one or
-                    // that all steps before this are also text steps
-                    (None, Some(_to)) => "text before steps".to_string(),
-                    // for this to happen, the text step should be the last
-                    // in the section. Because a text step cannot contain
-                    // references, and a reference is always to past steps,
-                    // this cannot occur.
-                    (Some(_from), None) => {
-                        panic!("impossible intermediate reference")
-                    }
-                    (None, None) => "text before".to_string(),
-                }
-            };
-            Some(s)
+            let step = &section.content[target_step].unwrap_step();
+            Some(format!("step {}", step.number))
         }
         _ => None,
     }

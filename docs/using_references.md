@@ -122,12 +122,12 @@ with some more @flour{5%g}.
 [- ... -]
 ```
 
-## Using intermediate ingredients
+## Using intermediate preparations
 _This is another extension extending the modifiers extension._
 
-The last thing we can reference are ingredients that we create during the
+The last thing we can reference are preparations that we create during the
 recipe. For example, in step 3 we shape the dough from the last step. We can
-express that with intermediate ingredients references.
+express that with and ingredient reference to the last step.
 ```cooklang
 [- ... -]
 Sprinkle work surface with @flour{10%g} and shape the @&(~1)dough. Sprinkle the

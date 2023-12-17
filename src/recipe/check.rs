@@ -26,8 +26,14 @@ pub struct CheckArgs {
 pub fn run(ctx: &Context, args: CheckArgs) -> Result<()> {
     let input = args.input.read(&ctx.recipe_index)?;
     let res = input.parse_result(ctx)?;
-    let n_warns = res.warnings().len();
-    let n_errs = res.errors().len();
+    let mut n_warns = 0;
+    let mut n_errs = 0;
+    for err in res.report().iter() {
+        match err.severity {
+            cooklang::error::Severity::Error => n_errs += 1,
+            cooklang::error::Severity::Warning => n_warns += 1,
+        }
+    }
 
     let file_name = match &input {
         Input::File { content, .. } => content.file_name(),
@@ -35,7 +41,8 @@ pub fn run(ctx: &Context, args: CheckArgs) -> Result<()> {
     };
 
     let recipe = if args.count {
-        let valid = res.is_valid() && !(res.has_warnings() && ctx.global_args.warnings_as_errors);
+        let valid =
+            res.is_valid() && !(res.report().has_warnings() && ctx.global_args.warnings_as_errors);
         res.into_output().filter(|_| valid)
     } else {
         unwrap_recipe(res, file_name, input.text(), ctx).ok()

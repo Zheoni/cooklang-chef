@@ -437,8 +437,8 @@ async fn recipe(
 
     let recipe = state
         .parser
-        .parse(&content, entry.name())
-        .try_map(|recipe| -> Result<_, StatusCode> {
+        .parse(&content)
+        .map(|recipe| {
             let mut scaled = if let Some(servings) = query.scale {
                 recipe.scale(servings, state.parser.converter())
             } else {
@@ -450,13 +450,14 @@ async fn recipe(
                     tracing::warn!("Errors converting units: {errors:?}");
                 }
             }
-            Ok(scaled)
-        })?
+            scaled
+        })
         .map(|r| {
             #[derive(Serialize)]
             struct ApiRecipe {
                 #[serde(flatten)]
                 recipe: cooklang::ScaledRecipe,
+                name: String,
                 grouped_ingredients: Vec<serde_json::Value>,
                 timers_seconds: Vec<Option<cooklang::Value>>,
                 filtered_metadata: Vec<serde_json::Value>,
@@ -469,7 +470,7 @@ async fn recipe(
                 .map(|entry| {
                     serde_json::json!({
                         "index": entry.index,
-                        "quantity": entry.quantity.total().into_vec(),
+                        "quantity": entry.quantity.into_vec(),
                         "outcome": entry.outcome
                     })
                 })
@@ -497,6 +498,7 @@ async fn recipe(
 
             let api_recipe = ApiRecipe {
                 external_image: r.metadata.map.get("image").cloned(),
+                name: entry.name().to_string(),
                 recipe: r,
                 grouped_ingredients,
                 timers_seconds,
@@ -619,25 +621,21 @@ struct Report<T> {
 }
 
 impl<T> Report<T> {
-    fn from_pass_result<E, W>(
-        value: PassResult<T, E, W>,
+    fn from_pass_result(
+        res: PassResult<T>,
         file_name: &str,
         source_code: &str,
         color: bool,
-    ) -> Self
-    where
-        E: cooklang::error::RichError,
-        W: cooklang::error::RichError,
-    {
-        let (value, w, e) = value.into_tuple();
-        let warnings: Vec<_> = w.iter().map(|w| w.to_string()).collect();
-        let errors: Vec<_> = e.iter().map(|e| e.to_string()).collect();
+    ) -> Self {
+        let (value, report) = res.into_tuple();
+        let warnings: Vec<_> = report.warnings().map(|w| w.to_string()).collect();
+        let errors: Vec<_> = report.errors().map(|e| e.to_string()).collect();
         let fancy_report = if warnings.is_empty() && errors.is_empty() {
             None
         } else {
             let mut buf = Vec::new();
-            cooklang::error::Report::new(e, w)
-                .write(file_name, source_code, false, color, &mut buf)
+            report
+                .write(file_name, source_code, color, &mut buf)
                 .expect("Write fancy report");
             Some(String::from_utf8_lossy(&buf).into_owned())
         };

@@ -39,15 +39,11 @@ impl Input {
     pub fn parse_result(&self, ctx: &Context) -> Result<cooklang::RecipeResult> {
         let parser = ctx.parser()?;
         let r = match self {
-            Input::File { content, .. } => parser.parse_with_recipe_ref_checker(
-                content.text(),
-                self.name(),
-                ctx.checker(Some(content.path())),
-            ),
-            Input::Stdin {
-                text,
-                name: recipe_name,
-            } => parser.parse_with_recipe_ref_checker(text, recipe_name, ctx.checker(None)),
+            Input::File { content, .. } => parser
+                .parse_with_recipe_ref_checker(content.text(), ctx.checker(Some(content.path()))),
+            Input::Stdin { text, .. } => {
+                parser.parse_with_recipe_ref_checker(text, ctx.checker(None))
+            }
         };
         Ok(r)
     }
@@ -83,13 +79,12 @@ pub fn unwrap_recipe(
     text: &str,
     ctx: &Context,
 ) -> Result<cooklang::ScalableRecipe> {
-    if !r.is_valid() || ctx.global_args.warnings_as_errors && r.has_warnings() {
-        r.into_report().eprint(
-            file_name,
-            text,
-            ctx.global_args.ignore_warnings,
-            ctx.color.color_stderr,
-        )?;
+    if !r.is_valid() || ctx.global_args.warnings_as_errors && r.report().has_warnings() {
+        let mut report = r.into_report();
+        if ctx.global_args.ignore_warnings {
+            report.remove_warnings();
+        }
+        report.eprint(file_name, text, ctx.color.color_stderr)?;
         bail!("Error parsing recipe");
     } else {
         let (recipe, warnings) = r.into_result().unwrap();

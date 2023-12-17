@@ -329,9 +329,9 @@ dependencies = [
 
 [[package]]
 name = "cooklang"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15f791d83992ded29fc151f3b54e10cde09d85d5129f6ade9dc3a0cf30ca519b"
+checksum = "fb7af841783b8d377adac6ae5d6eec0406d358826fe0178dd608cb585984dffc"
 dependencies = [
  "ariadne",
  "bitflags 2.4.0",
@@ -339,7 +339,6 @@ dependencies = [
  "emojis",
  "enum-map",
  "finl_unicode",
- "humantime",
  "indexmap",
  "once_cell",
  "pest",
@@ -351,6 +350,7 @@ dependencies = [
  "thiserror",
  "toml",
  "tracing",
+ "unicase",
  "url",
 ]
 
@@ -373,6 +373,7 @@ dependencies = [
  "cooklang-to-md",
  "debounced",
  "directories",
+ "enum-map",
  "futures",
  "humantime",
  "inquire",
@@ -585,9 +586,9 @@ dependencies = [
 
 [[package]]
 name = "enum-map"
-version = "2.6.3"
+version = "2.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c188012f8542dee7b3996e44dd89461d64aa471b0a7c71a1ae2f595d259e96e5"
+checksum = "6866f3bfdf8207509a033af1a75a7b08abda06bbaaeae6669323fd5a097df2e9"
 dependencies = [
  "enum-map-derive",
  "serde",
@@ -595,9 +596,9 @@ dependencies = [
 
 [[package]]
 name = "enum-map-derive"
-version = "0.14.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04d0b288e3bb1d861c4403c1774a6f7a798781dfc519b3647df2a3dd4ae95f25"
+checksum = "f282cfdfe92516eb26c2af8589c274c7c17681f5ecc03c18255fe741c6aa64eb"
 dependencies = [
  "proc-macro2",
  "quote",

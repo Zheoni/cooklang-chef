@@ -25,12 +25,13 @@ pub type Result<T = ()> = std::result::Result<T, Error>;
 
 pub fn print_md(
     recipe: &ScaledRecipe,
+    name: &str,
     converter: &Converter,
     mut writer: impl io::Write,
 ) -> Result {
     frontmatter(&mut writer, &recipe.metadata)?;
 
-    writeln!(writer, "# {}", recipe.name)?;
+    writeln!(writer, "# {}", name)?;
     for tag in &recipe.metadata.tags {
         write!(writer, "#{tag} ")?;
     }
@@ -105,16 +106,8 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
         }
 
         write!(w, "- ")?;
-        let q = match entry.quantity.total() {
-            cooklang::quantity::TotalQuantity::None => None,
-            cooklang::quantity::TotalQuantity::Single(q) => Some(q.to_string()),
-            cooklang::quantity::TotalQuantity::Many(m) => m
-                .into_iter()
-                .map(|q| q.to_string())
-                .reduce(|s, q| format!("{s}, {q}")),
-        };
-        if let Some(q) = q {
-            write!(w, "*{q}* ")?;
+        if !entry.quantity.is_empty() {
+            write!(w, "*{}* ", entry.quantity)?;
         }
 
         write!(w, "{}", ingredient.display_name())?;
@@ -139,22 +132,19 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     }
 
     writeln!(w, "## Cookware")?;
-    for item in recipe
-        .cookware
-        .iter()
-        .filter(|cw| cw.modifiers().should_be_listed())
-    {
+    for item in recipe.group_cookware() {
+        let cw = item.cookware;
         write!(w, "- ")?;
-        if let Some(value) = &item.quantity {
-            write!(w, "*{value}* ")?;
+        if !item.amount.is_empty() {
+            write!(w, "*{}* ", item.amount)?;
         }
-        write!(w, "{}", item.display_name())?;
+        write!(w, "{}", cw.display_name())?;
 
-        if item.modifiers().is_optional() {
+        if cw.modifiers().is_optional() {
             write!(w, " (optional)")?;
         }
 
-        if let Some(note) = &item.note {
+        if let Some(note) = &cw.note {
             write!(w, " ({note})")?;
         }
         writeln!(w)?;
@@ -185,8 +175,11 @@ fn w_section(
             writeln!(w, "### Section {idx}")?;
         }
     }
-    for step in &section.steps {
-        w_step(w, step, recipe)?;
+    for content in &section.content {
+        match content {
+            cooklang::Content::Step(step) => w_step(w, step, recipe)?,
+            cooklang::Content::Text(text) => print_wrapped(w, text)?,
+        };
         writeln!(w)?;
     }
     Ok(())
@@ -195,9 +188,7 @@ fn w_section(
 fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> Result {
     let mut step_str = String::new();
 
-    if let Some(number) = step.number {
-        write!(&mut step_str, "{}. ", number).unwrap();
-    }
+    step_str += &format!("{}. ", step.number);
 
     for item in &step.items {
         match item {

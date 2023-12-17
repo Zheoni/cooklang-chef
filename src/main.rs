@@ -140,7 +140,9 @@ impl Context {
         } else {
             let relative_to = relative_to.map(|r| r.to_path_buf());
             Some(Box::new(move |name: &str| {
-                resolve_recipe(name, &self.recipe_index, relative_to.as_deref()).is_ok()
+                resolve_recipe(name, &self.recipe_index, relative_to.as_deref())
+                    .is_ok()
+                    .into() // TODO: add custom help and note
             }) as cooklang::RecipeRefChecker)
         }
     }
@@ -149,11 +151,9 @@ impl Context {
         &self,
         content: &cooklang_fs::RecipeContent,
     ) -> Result<cooklang::RecipeResult> {
-        Ok(self.parser()?.parse_with_recipe_ref_checker(
-            content.text(),
-            content.name(),
-            self.checker(Some(content.path())),
-        ))
+        Ok(self
+            .parser()?
+            .parse_with_recipe_ref_checker(content.text(), self.checker(Some(content.path()))))
     }
 }
 
@@ -176,7 +176,7 @@ fn configure_parser(config: &Config, base_path: &Utf8Path) -> Result<CooklangPar
         }
         builder.finish().context("Can't build unit configuration")?
     } else {
-        Converter::default()
+        Converter::empty()
     };
     Ok(CooklangParser::new(config.extensions, converter))
 }

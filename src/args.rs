@@ -57,6 +57,10 @@ pub struct GlobalArgs {
     #[arg(long, action = clap::ArgAction::Append, global = true)]
     pub units: Vec<Utf8PathBuf>,
 
+    /// Make the `units` arg remove the other file(s)
+    #[arg(long, hide_short_help = true, global = true)]
+    pub override_units: bool,
+
     /// Do not use the bundled units
     #[arg(long, hide_short_help = true, global = true)]
     pub no_default_units: bool,

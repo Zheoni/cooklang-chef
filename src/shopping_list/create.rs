@@ -4,7 +4,8 @@ use clap::{Args, CommandFactory, ValueEnum};
 use cooklang::{
     aisle::AisleConf,
     ingredient_list::IngredientList,
-    quantity::{GroupedQuantity, Quantity, TotalQuantity, Value},
+    quantity::{GroupedQuantity, Quantity, Value},
+    ScaledQuantity,
 };
 use cooklang_fs::resolve_recipe;
 use serde::Serialize;
@@ -121,23 +122,13 @@ fn extract_ingredients(entry: &str, list: &mut IngredientList, ctx: &Context) ->
     Ok(())
 }
 
-fn total_quantity_fmt(qty: &TotalQuantity, row: &mut tabular::Row) {
-    match qty {
-        cooklang::quantity::TotalQuantity::None => {
-            row.add_cell("");
-        }
-        cooklang::quantity::TotalQuantity::Single(quantity) => {
-            row.add_ansi_cell(quantity_fmt(quantity));
-        }
-        cooklang::quantity::TotalQuantity::Many(list) => {
-            let list = list
-                .iter()
-                .map(quantity_fmt)
-                .reduce(|s, q| format!("{s}, {q}"))
-                .unwrap();
-            row.add_ansi_cell(list);
-        }
-    };
+fn grouped_qty_fmt(qty: &GroupedQuantity, row: &mut tabular::Row) {
+    let content = qty
+        .iter()
+        .map(quantity_fmt)
+        .reduce(|s, q| format!("{s}, {q}"))
+        .unwrap_or_default();
+    row.add_ansi_cell(content);
 }
 
 fn quantity_fmt(qty: &Quantity) -> String {
@@ -157,7 +148,7 @@ fn build_human_table(list: IngredientList, aisle: &AisleConf, plain: bool) -> ta
     if plain {
         for (igr, q) in list {
             let mut row = tabular::Row::new().with_cell(igr);
-            total_quantity_fmt(&q.total(), &mut row);
+            grouped_qty_fmt(&q, &mut row);
             table.add_row(row);
         }
     } else {
@@ -166,7 +157,7 @@ fn build_human_table(list: IngredientList, aisle: &AisleConf, plain: bool) -> ta
             table.add_heading(format!("[{}]", cat.green()));
             for (igr, q) in items {
                 let mut row = tabular::Row::new().with_cell(igr);
-                total_quantity_fmt(&q.total(), &mut row);
+                grouped_qty_fmt(&q, &mut row);
                 table.add_row(row);
             }
         }
@@ -192,33 +183,15 @@ fn build_json_value<'a>(
         }
     }
     #[derive(Serialize)]
-    #[serde(untagged)]
-    enum TotalQuantity {
-        None,
-        Single(Quantity),
-        Many(Vec<Quantity>),
-    }
-    impl From<cooklang::quantity::TotalQuantity> for TotalQuantity {
-        fn from(value: cooklang::quantity::TotalQuantity) -> Self {
-            match value {
-                cooklang::quantity::TotalQuantity::None => TotalQuantity::None,
-                cooklang::quantity::TotalQuantity::Single(q) => TotalQuantity::Single(q.into()),
-                cooklang::quantity::TotalQuantity::Many(v) => {
-                    TotalQuantity::Many(v.into_iter().map(|q| q.into()).collect())
-                }
-            }
-        }
-    }
-    #[derive(Serialize)]
     struct Ingredient {
         name: String,
-        quantity: TotalQuantity,
+        quantity: Vec<ScaledQuantity>,
     }
     impl From<(String, GroupedQuantity)> for Ingredient {
         fn from((name, qty): (String, GroupedQuantity)) -> Self {
             Ingredient {
                 name,
-                quantity: qty.total().into(),
+                quantity: qty.into_vec(),
             }
         }
     }

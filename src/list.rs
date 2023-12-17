@@ -76,10 +76,10 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
             if args.check || args.images {
                 if args.check {
                     let report = entry.parsed(ctx)?;
-                    if report.has_errors() {
+                    if report.report().has_errors() {
                         with_errors += 1;
                     }
-                    if report.has_warnings() {
+                    if report.report().has_warnings() {
                         with_warnings += 1;
                     }
                 }

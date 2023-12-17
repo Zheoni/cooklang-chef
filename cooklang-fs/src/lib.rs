@@ -373,7 +373,7 @@ impl RecipeContent {
     }
 
     pub fn parse(&self, parser: &cooklang::CooklangParser) -> cooklang::RecipeResult {
-        parser.parse(&self.content, self.entry.name())
+        parser.parse(&self.content)
     }
 
     pub fn parse_with_recipe_ref_checker(
@@ -381,7 +381,7 @@ impl RecipeContent {
         parser: &cooklang::CooklangParser,
         checker: Option<cooklang::RecipeRefChecker>,
     ) -> cooklang::RecipeResult {
-        parser.parse_with_recipe_ref_checker(&self.content, self.entry.name(), checker)
+        parser.parse_with_recipe_ref_checker(&self.content, checker)
     }
 
     pub fn text(&self) -> &str {
@@ -500,7 +500,7 @@ pub fn check_recipe_images<D, V: QuantityValue>(
                 continue;
             };
 
-            if step as usize >= recipe_section.steps.len() {
+            if step as usize >= recipe_section.content.len() {
                 errors.push(RecipeImageError::MissingStep {
                     section,
                     step,

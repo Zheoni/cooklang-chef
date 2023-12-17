@@ -88,7 +88,7 @@ pub fn run(converter: &Converter, args: UnitsArgs) -> Result<()> {
         dump_units(converter);
     } else if args.count {
         if args.long {
-            let unit_count = converter.unit_count_detailed();
+            let unit_count = UnitCount::new(converter);
             let table = unit_count_table(&unit_count);
             println!("{table}");
         } else {
@@ -216,7 +216,33 @@ fn filter_units(args: &UnitsArgs) -> impl Fn(&&cooklang::convert::Unit) -> bool 
     }
 }
 
-fn unit_count_table(unit_count: &cooklang::convert::UnitCount) -> tabular::Table {
+struct UnitCount {
+    all: usize,
+    by_system: enum_map::EnumMap<cooklang::convert::System, usize>,
+    by_quantity: enum_map::EnumMap<cooklang::convert::PhysicalQuantity, usize>,
+}
+
+impl UnitCount {
+    fn new(converter: &Converter) -> Self {
+        let mut all = 0;
+        let mut by_system = enum_map::EnumMap::default();
+        let mut by_quantity = enum_map::EnumMap::default();
+        for unit in converter.all_units() {
+            all += 1;
+            if let Some(s) = unit.system {
+                by_system[s] += 1;
+            }
+            by_quantity[unit.physical_quantity] += 1;
+        }
+        Self {
+            all,
+            by_quantity,
+            by_system,
+        }
+    }
+}
+
+fn unit_count_table(unit_count: &UnitCount) -> tabular::Table {
     let mut table = tabular::Table::new("{:>}  {:<}");
     table.add_row(tabular::row!("total", unit_count.all));
     table.add_heading("by system");

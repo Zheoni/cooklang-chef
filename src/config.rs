@@ -168,11 +168,12 @@ impl Config {
         }
         self.max_depth = args.max_depth;
         if !args.units.is_empty() {
-            self.load.units = args
-                .units
-                .iter()
-                .filter_map(|p| p.canonicalize().ok())
-                .collect();
+            let new_units = args.units.iter().flat_map(|p| p.canonicalize().ok());
+            if args.override_units {
+                self.load.units = new_units.collect();
+            } else {
+                self.load.units.extend(new_units);
+            }
         }
     }
 
