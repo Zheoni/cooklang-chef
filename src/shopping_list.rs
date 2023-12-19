@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Context as _, Result};
 use camino::Utf8PathBuf;
 use clap::{Args, CommandFactory, ValueEnum};
 use cooklang::{
@@ -13,7 +13,7 @@ use serde::Serialize;
 use crate::{util::write_to_output, util::Input, Context};
 
 #[derive(Debug, Args)]
-pub struct CreateArgs {
+pub struct ShoppingListArgs {
     /// Recipe to add to the list
     ///
     /// Name or path to the file. It will use the default scaling of the recipe.
@@ -37,6 +37,10 @@ pub struct CreateArgs {
     /// Pretty output format, if available
     #[arg(long)]
     pretty: bool,
+
+    /// Load aisle conf file
+    #[arg(short, long)]
+    aisle: Option<Utf8PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -45,7 +49,38 @@ enum OutputFormat {
     Json,
 }
 
-pub fn run(ctx: &Context, aisle: AisleConf, args: CreateArgs) -> Result<()> {
+pub fn run(ctx: &Context, mut args: ShoppingListArgs) -> Result<()> {
+    let aisle_conf = args
+        .aisle
+        .or_else(|| ctx.config.aisle(&ctx.base_path))
+        .map(|path| -> Result<_> {
+            let content = std::fs::read_to_string(&path).context("Failed to read aisle file")?;
+            Ok((content, path))
+        })
+        .transpose()?;
+
+    let aisle = aisle_conf
+        .as_ref()
+        .map(|(content, path)| {
+            let res = cooklang::aisle::parse(&content);
+            if let Err(e) = res {
+                cooklang::error::write_rich_error(
+                    &e,
+                    path.as_str(),
+                    &content,
+                    true,
+                    anstream::stderr().lock(),
+                )?;
+                bail!("Error parsing aisle file")
+            }
+            Ok(res.unwrap()) // anyhow
+        })
+        .transpose()?;
+    let aisle = aisle.unwrap_or_default();
+    if aisle.categories.is_empty() {
+        args.plain = true;
+    }
+
     let format = args.format.unwrap_or_else(|| match &args.output {
         Some(p) => match p.extension() {
             Some("json") => OutputFormat::Json,

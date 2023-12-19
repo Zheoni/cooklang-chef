@@ -17,15 +17,15 @@ pub const CONFIG_FILE: &str = "config.toml";
 pub const AUTO_AISLE: &str = "aisle.conf";
 pub const AUTO_UNITS: &str = "units.toml";
 pub const DEFAULT_CONFIG_FILE: &str = "default-config.toml";
-pub const GLOBAL_CONFIG_FILE: &str = "global-config.toml";
+pub const CHEF_CONFIG_FILE: &str = "chef-config.toml";
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct GlobalConfig {
+pub struct ChefConfig {
     pub default_collection: Option<Utf8PathBuf>,
     pub editor_command: Option<Vec<String>>,
 }
 
-impl GlobalConfig {
+impl ChefConfig {
     pub fn editor(&self) -> Result<Vec<String>> {
         let cmd = if let Some(custom) = &self.editor_command {
             if custom.is_empty() {
@@ -54,7 +54,7 @@ impl GlobalConfig {
 }
 
 #[allow(clippy::derivable_impls)] // I like to see the exact defaults of the config
-impl Default for GlobalConfig {
+impl Default for ChefConfig {
     fn default() -> Self {
         Self {
             default_collection: None,

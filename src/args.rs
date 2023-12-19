@@ -24,11 +24,11 @@ pub struct CliArgs {
 
 #[derive(Debug, Subcommand, strum::Display)]
 pub enum Command {
-    /// Manage recipe files
-    #[command(alias = "r")]
-    Recipe(recipe::RecipeArgs),
+    /// Read a recipe
+    #[command(alias = "read", visible_alias = "r")]
+    Recipe(recipe::ReadArgs),
     /// List all the recipes
-    #[command(alias = "l", visible_alias = "ls")]
+    #[command(visible_alias = "ls")]
     List(list::ListArgs),
     #[cfg(feature = "serve")]
     /// Recipes web server
@@ -36,14 +36,14 @@ pub enum Command {
     /// Creates a shopping list from a given list of recipes
     #[command(visible_alias = "sl")]
     ShoppingList(shopping_list::ShoppingListArgs),
-    /// Manage unit files
+    /// List loaded units
     Units(units::UnitsArgs),
-    /// Convert values and units
+    /// Convert values to other units
     #[command(visible_alias = "c")]
     Convert(convert::ConvertArgs),
     /// See loaded configuration
     Config(config_cmd::ConfigArgs),
-    /// Manage recipe collections
+    /// Manage the recipe collection
     Collection(collection::CollectionArgs),
     /// Generate shell completions
     GenerateCompletions(generate_completions::GenerateCompletionsArgs),
@@ -54,7 +54,7 @@ pub enum Command {
 #[derive(Debug, Args)]
 pub struct GlobalArgs {
     /// A units TOML file
-    #[arg(long, action = clap::ArgAction::Append, global = true)]
+    #[arg(long, action = clap::ArgAction::Append, hide_short_help = true, global = true)]
     pub units: Vec<Utf8PathBuf>,
 
     /// Make the `units` arg remove the other file(s)
@@ -66,18 +66,30 @@ pub struct GlobalArgs {
     pub no_default_units: bool,
 
     /// Disable all extensions
-    #[arg(long, alias = "no-default-extensions", group = "ext", global = true)]
+    #[arg(
+        long,
+        alias = "no-default-extensions",
+        group = "ext",
+        hide_short_help = true,
+        global = true
+    )]
     pub no_extensions: bool,
 
     /// Enable all extensions
-    #[arg(long, group = "ext", global = true)]
+    #[arg(long, group = "ext", hide_short_help = true, global = true)]
     pub all_extensions: bool,
 
     /// Enables a subset of the extensions
     ///
     /// Enable only certain extensions to maximise compatibility with other
     /// cooklang parsers.
-    #[arg(long, alias = "compat", group = "ext", global = true)]
+    #[arg(
+        long,
+        alias = "compat",
+        group = "ext",
+        hide_short_help = true,
+        global = true
+    )]
     pub compat_extensions: bool,
 
     /// Enable a set of extensions
@@ -109,7 +121,7 @@ pub struct GlobalArgs {
     #[command(flatten)]
     pub color: colorchoice_clap::Color,
 
-    /// Change the base path. By default uses the current working directory.
+    /// Change the base path
     ///
     /// This path is used to load configuration files, search for images and
     /// recipe references.

@@ -3,7 +3,7 @@ use anyhow::{bail, Context as _, Result};
 use args::{CliArgs, Command, GlobalArgs};
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::Parser;
-use config::{global_load, Config, GlobalConfig, GLOBAL_CONFIG_FILE};
+use config::{global_load, ChefConfig, Config, CHEF_CONFIG_FILE};
 use cooklang::{convert::ConverterBuilder, Converter, CooklangParser};
 use cooklang_fs::{resolve_recipe, FsIndex};
 use once_cell::sync::OnceCell;
@@ -86,14 +86,14 @@ pub struct Context {
     global_args: GlobalArgs,
     base_path: Utf8PathBuf,
     config: config::Config,
-    global_config: config::GlobalConfig,
+    chef_config: config::ChefConfig,
     color: ColorContext,
 }
 
 #[tracing::instrument(level = "debug", skip_all)]
 fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Context> {
-    let global_config: GlobalConfig =
-        global_load(GLOBAL_CONFIG_FILE).context("Error loading global config file")?;
+    let chef_config: ChefConfig =
+        global_load(CHEF_CONFIG_FILE).context("Error loading global config file")?;
 
     let base_path = args
         .path
@@ -103,7 +103,7 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
                 .is_dir()
                 .then_some(Utf8Path::new("."))
         })
-        .or(global_config.default_collection.as_deref())
+        .or(chef_config.default_collection.as_deref())
         .unwrap_or(Utf8Path::new("."))
         .to_path_buf();
 
@@ -121,7 +121,7 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
         parser: OnceCell::new(),
         recipe_index: index,
         config,
-        global_config,
+        chef_config,
         global_args: args,
         base_path,
         color: color_ctx,
@@ -140,9 +140,15 @@ impl Context {
         } else {
             let relative_to = relative_to.map(|r| r.to_path_buf());
             Some(Box::new(move |name: &str| {
-                resolve_recipe(name, &self.recipe_index, relative_to.as_deref())
-                    .is_ok()
-                    .into() // TODO: add custom help and note
+                if resolve_recipe(name, &self.recipe_index, relative_to.as_deref()).is_ok() {
+                    cooklang::RecipeRefCheckResult::Found
+                } else {
+                    cooklang::RecipeRefCheckResult::NotFound {
+                        hints: vec![
+                            "The name must match exactly except lower and upper case.".into()
+                        ],
+                    }
+                }
             }) as cooklang::RecipeRefChecker)
         }
     }

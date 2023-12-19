@@ -98,8 +98,8 @@ guaranteed.
 ## Configuration
 A configuration [TOML](https://toml.io) file will be loaded by the CLI. First,
 it will try to load it from `.cooklang/config.toml`, if that cannot be found, a
-global configuration file will be loaded. If it does not exist, it will be
-created with default values.
+global default configuration file will be loaded. If it does not exist, it will
+be created with default values.
 
 The configuration file can be override with the CLI args.
 

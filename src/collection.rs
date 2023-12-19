@@ -1,13 +1,13 @@
 use std::fs;
 
-use anyhow::{bail, Context as _, Result};
+use anyhow::{anyhow, bail, Context as _, Result};
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Args, Subcommand};
 
 use crate::{
     config::{
-        config_file_path, global_file_path, global_store, store_at_path, Config, GlobalConfig,
-        DEFAULT_CONFIG_FILE, GLOBAL_CONFIG_FILE,
+        config_file_path, global_file_path, global_store, store_at_path, ChefConfig, Config,
+        CHEF_CONFIG_FILE, DEFAULT_CONFIG_FILE,
     },
     Context, COOK_DIR,
 };
@@ -30,13 +30,15 @@ enum Command {
         #[arg(long, alias = "default")]
         set_default: bool,
     },
-    /// Set or get the default collection
-    Default {
+    /// Set the default collection
+    Set {
         #[arg(value_name = "PATH", conflicts_with = "path")]
         default_path: Option<Utf8PathBuf>,
-        #[arg(long, conflicts_with_all = ["path", "default_path"])]
-        remove: bool,
     },
+    /// Get the default collection
+    Get,
+    /// Removes the default collection
+    Unset,
 }
 
 pub fn run(ctx: &Context, args: CollectionArgs) -> Result<()> {
@@ -57,24 +59,27 @@ pub fn run(ctx: &Context, args: CollectionArgs) -> Result<()> {
                 }
             }
             if set_default {
-                set_default_collection(&ctx.global_config, Some(path))?;
+                set_default_collection(&ctx.chef_config, Some(path))?;
             }
         }
-        Command::Default {
-            default_path: path,
-            remove,
-        } => {
-            if remove {
-                return set_default_collection(&ctx.global_config, None);
+        Command::Set { default_path: path } => {
+            let path = path
+                .or_else(|| Utf8PathBuf::from_path_buf(std::env::current_dir().ok()?).ok())
+                .ok_or(anyhow!("Invalid collection path"))?;
+            if !path.is_dir() {
+                bail!("The path is not a dir: {path}");
             }
-
-            if let Some(path) = path {
-                if path.is_dir() && path.join(COOK_DIR).is_dir() {
-                    set_default_collection(&ctx.global_config, Some(path))?;
-                } else {
-                    bail!("Invalid collection path");
-                }
-            } else if let Some(default) = &ctx.global_config.default_collection {
+            if !path.join(COOK_DIR).is_dir() {
+                bail!("The '{COOK_DIR}' dir was not found in the path: {path}");
+            }
+            set_default_collection(&ctx.chef_config, Some(path))?;
+        }
+        Command::Unset => {
+            set_default_collection(&ctx.chef_config, None)?;
+            eprintln!("Default collection removed");
+        }
+        Command::Get => {
+            if let Some(default) = &ctx.chef_config.default_collection {
                 println!("{default}");
             } else {
                 eprintln!("No default collection is set");
@@ -99,8 +104,8 @@ fn create_collection(path: &Utf8Path) -> Result<()> {
     Ok(())
 }
 
-fn set_default_collection(global: &GlobalConfig, path: Option<Utf8PathBuf>) -> Result<()> {
+fn set_default_collection(global: &ChefConfig, path: Option<Utf8PathBuf>) -> Result<()> {
     let mut global = global.clone();
     global.default_collection = path;
-    global_store(GLOBAL_CONFIG_FILE, &global)
+    global_store(CHEF_CONFIG_FILE, &global)
 }

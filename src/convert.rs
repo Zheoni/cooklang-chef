@@ -19,10 +19,6 @@ pub struct ConvertArgs {
     ///
     /// "fit" will try to convert to the best unit in the same system.
     to: String,
-
-    /// Do not round results
-    #[arg(long, short = 'R')]
-    no_round: bool,
 }
 
 pub fn run(converter: &Converter, args: ConvertArgs) -> anyhow::Result<()> {

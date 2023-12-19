@@ -58,6 +58,13 @@ impl Input {
         }
     }
 
+    pub fn file_name(&self) -> &str {
+        match &self {
+            Input::File { content, .. } => content.file_name(),
+            Input::Stdin { name, .. } => name,
+        }
+    }
+
     pub fn text(&self) -> &str {
         match self {
             Input::File { content, .. } => content.text(),

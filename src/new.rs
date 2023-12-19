@@ -41,7 +41,7 @@ pub fn run(args: NewArgs, ctx: &Context) -> Result<()> {
 
     if !args.no_edit {
         let editor = ctx
-            .global_config
+            .chef_config
             .editor()
             .context("Could not determine editor")?;
         let (cmd, args) = editor.split_first().expect("empty editor cmd");

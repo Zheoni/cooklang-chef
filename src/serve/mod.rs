@@ -95,7 +95,7 @@ fn build_state(ctx: Context) -> Result<Arc<AppState>> {
         recipe_index,
         base_path,
         config,
-        global_config,
+        chef_config,
         ..
     } = ctx;
     let parser = parser.into_inner().unwrap();
@@ -119,7 +119,7 @@ fn build_state(ctx: Context) -> Result<Arc<AppState>> {
         recipe_index,
         updates_stream: updates_rx,
         config,
-        editor_command: global_config.editor().ok(),
+        editor_command: chef_config.editor().ok(),
     }))
 }
 

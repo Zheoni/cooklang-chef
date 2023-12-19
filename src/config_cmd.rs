@@ -8,8 +8,8 @@ use cooklang::Extensions;
 
 use crate::{
     config::{
-        config_file_path, global_file_path, global_store, store_at_path, Config, GlobalConfig,
-        DEFAULT_CONFIG_FILE, GLOBAL_CONFIG_FILE,
+        config_file_path, global_file_path, global_store, store_at_path, ChefConfig, Config,
+        CHEF_CONFIG_FILE, DEFAULT_CONFIG_FILE,
     },
     Context, COOK_DIR, UTF8_PATH_PANIC,
 };
@@ -19,18 +19,12 @@ pub struct ConfigArgs {
     /// Run the basic interactive config setup
     #[arg(long, exclusive = true)]
     setup: bool,
-    /// Display (or --edit) global config file
+    /// Display the chef config, common to all collections
     #[arg(long)]
-    global: bool,
-    /// Display (or --edit) the global default config file
-    ///
-    /// This config is used when no config.toml is defined in the current directory
-    /// under the .cooklang dir.
-    #[arg(long)]
-    default: bool,
+    chef: bool,
 }
 
-pub fn run_setup(config: &Config, global_config: &GlobalConfig) -> Result<()> {
+pub fn run_setup(config: &Config, chef_config: &ChefConfig) -> Result<()> {
     use inquire::{Confirm, Text};
     use owo_colors::OwoColorize;
 
@@ -52,7 +46,7 @@ pub fn run_setup(config: &Config, global_config: &GlobalConfig) -> Result<()> {
     for line in textwrap::wrap(
         &format!(
             "Chef uses collections to store recipes. A collection is just a \
-            directory where a `{COOK_DIR}` dir exists. If you set up a default\
+            directory where a `{COOK_DIR}` dir exists. If you set up a default \
             collection, you can run {chef} anywhere and access your recipes. \
             Otherwise, you will have to provide a path or be in a collection."
         ),
@@ -62,7 +56,7 @@ pub fn run_setup(config: &Config, global_config: &GlobalConfig) -> Result<()> {
     }
     println!();
 
-    let initial_path = global_config.default_collection.clone().unwrap_or_else(|| {
+    let initial_path = chef_config.default_collection.clone().unwrap_or_else(|| {
         let dirs = directories::UserDirs::new();
         let parent = if let Some(d) = &dirs {
             d.document_dir().unwrap_or(d.home_dir())
@@ -118,9 +112,8 @@ pub fn run_setup(config: &Config, global_config: &GlobalConfig) -> Result<()> {
     println!();
     for line in textwrap::wrap(
         &format!(
-            "If you use {chef} outside the new collection by using the \
-            `--path` arg or creating another one, {chef} will use the \
-            default configuration."
+            "If you use {chef} outside a collection by using the \
+            `--path` arg , {chef} will use the default configuration."
         ),
         textwrap::termwidth().min(80),
     ) {
@@ -136,10 +129,10 @@ pub fn run_setup(config: &Config, global_config: &GlobalConfig) -> Result<()> {
     }
 
     global_store(
-        GLOBAL_CONFIG_FILE,
-        GlobalConfig {
+        CHEF_CONFIG_FILE,
+        ChefConfig {
             default_collection: path,
-            ..global_config.clone()
+            ..chef_config.clone()
         },
     )?;
 
@@ -174,12 +167,12 @@ fn extensions_prompt(enabled: Extensions) -> Result<Extensions> {
 
 pub fn run(ctx: &Context, args: ConfigArgs) -> Result<()> {
     if args.setup {
-        run_setup(&ctx.config, &ctx.global_config)?;
+        run_setup(&ctx.config, &ctx.chef_config)?;
         return Ok(());
     }
 
-    if args.global {
-        display_global(ctx)
+    if args.chef {
+        display_chef_config(ctx)
     } else {
         display_regular(ctx)
     }
@@ -221,15 +214,15 @@ fn display_regular(ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-fn display_global(ctx: &Context) -> Result<()> {
+fn display_chef_config(ctx: &Context) -> Result<()> {
     use owo_colors::OwoColorize;
 
-    let global_path = global_file_path(GLOBAL_CONFIG_FILE)?;
-    println!("Global config: {}", global_path.yellow());
+    let global_path = global_file_path(CHEF_CONFIG_FILE)?;
+    println!("Chef config: {}", global_path.yellow());
 
     let fence = "+++".dimmed();
     println!("{fence}");
-    let c = toml::to_string_pretty(&ctx.global_config)?;
+    let c = toml::to_string_pretty(&ctx.chef_config)?;
     println!("{}", c.trim());
     println!("{fence}");
     Ok(())
