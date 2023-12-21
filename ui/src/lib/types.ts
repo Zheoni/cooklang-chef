@@ -28,11 +28,15 @@ export type RecipeTime = number | { prep_time: number | null; cook_time: number 
 
 export type Section = {
 	name: string | null;
-	steps: Step[];
+	content: Content[];
 };
+export type Content = 
+	| {type: 'step', value: Step }
+	| {type: 'text', value: string };
+
 export type Step = {
 	items: Item[];
-	number: number | null;
+	number: number;
 };
 export type Item =
 	| { type: 'text'; value: string }

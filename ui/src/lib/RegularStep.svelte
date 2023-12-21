@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Quantity from '$lib/Quantity.svelte';
-	import type { Item, Recipe } from '$lib/types';
-	import type { SectionContext, SliceStep } from './Section.svelte';
+	import type { Item, Recipe, Step } from '$lib/types';
+	import type { SectionContext } from './Section.svelte';
 	import Divider from '$lib/Divider.svelte';
 	import { API } from '$lib/constants';
 	import { stepIngredientsView } from '$lib/settings';
@@ -13,12 +13,14 @@
 	import { getContext } from 'svelte';
 	import Timer from '$lib/Timer.svelte';
 
-	export let step: SliceStep;
+	export let step: Step;
+	export let image: string | undefined;
+	export let stepIndex: number;
 	export let recipe: Recipe;
 
 	const { sectionIndex } = getContext<SectionContext>('section');
 
-	$: items = step.step.items;
+	$: items = step.items;
 
 	function buildStepIngredients(recipe: Recipe, items: Item[]) {
 		const stepIngredientsDedup = new Map<string, number[]>();
@@ -71,10 +73,10 @@
 </script>
 
 <div
-	class="flex gap-2 flex-col-reverse lg:flex-row"
-	data-step-index={step.step_index}
+	class="flex flex-grow gap-2 flex-col-reverse lg:flex-row"
+	data-step-index={stepIndex}
 	data-highlight-cls="highlight-step"
-	id={`step-${$sectionIndex}-${step.step_index}`}
+	id={`step-${$sectionIndex}-${stepIndex}`}
 >
 	<div
 		class="rounded bg-base-2 border border-base-6 shadow p-4 grow flex flex-col transition-colors"
@@ -128,10 +130,10 @@
 			</div>
 		{/if}
 	</div>
-	{#if step.image}
+	{#if image}
 		<div class="rounded overflow-hidden max-w-40%">
 			<!-- svelte-ignore a11y-missing-attribute -->
-			<img class="h-full w-full object-cover" src={`${API}/src/${step.image}`} />
+			<img class="h-full w-full object-cover" src={`${API}/src/${image}`} />
 		</div>
 	{/if}
 </div>

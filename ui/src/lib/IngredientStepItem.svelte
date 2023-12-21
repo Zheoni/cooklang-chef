@@ -13,7 +13,7 @@
 	export let ingredient: Ingredient;
 	export let subscript: number | null = null;
 
-	const { sectionIndex, steps } = getContext<SectionContext>('section');
+	const { sectionIndex, content } = getContext<SectionContext>('section');
 
 	$: elem = ingredient.modifiers.includes('RECIPE') ? ('a' as const) : ('span' as const);
 </script>
@@ -30,7 +30,7 @@
 	{' '}(opt)
 {/if}{#if ingredient.relation.type === 'reference' && ingredient.relation.reference_target !== 'ingredient'}
 	{#if ingredient.relation.reference_target === 'step'}
-		{@const step = $steps[ingredient.relation.references_to]}
+		{@const step = $content[ingredient.relation.references_to].value}
 		<span class="text-base-11">
 			{' '}
 			<a
