@@ -10,12 +10,14 @@ mod walker;
 
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::{HashMap, VecDeque},
 };
 
 use camino::{Utf8Path, Utf8PathBuf};
 use cooklang::quantity::QuantityValue;
+use once_cell::sync::OnceCell;
 use serde::Serialize;
+
 pub use walker::DirEntry;
 use walker::Walker;
 
@@ -33,7 +35,7 @@ pub struct FsIndex {
 #[derive(Debug, Default)]
 struct Cache {
     recipes: HashMap<String, Vec<Utf8PathBuf>>,
-    non_existent: HashSet<String>,
+    non_existent: VecDeque<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -123,9 +125,9 @@ impl FsIndex {
 
         // Is in cache?
         if let Some(path) = self.cache.borrow().get(&name, &path) {
-            return Ok(RecipeEntry(path));
+            return Ok(RecipeEntry::new(path));
         }
-        if self.cache.borrow().non_existent.contains(recipe) {
+        if self.cache.borrow().non_existent.iter().any(|r| r == recipe) {
             return Err(Error::NotFound(recipe.to_string()));
         }
 
@@ -143,7 +145,7 @@ impl FsIndex {
             self.cache.borrow_mut().insert(entry_name, entry_path);
 
             if compare_path(entry_path, &path) {
-                return Ok(RecipeEntry(entry_path.into()));
+                return Ok(RecipeEntry::new(entry_path.into()));
             }
         }
 
@@ -240,7 +242,9 @@ impl Cache {
             }
         });
         recipes.insert(pos, path.to_path_buf());
-        self.non_existent.remove(path.as_str());
+        if let Some(marked) = self.non_existent.iter().position(|p| p == path.as_str()) {
+            self.non_existent.remove(marked);
+        }
     }
 
     fn remove(&mut self, name: &str, path: &Utf8Path) {
@@ -253,8 +257,13 @@ impl Cache {
         }
     }
 
+    const NON_EXISTENT_CACHE_SIZE: usize = 10;
+
     fn mark_non_existent(&mut self, path: &str) {
-        self.non_existent.insert(path.into());
+        if self.non_existent.len() == Self::NON_EXISTENT_CACHE_SIZE {
+            self.non_existent.pop_front();
+        }
+        self.non_existent.push_back(path.into());
     }
 }
 
@@ -285,7 +294,78 @@ pub fn all_recipes(
         .as_ref()
         .try_into()
         .map_err(|e: camino::FromPathError| e.into_io_error())?;
-    Ok(Walker::new(base_path, max_depth).filter_map(|e| RecipeEntry::try_from(e.ok()?).ok()))
+    let walker = Walker::new(base_path, max_depth).flatten();
+    let grouped = group_images(walker);
+    Ok(grouped.filter_map(|e| match e {
+        Entry::Dir(_) => None,
+        Entry::Recipe(r) => Some(r),
+    }))
+}
+
+/// Walks a single directory retrieving recipes and other directories
+pub fn walk_dir(
+    path: impl AsRef<std::path::Path>,
+) -> Result<impl Iterator<Item = Entry>, std::io::Error> {
+    let path: &Utf8Path = path
+        .as_ref()
+        .try_into()
+        .map_err(|e: camino::FromPathError| e.into_io_error())?;
+    if !path.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "dir not found",
+        ));
+    }
+    Ok(group_images(Walker::new(path, 0).flatten()))
+}
+
+fn group_images(walker: impl Iterator<Item = DirEntry>) -> impl Iterator<Item = Entry> {
+    struct ImageGrouper<I: Iterator<Item = DirEntry>> {
+        iter: std::iter::Peekable<I>,
+    }
+
+    impl<I: Iterator<Item = DirEntry>> Iterator for ImageGrouper<I> {
+        type Item = Entry;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let mut past_images = Vec::new();
+            loop {
+                match self.iter.next()? {
+                    dir if dir.file_type().is_dir() => return Some(Entry::Dir(dir)),
+                    r if r.is_cooklang_file() => {
+                        let recipe_name = r.file_stem();
+                        // because file are sorted by name, recipe images will be with the
+                        // recipes
+                        let mut images = past_images
+                            .into_iter()
+                            .filter_map(|e| Image::new(recipe_name, e))
+                            .collect::<Vec<_>>();
+                        while let Some(image_entry) = self.iter.next_if(|e| e.is_image()) {
+                            if let Some(image) = Image::new(recipe_name, image_entry) {
+                                images.push(image);
+                            }
+                        }
+                        return Some(Entry::Recipe(
+                            RecipeEntry::new(r.into_path()).set_images(images),
+                        ));
+                    }
+                    img if img.is_image() => {
+                        past_images.push(img);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    ImageGrouper {
+        iter: walker.peekable(),
+    }
+}
+
+pub enum Entry {
+    Dir(DirEntry),
+    Recipe(RecipeEntry),
 }
 
 /// Resolves a recipe query first trying directly as a path and if it fails performs
@@ -316,66 +396,109 @@ pub fn resolve_recipe(
 }
 
 #[derive(Debug, Clone)]
-pub struct RecipeEntry(Utf8PathBuf);
+pub struct RecipeEntry {
+    path: Utf8PathBuf,
+    images: OnceCell<Vec<Image>>,
+    content: OnceCell<RecipeContent>,
+}
 
 impl RecipeEntry {
+    pub fn new(path: Utf8PathBuf) -> Self {
+        Self {
+            path,
+            images: OnceCell::new(),
+            content: OnceCell::new(),
+        }
+    }
+
+    pub fn set_images(self, images: Vec<Image>) -> Self {
+        Self {
+            images: OnceCell::with_value(images),
+            ..self
+        }
+    }
+
     pub fn path(&self) -> &Utf8Path {
-        &self.0
+        &self.path
     }
 
     pub fn file_name(&self) -> &str {
-        self.0.file_name().unwrap()
+        self.path.file_name().unwrap()
     }
 
     pub fn name(&self) -> &str {
-        self.0.file_stem().unwrap()
+        self.path.file_stem().unwrap()
     }
 
     pub fn relative_name(&self) -> &str {
-        self.0.as_str().trim_end_matches(".cook")
+        self.path.as_str().trim_end_matches(".cook")
     }
 
-    pub fn read(&self) -> std::io::Result<RecipeContent> {
-        let content = std::fs::read_to_string(&self.0)?;
-        Ok(RecipeContent {
-            content,
-            entry: self.clone(),
+    /// Reads the content of the entry
+    ///
+    /// The result is cached.
+    pub fn read(&self) -> std::io::Result<&RecipeContent> {
+        self.content.get_or_try_init(|| {
+            let content = std::fs::read_to_string(&self.path)?;
+            Ok(RecipeContent::new(content))
         })
     }
 
-    pub fn images(&self) -> Vec<Image> {
-        recipe_images(&self.0)
+    /// Finds the images of the recipe
+    ///
+    /// The result is cached, use the [`recipe_images`] to get a fresh result
+    /// each call.
+    pub fn images(&self) -> &[Image] {
+        self.images.get_or_init(|| recipe_images(&self.path))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("The entry is not a recipe: {}", .0.path())]
-pub struct NotRecipe(DirEntry);
+#[error("The entry is not a recipe: {0}")]
+pub struct NotRecipe(Utf8PathBuf);
 impl TryFrom<DirEntry> for RecipeEntry {
     type Error = NotRecipe;
 
     fn try_from(value: DirEntry) -> Result<Self, Self::Error> {
         if !value.is_cooklang_file() {
-            return Err(NotRecipe(value));
+            return Err(NotRecipe(value.into_path()));
         }
-        Ok(Self(value.into_path()))
+        Ok(Self::new(value.into_path()))
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RecipeContent {
     content: String,
-    entry: RecipeEntry,
 }
 
 impl RecipeContent {
+    fn new(content: String) -> Self {
+        Self { content }
+    }
+
+    /// Parses the metadata of the recipe
+    ///  
+    /// The result is cached
     pub fn metadata(&self, parser: &cooklang::CooklangParser) -> cooklang::MetadataResult {
         parser.parse_metadata(&self.content)
     }
 
+    /// Parses the recipe
+    ///
+    /// This is an alias for [`Self::parse_with_recipe_ref_checker`] with no
+    /// chcker.
+    ///
+    /// The result is cached, so if you cange the checker, you won't see any
+    /// change.
     pub fn parse(&self, parser: &cooklang::CooklangParser) -> cooklang::RecipeResult {
-        parser.parse(&self.content)
+        self.parse_with_recipe_ref_checker(parser, None)
     }
 
+    /// Parses the recipe checking referenced recipes
+    ///
+    /// The result is cached, so if you cange the checker, you won't see any
+    /// change.
     pub fn parse_with_recipe_ref_checker(
         &self,
         parser: &cooklang::CooklangParser,
@@ -393,14 +516,6 @@ impl RecipeContent {
     }
 }
 
-impl std::ops::Deref for RecipeContent {
-    type Target = RecipeEntry;
-
-    fn deref(&self) -> &Self::Target {
-        &self.entry
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Image {
     pub indexes: Option<ImageIndexes>,
@@ -411,6 +526,42 @@ pub struct Image {
 pub struct ImageIndexes {
     section: u16,
     step: u16,
+}
+
+impl Image {
+    fn new(recipe_name: &str, entry: DirEntry) -> Option<Self> {
+        let parts = entry.file_name().rsplitn(4, '.').collect::<Vec<_>>();
+
+        // no dots, so no extension
+        if parts.len() == 1 {
+            return None;
+        }
+
+        let name = *parts.last().unwrap();
+        let ext = *parts.first().unwrap();
+
+        if name != recipe_name || !IMAGE_EXTENSIONS.contains(&ext) {
+            return None;
+        }
+
+        let indexes = match &parts[1..parts.len() - 1] {
+            [step, section] => {
+                let section = section.parse::<u16>().ok()?;
+                let step = step.parse::<u16>().ok()?;
+                Some(ImageIndexes { section, step })
+            }
+            [step] => {
+                let step = step.parse::<u16>().ok()?;
+                Some(ImageIndexes { section: 0, step })
+            }
+            _ => None,
+        };
+
+        Some(Image {
+            indexes,
+            path: entry.into_path(),
+        })
+    }
 }
 
 /// Valid image extensions
@@ -431,39 +582,7 @@ pub fn recipe_images(path: &Utf8Path) -> Vec<Image> {
     let mut images = dir
         .filter_map(|e| e.ok()) // skip error
         .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false)) // skip non-file
-        .filter_map(|e| {
-            let parts = e.file_name().rsplitn(4, '.').collect::<Vec<_>>();
-
-            // no dots, so no extension
-            if parts.len() == 1 {
-                return None;
-            }
-
-            let name = *parts.last().unwrap();
-            let ext = *parts.first().unwrap();
-
-            if name != recipe_name || !IMAGE_EXTENSIONS.contains(&ext) {
-                return None;
-            }
-
-            let indexes = match &parts[1..parts.len() - 1] {
-                [step, section] => {
-                    let section = section.parse::<u16>().ok()?;
-                    let step = step.parse::<u16>().ok()?;
-                    Some(ImageIndexes { section, step })
-                }
-                [step] => {
-                    let step = step.parse::<u16>().ok()?;
-                    Some(ImageIndexes { section: 0, step })
-                }
-                _ => None,
-            };
-
-            Some(Image {
-                indexes,
-                path: e.into_path(),
-            })
-        })
+        .filter_map(|e| Image::new(recipe_name, DirEntry::new(e.path()).ok()?))
         .collect::<Vec<_>>();
     images.sort_unstable();
     images

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="{{ t }}" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital@0;1&family=Noto+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Noto+Serif:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="/styles.css" />
+
+    <!-- Javascript dependencies -->
+    <script defer src="/vendor/htmx.min.js"></script>
+    <script defer src="/vendor/htmx-ext/json-enc.js"></script>
+    <script defer src="/vendor/floating-ui.core.umd.min.js"></script>
+    <script defer src="/vendor/floating-ui.dom.umd.min.js"></script>
+    <script defer src="/vendor/twemoji.min.js"></script>
+
+    <!-- Custom javascript -->
+    <script>
+      const currentLocale = "{{ t.code()|default('en') }}";
+    </script>
+    <script src="/js/critical-theme.js"></script>
+    <script defer src="/js/main.js"></script>
+    <script defer src="/js/hot-reload.js"></script>
+    <script defer src="/js/timer.js"></script>
+
+    <title>{% block title %}chef{% endblock %}</title>
+    {% block head %}{% endblock %}
+  </head>
+  <body hx-boost="true">
+    <!-- dummy element to trigger hot reload events -->
+    <div
+      id="hot-reload-target"
+      hx-get="/"
+      hx-trigger="hot-reload"
+      hx-target="#content"
+      hx-select="#content"
+    ></div>
+    <div class="flex min-h-screen flex-col">
+      <header hx-preserve id="header">
+        <nav class="mx-auto flex max-w-screen-xl items-center px-4 py-2">
+          <div class="flex-1">
+            <a
+              href="/"
+              class="inline-flex h-12 flex-grow-0 items-center rounded px-4 font-heading text-xl font-bold text-primary-12 hover:bg-base-4"
+              hx-boost="false"
+              >chef</a
+            >
+          </div>
+
+          <div class="relative size-12">
+            <div class="absolute inset-0 grid place-items-center">
+              <div
+                id="hot-reload-indicator"
+                class="mx-4 block size-4 rounded-full border-2 transition-colors"
+              ></div>
+            </div>
+            <div
+              id="hot-reload-tooltip"
+              class="absolute inset-0 mx-2"
+              data-tooltip="{{ t('header.autoUpdating') }}"
+              data-tooltip-alt="{{ t('header.notAutoUpdating') }}"
+            ></div>
+          </div>
+
+          <div>
+            <button
+              theme-btn
+              id="theme-toggle-button"
+              class="btn m-1 inline-grid size-9 place-items-center text-xl text-green-11 hover:bg-green-4 dark:text-indigo-11 dark:hover:bg-indigo-4"
+            >
+              <i class="i-lucide-sun dark:i-lucide-moon"></i>
+              <span class="sr-only">{{ t("themeToggle.label") }}</span>
+            </button>
+          </div>
+        </nav>
+        <div class="divider border-dashed px-4 text-2xl sm:px-10">
+          <span class="i-lucide-chef-hat"></span>
+        </div>
+      </header>
+
+      <main
+        class="{{ 'lg:max-w-screen-lg' if wide is not true }} container mx-auto my-10 flex-grow px-3"
+      >
+        {% block content %}{% endblock %}
+      </main>
+
+      <!-- Timer, hidden by default -->
+      <audio
+        id="timer-audio"
+        src="/mixkit-alarm-tone-996.wav"
+        preload="none"
+      ></audio>
+      <div
+        id="timer"
+        hidden
+        class="sticky bottom-4 z-30 my-4 h-20 min-w-64 overflow-hidden rounded-xl bg-indigo-3 p-2 shadow shadow-indigo-1 md:bottom-8 md:mx-auto md:w-64"
+        hx-preserve="true"
+      >
+        <div
+          id="timer-name"
+          class="absolute left-0 right-0 top-1 text-center font-semibold capitalize text-indigo-11"
+        ></div>
+
+        <div
+          class="timer-grid h-full items-center justify-center space-x-1 text-2xl"
+        >
+          <div>
+            <button
+              id="timer-start-btn"
+              class="flex items-center justify-end text-primary-9"
+            >
+              <i class="i-lucide-play"></i>
+            </button>
+            <button
+              id="timer-pause-btn"
+              class="flex items-center justify-end text-primary-9"
+            >
+              <i class="i-lucide-pause"></i>
+            </button>
+          </div>
+
+          <div class="text-center">
+            <span
+              id="timer-text"
+              class="select-none text-4xl tabular-nums text-base-12"
+            >
+            </span>
+          </div>
+
+          <button
+            id="timer-remove-btn"
+            class="flex items-center justify-start text-red-9"
+          >
+            <i class="i-lucide-x"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-auto" hx-preserve="true" id="footer">
+        <div class="divider my-10 border-dashed px-4 sm:px-10">
+          <footer class="space-x-2 px-3">
+            <span class="block text-center sm:inline"
+              >{{ t("footer.cookedWith") }} <span twemoji>❤️</span></span
+            >
+            <span
+              aria-hidden="true"
+              class="hidden h-6 border-l-2 border-base-6 sm:inline"
+            ></span>
+            <span>
+              <i class="i-lucide-languages"></i>
+              <select
+                id="lang"
+                class="rounded border border-base-4 bg-base-2 px-1 py-0.5"
+              >
+                {% for loc in all_locales %}
+                  {% if loc.code == "" ~ t %}
+                    <option value="{{ loc.code }}" selected>
+                      {{ loc.lang }}
+                    </option>
+                  {% else %}
+                    <option value="{{ loc.code }}">{{ loc.lang }}</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+            </span>
+            <span
+              aria-hidden="true"
+              class="h-6 border-l-2 border-base-6"
+            ></span>
+            <a href="/about" class="link">{{ t("footer.about") }}</a>
+          </footer>
+        </div>
+      </div>
+    </div>
+    <div id="toasts" hx-preserve="true" class="fixed right-0 top-0 m-2">
+      {% block toasts %}{% endblock %}
+    </div>
+  </body>
+</html>

@@ -1,0 +1,53 @@
+{% set wide = true %}
+{% extends "layout.html" %}
+
+{% block content %}
+  {% include "components/search_form.html" %}
+
+  <div id="content">
+    <!-- breadcrum -->
+    <div class="m-4">
+      <a href="/" class="link"><i class="i-lucide-folder"></i></a>
+      <span class="m-1 font-mono font-bold text-base-11">/</span>
+      {% with cum = "/d" %}
+        {% for part in path %}
+          {% set cum = cum ~ "/" ~ part %}
+          <a href="{{ cum }}" class="link font-mono">{{ part }}</a>
+          {% if not loop.last %}
+            <span class="m-1 font-mono font-bold text-base-11">/</span>
+          {% endif %}
+        {% endfor %}
+      {% endwith %}
+    </div>
+
+    <!-- folders -->
+    <div class="flex flex-col flex-wrap gap-6 sm:flex-row">
+      {% for folder in folders %}
+        <a
+          href="/d/{{ folder.path }}"
+          class="transition-border-color md:h-30 block h-20 rounded-xl border-2 border-transparent bg-base-3 shadow-md hover:border-primary-9 hover:bg-base-4 md:min-w-40"
+        >
+          <div class="flex h-full items-center justify-center p-2 md:flex-col">
+            <i class="i-lucide-folder text-2xl text-primary-9"></i>
+            <div>
+              <h2 class="px-4 font-heading text-xl">{{ folder.name }}</h2>
+            </div>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+    {% if folders is not empty %}
+      <div class="divider m-4"></div>
+    {% endif %}
+    {% include "components/recipe_grid.html" %}
+  </div>
+{% endblock %}
+
+{% block toasts %}
+  {% from "atoms.html" import toast %}
+  {% if deleted %}
+    <div id="toasts" hx-swap-oob="beforeend">
+      {{ toast(t("hotReload.deleted", name=deleted), "red") }}
+    </div>
+  {% endif %}
+{% endblock %}

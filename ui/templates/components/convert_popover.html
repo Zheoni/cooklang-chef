@@ -1,0 +1,29 @@
+{% from "atoms.html" import qty_format %}
+
+<div
+  data-popover="{{ triggered_by }}"
+  data-convert-popover
+  hidden
+  class="absolute left-0 top-0 z-10 min-w-52 rounded-xl border border-base-7 bg-base-2 p-1 shadow"
+>
+  <div class="grid gap-2 p-1 md:grid-cols-3">
+    {% for c in conversions %}
+      <button
+        type="button"
+        data-conversion
+        class="rounded bg-base-3 px-2 py-1 font-serif font-semibold transition-colors hover:bg-base-4 active:translate-y-[1px] md:h-[6ch] md:w-[15ch]"
+      >
+        {{ qty_format(c, editable=false) }}
+      </button>
+    {% endfor %}
+  </div>
+  <div class="mb-1 me-1 flex gap-2">
+    <button
+      id="conv-reset"
+      type="button"
+      class="ms-auto font-sans text-sm text-base-11"
+    >
+      {{ t('quantity.reset') }}
+    </button>
+  </div>
+</div>

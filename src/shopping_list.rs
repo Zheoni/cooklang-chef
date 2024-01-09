@@ -138,7 +138,7 @@ fn extract_ingredients(entry: &str, list: &mut IngredientList, ctx: &Context) ->
     let input = {
         let entry = resolve_recipe(name, &ctx.recipe_index, None)?;
         Input::File {
-            content: entry.read()?,
+            entry,
             override_name: None,
         }
     };

@@ -1,0 +1,22 @@
+{% set color = "red" if severity == "error" else "yellow" %}
+
+<div class="bg-{{ color }}-3 border-{{ color }}-6 m-2 rounded-xl border">
+  <div class="m-3 flex justify-end gap-2">
+    {% include "components/open_in_editor.html" %}
+
+    <a
+      href="/src/{{ src_path }}"
+      target="_blank"
+      class="btn btn-primary btn-icon"
+      hx-boost="false"
+    >
+      <i class="i-lucide-file-code"></i>
+      {{ t("r.meta.sourceFile") }}
+    </a>
+  </div>
+  <pre
+    class="border-{{ color }}-6 dark m-4 whitespace-pre-wrap rounded border bg-base-3 p-2 font-mono leading-[normal] text-base-12 dark:bg-base-1"
+  >
+    {{- report_html|safe -}}
+  </pre>
+</div>

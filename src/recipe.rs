@@ -1,13 +1,13 @@
 use std::io::Read;
 
-use anyhow::{anyhow, bail, Context as _, Result};
+use anyhow::{bail, Context as _, Result};
 use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
 use cooklang_fs::{check_recipe_images, recipe_images, resolve_recipe, FsIndex};
 use owo_colors::OwoColorize;
 
 use crate::{
-    util::{unwrap_recipe, write_to_output, Input},
+    util::{meta_name, unwrap_recipe, write_to_output, Input},
     Context,
 };
 
@@ -129,11 +129,16 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
         None => OutputFormat::Human,
     });
 
+    let name = match meta_name(&scaled_recipe.metadata) {
+        Some(n) => n,
+        None => input.name()?,
+    };
+
     write_to_output(args.output.as_deref(), |mut writer| {
         match format {
             OutputFormat::Human => cooklang_to_human::print_human(
                 &scaled_recipe,
-                input.name(),
+                name,
                 ctx.parser()?.converter(),
                 writer,
             )?,
@@ -147,7 +152,7 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
 
                 let recipe = JsonRecipe {
                     recipe: &scaled_recipe,
-                    name: input.name(),
+                    name,
                 };
 
                 if args.pretty {
@@ -157,12 +162,9 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
                 }
             }
             OutputFormat::Cooklang => cooklang_to_cooklang::print_cooklang(&scaled_recipe, writer)?,
-            OutputFormat::Markdown => cooklang_to_md::print_md(
-                &scaled_recipe,
-                input.name(),
-                ctx.parser()?.converter(),
-                writer,
-            )?,
+            OutputFormat::Markdown => {
+                cooklang_to_md::print_md(&scaled_recipe, name, ctx.parser()?.converter(), writer)?
+            }
             OutputFormat::Debug => write!(writer, "{scaled_recipe:?}")?,
         }
 
@@ -180,7 +182,7 @@ impl ReadArgs {
             let entry = resolve_recipe(query.as_str(), index, None)?;
 
             Input::File {
-                content: entry.read()?,
+                entry,
                 override_name: self.name.clone(),
             }
         } else {
@@ -190,7 +192,7 @@ impl ReadArgs {
                 .context("Failed to read stdin")?;
             Input::Stdin {
                 text: buf,
-                name: self.name.clone().ok_or(anyhow!("No name for recipe"))?,
+                name: self.name.clone(),
             }
         };
         Ok(input)
@@ -199,7 +201,7 @@ impl ReadArgs {
 
 fn just_events(ctx: &Context, args: ReadArgs) -> Result<()> {
     let input = args.read(&ctx.recipe_index)?;
-    let text = input.text();
+    let text = input.text()?;
     let file_name = input.file_name();
 
     let events = cooklang::parser::PullParser::new(text, ctx.parser()?.extensions());
@@ -287,7 +289,7 @@ fn just_check(ctx: &Context, args: ReadArgs) -> Result<()> {
         }
     }
     let file_name = input.file_name();
-    let recipe = unwrap_recipe(res, file_name, input.text(), ctx).ok();
+    let recipe = unwrap_recipe(res, file_name, input.text()?, ctx).ok();
 
     if let Some(recipe) = &recipe {
         if let Some(path) = &input.path() {

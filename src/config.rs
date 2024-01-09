@@ -113,7 +113,7 @@ impl Load {
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct UiConfig {
-    tags: HashMap<String, TagProps>,
+    pub tags: HashMap<String, TagProps>,
 }
 
 impl UiConfig {
@@ -125,7 +125,7 @@ impl UiConfig {
 #[derive(Serialize, Deserialize, Default, Clone)]
 #[serde(default)]
 pub struct TagProps {
-    emoji: Option<String>,
+    pub emoji: Option<String>,
 }
 
 impl Config {

@@ -1,0 +1,84 @@
+{% from "atoms.html" import tag %}
+
+{% if is_htmx_search is true %}
+  <title>search - chef</title>
+{% endif %}
+
+<div
+  class="grid grid-cols-1 items-stretch justify-items-stretch gap-6 lg:grid-cols-2 2xl:grid-cols-3"
+  id="recipe-grid"
+>
+  {% for recipe in recipes %}
+    <div>
+      <article
+        class="block min-w-52 overflow-hidden rounded-xl border-2 border-transparent bg-base-3 shadow-md transition-colors hover:border-primary-9 hover:bg-base-4"
+      >
+        <div class="flex flex-col md:min-h-52 md:flex-row">
+          {% if recipe.image %}
+            <a href="{{ recipe.href }}" class="flex-1 self-stretch md:relative">
+              <figure
+                class="inset-0 h-full max-h-52 overflow-hidden border-b-4 border-primary-9 md:absolute md:max-h-none md:border-b-0 md:border-r-4"
+              >
+                <img
+                  loading="lazy"
+                  class="h-full w-full object-cover transition-transform hover:scale-[1.01]"
+                  src="{{ recipe.image }}"
+                  alt="{{ recipe.name }}"
+                />
+              </figure>
+            </a>
+          {% endif %}
+          <div class="flex flex-1 flex-col overflow-auto p-4">
+            <a href="{{ recipe.href }}" class="block">
+              <h2 class="-mx-2 inline-block px-2 font-heading text-2xl">
+                {{ recipe.name }}
+              </h2>
+            </a>
+            {% if recipe.emoji %}
+              <div class="divider right mb-4 mt-2 px-1 text-xl">
+                <span twemoji>{{ recipe.emoji }}</span>
+              </div>
+            {% else %}
+              <div class="divider mb-4 mt-2 px-1"></div>
+            {% endif %}
+
+            {% if recipe.desc %}
+              <p class="my-1 mb-4 line-clamp-3 shrink-0">{{ recipe.desc }}</p>
+            {% endif %}
+
+            {% if recipe.tags %}
+              <div class="flex flex-wrap gap-2">
+                {% for t in recipe.tags %}
+                  {{ tag(t.name, t.emoji) }}
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            {% if (recipe.desc is none) and (recipe.tags is empty) %}
+              <a
+                href="{{ recipe.href }}"
+                class="grid grow place-items-center text-3xl text-base-6"
+              >
+                <i class="i-lucide-chef-hat"></i>
+              </a>
+            {% endif %}
+
+            {% if recipe.error %}
+              <p class="text-red-11">{{ t("error.parse") }}</p>
+            {% endif %}
+          </div>
+        </div>
+      </article>
+    </div>
+  {% endfor %}
+</div>
+{% if recipes|length == 0 %}
+  <div class="mx-auto">
+    <div class="text-center text-xl">{{ t('index.noRecipes') }}</div>
+    <img
+      src="/undraw_empty_cart.svg"
+      aria-hidden="true"
+      class="mx-auto p-8 md:max-w-[50%]"
+    />
+  </div>
+{% endif %}

@@ -2,6 +2,8 @@ use std::{collections::VecDeque, fs::FileType};
 
 use camino::{Utf8Path, Utf8PathBuf};
 
+use crate::IMAGE_EXTENSIONS;
+
 /// Breadth-first, sorted by file name, .cook filtered, dir walker.
 ///
 /// Paths are relative to the base path, with the base path included. So when
@@ -9,8 +11,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 ///
 /// Files/dirs starting with '.' are ignored.
 ///
-/// Currently, all [DirEntry] are guaranteed to be [RecipeEntry](super::RecipeEntry),
-/// but this may change in the future.
+/// Currently, it returns dirs, cooklang files and images.
 #[derive(Debug)]
 pub struct Walker {
     base_path: Utf8PathBuf,
@@ -77,23 +78,28 @@ impl Walker {
                 continue;
             }
 
-            if ft.is_dir() {
-                let depth = entry_depth(e.path(), &self.base_path);
+            let entry = DirEntry {
+                path: e.into_path(),
+                file_type: ft,
+            };
+
+            if entry.file_type.is_dir() {
+                let depth = entry_depth(entry.path(), &self.base_path);
                 if depth <= self.max_depth {
-                    new_dirs.push(e.into_path());
+                    new_dirs.push(entry.path().to_path_buf());
                 }
-            } else {
-                if e.path().extension() != Some("cook") {
-                    continue;
-                }
-                new_entries.push(DirEntry {
-                    path: e.into_path(),
-                    file_type: ft,
-                });
+            } else if !(entry.is_cooklang_file() || entry.is_image()) {
+                continue;
             }
+            new_entries.push(entry);
         }
         new_dirs.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
-        new_entries.sort_by(|a, b| a.file_name().cmp(b.file_name()));
+        new_entries.sort_by(|a, b| {
+            a.file_type
+                .is_dir()
+                .cmp(&b.file_type.is_dir())
+                .then_with(|| a.file_name().cmp(b.file_name()))
+        });
         self.dirs.extend(new_dirs);
         self.current = new_entries.into_iter();
         Ok(())
@@ -154,7 +160,13 @@ impl DirEntry {
     }
 
     pub fn is_cooklang_file(&self) -> bool {
-        self.file_type.is_file() && self.path.extension().map(|e| e == "cook").unwrap_or(false)
+        self.file_type.is_file() && self.path.extension().is_some_and(|e| e == "cook")
+    }
+
+    pub fn is_image(&self) -> bool {
+        self.path
+            .extension()
+            .is_some_and(|ext| IMAGE_EXTENSIONS.contains(&ext))
     }
 }
 

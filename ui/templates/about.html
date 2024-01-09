@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+
+{% block title %}chef - {{ t("about.about")|lower }}{% endblock %}
+
+{% block content %}
+  <script defer src="/js/about.js"></script>
+
+  <h1 class="mb-2 text-5xl">{{ t("about.about")|capitalize }}</h1>
+
+  {% set chef = '<span class="font-heading font-bold">chef</span>'|safe %}
+
+  <p>{{ t("about.body", dict(chef=chef))|safe }}</p>
+
+  <div
+    class="m-4 mx-auto flex w-fit justify-items-center gap-6 rounded border border-base-6 bg-base-2 px-8 py-4"
+  >
+    <a
+      class="link flex flex-col items-center"
+      href="https://github.com/Zheoni/cooklang-chef"
+    >
+      <i class="i-lucide-github block"></i>
+      <div>{{ chef }} GitHub</div>
+    </a>
+    <a class="link flex flex-col items-center" href="https://cooklang.org/">
+      <i class="i-lucide-building block"></i>
+      <div>cooklang.org</div>
+    </a>
+  </div>
+
+  <h2 class="mb-2 text-3xl">{{ t("about.settings") }}</h2>
+  <p>{{ t("about.darkModeExplain") }}</p>
+  <div class="m-4 mx-auto flex w-fit gap-6">
+    <button
+      theme-btn
+      id="btn-light"
+      class="btn border-green-7 px-4 py-2 text-green-11 hover:bg-green-4"
+    >
+      <i class="i-lucide-sun translate-y-[0.1em]"></i>
+      {{ t("themeToggle.light") }}
+    </button>
+    <button
+      theme-btn
+      id="btn-dark"
+      class="btn border-indigo-7 px-4 py-2 text-indigo-11 hover:bg-indigo-4"
+    >
+      <i class="i-lucide-moon translate-y-[0.1em]"></i>
+      {{ t("themeToggle.dark") }}
+    </button>
+    <button
+      theme-btn
+      id="btn-system"
+      class="btn border-base-7 px-4 py-2 text-base-11 hover:bg-base-4"
+    >
+      <i class="i-lucide-monitor translate-y-[0.1em]"></i>
+      {{ t("themeToggle.system") }}
+    </button>
+  </div>
+
+  <p>{{ t("about.langExplain") }}</p>
+  <div class="m-4 mx-auto flex w-fit gap-6">
+    <button
+      id="reset-lang"
+      class="btn border-yellow-7 px-4 py-2 text-yellow-11 hover:bg-yellow-4"
+    >
+      <i class="i-lucide-languages translate-y-[0.1em]"></i>
+      {{ t("about.langAuto") }}
+    </button>
+  </div>
+
+  <details remember-open id="oss">
+    <summary>
+      <h2 class="mb-2 inline-block translate-y-1 text-3xl">
+        {{ t("about.licenses") }}
+      </h2>
+    </summary>
+    <p class="my-2">{{ t("about.licensesExplain", dict(chef=chef))|safe }}</p>
+    <pre class="whitespace-pre-line bg-base-2 p-2 text-sm">
+{{ VENDOR_LICENSES }}</pre
+    >
+    <hr class="my-4" />
+    <pre class="whitespace-pre-line bg-base-2 p-2 text-sm">
+{{ FONT_LICENSES }}</pre
+    >
+  </details>
+{% endblock %}

@@ -1,10 +1,9 @@
 use anstream::println;
 use anyhow::Result;
 use clap::{builder::ArgPredicate, Args};
-use cooklang::metadata::Metadata;
-use cooklang_fs::{all_recipes, RecipeContent, RecipeEntry};
+use cooklang_fs::all_recipes;
 
-use crate::Context;
+use crate::{util::CachedRecipeEntry, Context};
 
 #[derive(Debug, Args)]
 pub struct ListArgs {
@@ -48,23 +47,21 @@ pub struct ListArgs {
 }
 
 pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
-    let iter = all_recipes(&ctx.base_path, ctx.config.max_depth)?
-        .map(CachedRecipeEntry::new)
-        .filter(|entry| {
-            if args.tag.is_empty() {
-                return true;
-            }
-
-            let Ok(metadata) = entry.metadata(ctx, args.check) else {
-                tracing::warn!(
-                    "Skipping '{}': could not parse metadata",
-                    entry.entry.path()
-                );
-                return false;
-            };
-
-            args.tag.iter().all(|t| metadata.tags.contains(t))
-        });
+    let iter = all_recipes(&ctx.base_path, ctx.config.max_depth)?.filter_map(|entry| {
+        let entry = CachedRecipeEntry::new(entry);
+        if args.tag.is_empty() {
+            return Some(entry);
+        }
+        let m = entry.metadata(ctx, args.check); // try full parse if check to avoid parsing the recipe twice
+        let Ok(metadata) = m else {
+            tracing::warn!("Skipping '{}': could not parse metadata", entry.path());
+            return None;
+        };
+        if !args.tag.iter().all(|t| metadata.tags.contains(t)) {
+            return None;
+        }
+        Some(entry)
+    });
     if args.count {
         let mut count = 0;
         let mut with_warnings = 0;
@@ -75,11 +72,11 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
             count += 1;
             if args.check || args.images {
                 if args.check {
-                    let report = entry.parsed(ctx)?;
-                    if report.report().has_errors() {
+                    let report = entry.parsed(ctx)?.report();
+                    if report.has_errors() {
                         with_errors += 1;
                     }
-                    if report.report().has_warnings() {
+                    if report.has_warnings() {
                         with_warnings += 1;
                     }
                 }
@@ -108,8 +105,8 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
         let mut table = tabular::Table::new("{:<}{:<}{:<}{:<}");
         let mut all = iter.collect::<Vec<_>>();
         all.sort_unstable_by(|a, b| a.path().cmp(b.path()));
-        for entry in all {
-            let row = list_row(ctx, &args, entry)?;
+        for entry in &all {
+            let row = list_row(ctx, &args, &entry)?;
             table.add_row(row);
         }
         println!("{table}");
@@ -118,7 +115,7 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
     Ok(())
 }
 
-fn list_row(ctx: &Context, args: &ListArgs, entry: CachedRecipeEntry) -> Result<tabular::Row> {
+fn list_row(ctx: &Context, args: &ListArgs, entry: &CachedRecipeEntry) -> Result<tabular::Row> {
     use owo_colors::OwoColorize;
 
     let mut row = tabular::Row::new();
@@ -185,10 +182,9 @@ fn check_str(ctx: &Context, entry: &CachedRecipeEntry) -> String {
     use owo_colors::OwoColorize;
 
     entry
-        .content()
+        .parsed(ctx)
         .ok()
-        .and_then(|content| ctx.parse_content(content).ok())
-        .map(|r| r.into_report())
+        .map(|r| r.report())
         .map(|report| {
             if report.has_errors() {
                 "Error".red().bold().to_string()
@@ -199,71 +195,4 @@ fn check_str(ctx: &Context, entry: &CachedRecipeEntry) -> String {
             }
         })
         .unwrap_or("Could not check".red().dimmed().to_string())
-}
-
-struct CachedRecipeEntry {
-    entry: RecipeEntry,
-    content: once_cell::unsync::OnceCell<RecipeContent>,
-    metadata: once_cell::unsync::OnceCell<Metadata>,
-    parsed: once_cell::unsync::OnceCell<cooklang::RecipeResult>,
-}
-
-impl CachedRecipeEntry {
-    fn new(entry: RecipeEntry) -> Self {
-        Self {
-            entry,
-            content: Default::default(),
-            metadata: Default::default(),
-            parsed: Default::default(),
-        }
-    }
-
-    fn content(&self) -> Result<&RecipeContent> {
-        self.content
-            .get_or_try_init(|| self.entry.read())
-            .map_err(anyhow::Error::from)
-    }
-
-    fn parsed(&self, ctx: &Context) -> Result<&cooklang::RecipeResult> {
-        self.content()
-            .and_then(|content| self.parsed.get_or_try_init(|| ctx.parse_content(content)))
-            .map_err(anyhow::Error::from)
-    }
-
-    fn metadata(&self, ctx: &Context, try_full: bool) -> Result<&Metadata> {
-        match self
-            .parsed
-            .get()
-            .and_then(|r| r.output())
-            .map(|r| &r.metadata)
-        {
-            Some(m) => Ok(m),
-            None => self.content().and_then(|content| {
-                self.metadata.get_or_try_init(|| {
-                    if try_full && self.parsed.get().is_none() {
-                        if let Some(m) = self
-                            .parsed(ctx)
-                            .ok()
-                            .and_then(|r| r.output())
-                            .map(|r| &r.metadata)
-                        {
-                            return Ok(m.clone());
-                        }
-                    }
-                    content
-                        .metadata(ctx.parser()?)
-                        .take_output()
-                        .ok_or(anyhow::anyhow!("Can't parse metadata"))
-                })
-            }),
-        }
-    }
-}
-
-impl std::ops::Deref for CachedRecipeEntry {
-    type Target = RecipeEntry;
-
-    fn deref(&self) -> &Self::Target {
-        &self.entry
-    }
 }

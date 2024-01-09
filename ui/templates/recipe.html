@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ name }} - chef{% endblock %}
+
+{% block content %}
+  <div id="content">
+    {% if is_valid %}
+      {% include "components/recipe_view.html" %}
+    {% else %}
+      <h1 class="text-2xl text-red-9">{{ t("error.parse") }}</h1>
+      {% include "components/report.html" %}
+    {% endif %}
+  </div>
+{% endblock %}

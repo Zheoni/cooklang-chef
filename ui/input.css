@@ -1,0 +1,478 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Typey";
+  font-style: normal;
+  src: url("/fonts/Typey.woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Typey";
+  font-style: italic;
+  src: url("/fonts/Typey_Italic.woff2");
+  font-display: swap;
+}
+
+/* Base styles */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-base-1 text-base-12 accent-primary-9;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading text-primary-12;
+  }
+
+  a,
+  button,
+  [role="button"],
+  input,
+  label,
+  select,
+  summary,
+  text-area,
+  area {
+    touch-action: manipulation;
+  }
+
+  * {
+    outline: none;
+  }
+
+  *:focus-visible {
+    @apply ring-2 ring-primary-7;
+  }
+}
+
+img.emoji {
+  height: 1em;
+  width: 1em;
+  margin: 0 0.05em 0 0.1em;
+  vertical-align: -0.1em;
+  display: inline-block;
+}
+
+.link,
+p > a {
+  @apply text-primary-11 hover:underline;
+}
+
+.print-exact {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.htmx-indicator.htmx-request ~ .inv-htmx-indicator {
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}
+
+.inset-shadow {
+  box-shadow:
+    #0000001a 0 0 0 1px inset,
+    #0000002f 0 0 4px 3px inset;
+}
+
+.print-exact {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+/* ---------- */
+
+/* Ingredient highlighting */
+.scale-error {
+  @apply text-red-12 underline decoration-red-11 decoration-wavy;
+}
+
+.scale-fixed {
+  @apply text-yellow-12 underline decoration-yellow-11 decoration-wavy;
+}
+
+[data-component-kind].highlight {
+  @apply underline decoration-dotted underline-offset-4;
+}
+
+[data-component-kind="ingredient"].highlight {
+  @apply text-green-11;
+}
+
+[data-component-kind="cookware"].highlight {
+  @apply text-yellow-11;
+}
+
+[data-step-index].highlight {
+  @apply bg-primary-3;
+}
+
+[data-section-index] {
+  transition-property: box-shadow, background-color;
+}
+[data-section-index].highlight {
+  box-shadow: 0 0 0.5em 1em var(--tw-shadow-color);
+  @apply -mx-2 rounded-lg bg-primary-3 px-2 shadow-primary-3;
+}
+
+/* ---------- */
+
+/* Change theme view transition */
+.fancy-transition::view-transition-old(root),
+.fancy-transition::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+.fancy-transition::view-transition-old(root) {
+  z-index: 1;
+}
+
+.fancy-transition::view-transition-new(root) {
+  z-index: 2147483646;
+}
+
+.fancy-transition.dark::view-transition-old(root) {
+  z-index: 2147483646;
+}
+
+.fancy-transition.dark::view-transition-new(root) {
+  z-index: 1;
+}
+
+/* ---------- */
+
+/*
+
+Make a <div> a divider
+
+- .left or .right will place the content aligned to a side
+- .border-dashed or .border-dotted to change the border
+
+*/
+.divider {
+  @apply flex h-0 select-none items-center whitespace-nowrap text-base-11;
+}
+
+.divider::after,
+.divider::before {
+  content: "";
+  border-style: inherit;
+  @apply h-0.5 grow border-t border-current text-base-7;
+}
+
+.divider:not(:empty)::before {
+  @apply me-2;
+}
+
+.divider:not(:empty)::after {
+  @apply ms-2;
+}
+
+.divider.left::before {
+  @apply min-w-8;
+  flex-grow: 0;
+}
+
+.divider.right::after {
+  @apply min-w-8;
+  flex-grow: 0;
+}
+
+/* Buttons */
+
+.btn {
+  @apply rounded font-sans font-semibold transition-colors active:translate-y-[1px];
+}
+
+.btn-icon {
+  @apply flex items-center gap-1 px-2 py-1;
+}
+
+.btn-primary {
+  @apply text-primary-11 hover:bg-primary-4 hover:text-primary-12;
+}
+
+/* Youtube video embed */
+.yt-embed {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16/9;
+  max-width: 95%;
+  margin-inline: auto;
+}
+
+.yt-embed::after {
+  display: block;
+  content: "";
+  padding-top: 56.25%;
+}
+
+.yt-embed iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Hot reload dot */
+#hot-reload-indicator {
+  @apply border-red-6 bg-red-9;
+  opacity: 0;
+  scale: 0;
+  display: none;
+  position: relative;
+}
+
+#hot-reload-indicator.shown {
+  display: inline-block;
+  opacity: 1;
+  scale: 1;
+}
+
+#hot-reload-indicator.show-animation {
+  display: inline-block;
+  animation: scale 400ms 500ms forwards cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+@keyframes scale {
+  from {
+    opacity: 0;
+    scale: 0;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+#hot-reload-indicator.connected {
+  @apply border-green-6 bg-green-9;
+}
+
+#hot-reload-indicator.hr-animation {
+  animation: hr-animation 500ms ease-out;
+}
+
+@keyframes hr-animation {
+  0% {
+    scale: 1;
+    opacity: 1;
+  }
+
+  50% {
+    scale: 1.5;
+  }
+
+  100% {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+/* Ingredient layout */
+[data-igr-layout="line"] #igr-layout-line,
+[data-igr-layout="list"] #igr-layout-list,
+[data-igr-layout="hidden"] #igr-layout-hidden {
+  @apply border-primary-6;
+}
+
+.igr-line {
+  @apply divide-x-2 divide-base-7;
+}
+
+.igr-line > li {
+  @apply inline-block px-2 first:pl-0 last:pr-0;
+}
+
+[data-igr-layout="list"] .igr-line {
+  @apply divide-none;
+}
+
+[data-igr-layout="list"] .igr-line > li {
+  @apply block px-0;
+}
+
+[data-igr-layout="hidden"] .igr-line,
+[data-igr-layout="hidden"] .igr-line-divider {
+  display: none;
+}
+
+/* Toast animations */
+
+[data-toast] {
+  animation: slide-from-right 400ms ease-out;
+}
+
+@keyframes slide-from-right {
+  from {
+    transform: translateX(200%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Timer styles */
+
+.timer-grid {
+  display: grid;
+  grid-template-columns: 1fr 5fr 1fr;
+}
+
+#timer {
+  animation: fly-bottom 400ms ease-out;
+}
+
+@keyframes fly-bottom {
+  from {
+    transform: translateY(50%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+#timer::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  @apply bg-indigo-6;
+}
+
+#timer::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 4px;
+  border-radius: 10px;
+  @apply bg-indigo-3;
+}
+
+#timer[data-state="running"]::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  min-height: 150%;
+  min-width: 150%;
+  aspect-ratio: 1;
+  top: -150px;
+  left: -65px;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  background-image: conic-gradient(
+    transparent,
+    hsla(226, 99.9%, 63.6%, 0.848),
+    transparent 30%
+  );
+  animation: rotate 4s linear infinite;
+  @apply bg-indigo-6;
+}
+
+#timer[data-state="running"]::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 4px;
+  border-radius: 10px;
+  @apply bg-indigo-3;
+}
+
+@keyframes rotate {
+  100% {
+    transform: rotate(1turn);
+  }
+}
+
+#timer[data-state="finished"] {
+  animation: shake 0.5s ease-in-out;
+}
+#timer[data-state="finished"]::before {
+  @apply bg-red-6;
+}
+#timer[data-state="finished"]::after {
+  @apply bg-red-3;
+}
+
+@keyframes shake {
+  0% {
+    rotate: 0;
+  }
+  20% {
+    rotate: 10deg;
+  }
+  40% {
+    rotate: -10deg;
+  }
+  60% {
+    rotate: 10deg;
+  }
+  80% {
+    rotate: -10deg;
+  }
+  100% {
+    rotate: 0;
+  }
+}
+
+.remove {
+  animation: none;
+  transition: opacity 150ms;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Tooltip */
+.tooltip {
+  width: max-content;
+  position: absolute;
+  top: 0;
+  left: 0;
+  animation: fade 150ms ease-out;
+  @apply dark rounded-xl bg-base-5 px-3 py-2 font-sans text-sm text-base-12 shadow;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.floating-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+  @apply bg-base-5;
+}
+
+[data-popover] {
+  animation: fade 150ms ease-out;
+}
+
+span.popoveractive {
+  @apply bg-base-3;
+}

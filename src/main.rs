@@ -128,6 +128,8 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
     })
 }
 
+const RECIPE_REF_ERROR: &str = "The name must match exactly except lower and upper case.";
+
 impl Context {
     fn parser(&self) -> Result<&CooklangParser> {
         self.parser
@@ -135,31 +137,20 @@ impl Context {
     }
 
     fn checker(&self, relative_to: Option<&Utf8Path>) -> Option<cooklang::RecipeRefChecker> {
-        if self.global_args.no_recipe_ref_check {
-            None
-        } else {
+        if self.config.recipe_ref_check {
             let relative_to = relative_to.map(|r| r.to_path_buf());
             Some(Box::new(move |name: &str| {
                 if resolve_recipe(name, &self.recipe_index, relative_to.as_deref()).is_ok() {
                     cooklang::RecipeRefCheckResult::Found
                 } else {
                     cooklang::RecipeRefCheckResult::NotFound {
-                        hints: vec![
-                            "The name must match exactly except lower and upper case.".into()
-                        ],
+                        hints: vec![RECIPE_REF_ERROR.into()],
                     }
                 }
             }) as cooklang::RecipeRefChecker)
+        } else {
+            None
         }
-    }
-
-    fn parse_content(
-        &self,
-        content: &cooklang_fs::RecipeContent,
-    ) -> Result<cooklang::RecipeResult> {
-        Ok(self
-            .parser()?
-            .parse_with_recipe_ref_checker(content.text(), self.checker(Some(content.path()))))
     }
 }
 

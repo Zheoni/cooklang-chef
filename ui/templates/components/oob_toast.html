@@ -1,0 +1,5 @@
+{% from "atoms.html" import toast %}
+
+<div id="toasts" hx-swap-oob="beforeend">
+  {{ toast(t(text_key), color|default("green")) }}
+</div>

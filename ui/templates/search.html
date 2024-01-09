@@ -1,0 +1,9 @@
+{% set wide = true %}
+{% extends "layout.html" %}
+
+{% block title %}search - chef{% endblock %}
+
+{% block content %}
+  {% include "components/search_form.html" %}
+  <div id="content">{% include "components/recipe_grid.html" %}</div>
+{% endblock %}

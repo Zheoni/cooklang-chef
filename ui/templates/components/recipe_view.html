@@ -1,0 +1,581 @@
+{% from "atoms.html" import tag, qty_format, value_format %}
+
+<!-- Image(s) -->
+{% for image in images %}
+  {% if image.indexes is none %}
+    <div class="mb-8 max-h-[70vh] w-full overflow-hidden rounded shadow-lg">
+      <img class="h-full w-full object-cover" src="/src/{{ image.path }}" />
+    </div>
+  {% endif %}
+{% endfor %}
+
+<!-- Warnings -->
+{% if report_html %}
+  <details remember-open id="recipe-warnings">
+    <summary class="font-bold text-yellow-11">{{ t("r.warnings") }}</summary>
+
+    {% include "components/report.html" %}
+  </details>
+{% endif %}
+
+{% if is_loopback is true %}
+  <!-- Open editor, only in loopback ip -->
+  <div class="float-right flex flex-wrap gap-2">
+    {% include "components/open_in_editor.html" %}
+  </div>
+{% endif %}
+
+<!-- Title -->
+<h1 class="font-heading text-6xl">
+  {% if r.meta.emoji %}
+    <span twemoji aria-hidden="true">{{ r.meta.emoji }}</span>
+  {% endif %}
+  {{ name }}
+</h1>
+
+<!-- Metadata -->
+<div class="m-4 flex flex-wrap gap-2">
+  {% for t in r.meta.tags %}
+    {{ tag(t.name, t.color) }}
+  {% endfor %}
+</div>
+{% if r.meta.description %}
+  <p
+    class="m-4 w-fit text-balance rounded border-l-4 border-primary-9 bg-base-2 p-4 text-xl shadow"
+  >
+    {{ r.meta.description }}
+  </p>
+{% endif %}
+
+{% macro meta_group(icon, entries) %}
+  <div
+    class="my-3 flex w-fit flex-wrap items-center justify-start gap-2 rounded-xl border border-dashed border-base-6 p-2"
+  >
+    <div
+      class="dark:inset-shadow grid size-10 place-items-center rounded-full border-2 border-primary-8 bg-primary-3 text-base-12"
+    >
+      <i class="{{ icon }} text-primary-12"></i>
+    </div>
+    {{ entries }}
+  </div>
+{% endmacro %}
+
+{% macro meta_entry(key) %}
+  <div
+    class="flex items-stretch justify-center overflow-hidden rounded border border-base-6"
+  >
+    <div
+      class="whitespace-nowrap border-r-2 border-primary-9 bg-primary-3 px-4 py-2 font-semibold"
+    >
+      {{ key }}
+    </div>
+    <div class="flex h-10 items-stretch justify-center bg-base-3 px-4 py-2">
+      {{ caller() }}
+    </div>
+  </div>
+{% endmacro %}
+
+{% set entries %}
+  {% call meta_entry(t("r.meta.servings")) %}
+    <div class="flex divide-x-2 divide-base-7">
+      {% for serving in r.meta.servings %}
+        {% set is_selected = (query.scale is none and loop.first) or (query.scale == serving) %}
+        {% set query_str = "?" ~ {'scale': serving, 'units': query.units}|select_value|urlencode if not loop.first else '' %}
+        <div class="px-2">
+          <a
+            href="/r/{{ src_path|replace('.cook', '') }}{{ query_str }}"
+            class="{{ 'border-primary-7' if is_selected else 'border-transparent' }}
+                    h-fit rounded border-2 px-1.5 decoration-2"
+            hx-swap="show:none"
+          >
+            {{ serving }}
+          </a>
+        </div>
+      {% endfor %}
+      <form
+        class="px-2"
+        method="get"
+        action="{{ href }}"
+        hx-trigger="input changed delay:500ms from:#custom-scale, submit"
+        hx-swap="show:none"
+      >
+        {% if query.units %}
+          <input type="hidden" name="units" value="{{ query.units }}" />
+        {% endif %}
+        {% set is_custom = query.scale is not none and query.scale not in r.meta.servings|or_else([]) %}
+        <input
+          id="custom-scale"
+          name="scale"
+          {% if is_custom %}
+            value="{{ query.scale }}"
+          {% endif %}
+          class="-my-0.5 h-7 w-14 rounded border border-base-2 p-1 tabular-nums"
+          type="number"
+          min="1"
+          max="99"
+          inputmode="numeric"
+          pattern="[0-9]*"
+        />
+      </form>
+    </div>
+  {% endcall %}
+{% endset %}
+
+{{ meta_group("i-lucide-utensils", entries) }}
+
+{% if r.meta.author or r.meta.source %}
+  {% macro name_or_url(label, name, url, meta_entry) %}
+    {% call meta_entry(label) %}
+      {% if url %}
+        <a href="{{ url }}" class="link">
+          {% if name %}
+            {{ name }}
+          {% else %}
+            <span class="italic">{{ label|lower }}</span>
+          {% endif %}
+          <i class="i-lucide-external-link"></i>
+        </a>
+      {% else %}
+        {{ name }}
+      {% endif %}
+    {% endcall %}
+  {% endmacro %}
+
+  {% set entries %}
+    {% if r.meta.author %}
+      {{ name_or_url(t("r.meta.author"), r.meta.author.name, r.meta.author.url, meta_entry) }}
+    {% endif %}
+    {% if r.meta.source %}
+      {{ name_or_url(t("r.meta.source"), r.meta.source.name, r.meta.source.url, meta_entry) }}
+    {% endif %}
+  {% endset %}
+
+  {{ meta_group("i-lucide-user", entries) }}
+{% endif %}
+
+{% if r.meta.time %}
+  {% set entries %}
+    {% call meta_entry(t("r.meta.totalTime")) %}
+      <span format-minutes>
+        {% if r.meta.time is number %}
+          {{ r.meta.time }}
+        {% else %}
+          {{ r.meta.time.prep_time + r.meta.time.cook_time }}
+        {% endif %}
+      </span>
+    {% endcall %}
+    {% if r.meta.time.prep_time %}
+      {% call meta_entry(t("r.meta.prepTime")) %}
+        <span format-minutes>{{ r.meta.time.prep_time }}</span>
+      {% endcall %}
+    {% endif %}
+    {% if r.meta.time.cook_time %}
+      {% call meta_entry(t("r.meta.cookTime")) %}
+        <span format-minutes>{{ r.meta.time.cook_time }}</span>
+      {% endcall %}
+    {% endif %}
+  {% endset %}
+
+  {{ meta_group("i-lucide-hourglass", entries) }}
+{% endif %}
+
+{% if r.meta.other is not empty %}
+  {% set entries %}
+    {% for key, value in r.meta.other|items %}
+      {% call meta_entry(key) %}
+        {{ value }}
+      {% endcall %}
+    {% endfor %}
+  {% endset %}
+
+  {{ meta_group("i-lucide-component", entries) }}
+{% endif %}
+
+<details remember-open id="recipe-more-metadata">
+  <summary class="w-fit text-primary-12">{{ t("r.meta.moreData") }}</summary>
+
+  {% set entries %}
+    {% call meta_entry(t("r.meta.added")) %}
+      <span format-timestamp>{{ times.created }}</span>
+    {% endcall %}
+    {% call meta_entry(t("r.meta.modified")) %}
+      <span format-timestamp>{{ times.modified }}</span>
+    {% endcall %}
+  {% endset %}
+
+  {{ meta_group("i-lucide-calendar", entries) }}
+
+  {% set entries %}
+    {% call meta_entry(t("r.meta.sourceFile")) %}
+      <span
+        class="dark -my-1 rounded bg-base-1 px-4 py-1 font-mono text-base-12"
+      >
+        {{ src_path }}
+      </span>
+      <a
+        href="/src/{{ src_path }}"
+        class="btn btn-primary -my-1 ms-4 inline-grid size-8 place-items-center"
+        target="_blank"
+        ><i class="i-lucide-file-code"></i
+      ></a>
+    {% endcall %}
+  {% endset %}
+
+  {{ meta_group("i-lucide-code", entries) }}
+</details>
+
+{% if r.meta.source.url %}
+  {% set videoid = youtube_videoid(r.meta.source.url) %}
+  {% if videoid is not none %}
+    <!-- Video embed -->
+    <div class="yt-embed my-8 w-[560px] print:hidden lg:w-[700px] xl:w-[800px]">
+      <iframe
+        src="https://www.youtube-nocookie.com/embed/{{ videoid }}"
+        title="YouTube video player"
+        frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen
+      ></iframe>
+    </div>
+  {% endif %}
+{% endif %}
+
+<!-- Controls -->
+<form
+  class="float-right my-2"
+  method="get"
+  action="{{ href }}"
+  hx-trigger="input changed from:#units, submit"
+  hx-swap="show:none"
+>
+  {% if query.scale %}
+    <input type="hidden" name="scale" value="{{ query.scale }}" />
+  {% endif %}
+  <span>
+    <i class="i-lucide-ruler me-1 text-primary-11"></i>
+    <select
+      id="units"
+      name="units"
+      class="rounded border border-base-4 bg-base-2 px-1 py-0.5"
+    >
+      {% for sys in ['default', 'metric', 'imperial'] %}
+        {% set selected = (loop.first and query.units is none) or query.units == sys %}
+        <option value="{{ sys }}" {% if selected %}selected{% endif %}>
+          {{ t('r.convertSelector.' ~ sys) }}
+        </option>
+      {% endfor %}
+    </select>
+  </span>
+</form>
+
+<!-- Recipe content -->
+<div
+  class="content font-serif text-lg"
+  data-igr-layout="{{ igr_layout|or_else('line') }}"
+>
+  <!-- Lists -->
+  <div class="md:grid md:grid-cols-2">
+    {% if r.grouped_ingredients is not empty %}
+      <div>
+        <h2 class="my-2 font-heading text-3xl">{{ t("r.ingredients") }}</h2>
+        <ul class="ms-6 list-disc">
+          {% for e in r.grouped_ingredients %}
+            {% set ingredient = r.ingredients[e.index] %}
+            {% if 'HIDDEN' not in ingredient.modifiers %}
+              <li class="w-fit">
+                {% set display_name = ingredient.display_name|capitalize %}
+                <span
+                  data-component-kind="ingredient"
+                  data-component-ref-group="{{ e.index }}"
+                  data-component-ref-target="ingredient"
+                >
+                  {% if 'RECIPE' in ingredient.modifiers %}
+                    <!-- TODO resolve relative links -->
+                    <a href="" class="link">{{ display_name }}</a>
+                  {%- else -%}
+                    {{- display_name -}}
+                  {%- endif -%}
+                </span>
+                {%- if 'OPT' in ingredient.modifiers -%}
+                  <span> ({{ t("r.optMarker") }})</span>
+                {%- endif -%}
+
+                {%- if e.quantities is not empty -%}
+                  :
+                  {% if e.outcome|lower == "fixed" %}
+                    {% set tooltip = t("outcome.fixed") %}
+                    {% set tooltip_cls = "scale-fixed" %}
+                  {% elif e.outcome|lower == "error" %}
+                    {% set tooltip = t("outcome.error") %}
+                    {% set tooltip_cls = "scale-error" %}
+                  {% endif %}
+                  <span
+                    class="{{ tooltip_cls }} text-base-11"
+                    {% if tooltip %}
+                      data-tooltip="{{ tooltip }}"
+                    {% endif %}
+                  >
+                    {% for q in e.quantities %}
+                      {{ qty_format(q) }}
+                      {{ ', ' if not loop.last }}
+                    {% endfor %}
+                  </span>
+                {%- endif -%}
+
+                {% if ingredient.note %}
+                  <div
+                    class="ms-2 rounded border border-yellow-6 bg-yellow-3 p-2 text-base text-base-12"
+                  >
+                    {{ ingredient.note }}
+                  </div>
+                {% endif %}
+              </li>
+            {% endif %}
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+    {% if r.grouped_cookware is not empty %}
+      <div>
+        <h2 class="my-2 font-heading text-3xl">{{ t("r.cookware") }}</h2>
+        <ul class="ms-6 list-disc">
+          {% for e in r.grouped_cookware %}
+            {% set item = r.cookware[e.index] %}
+            {% if 'HIDDEN' not in item.modifiers %}
+              <li class="w-fit">
+                <span
+                  data-component-kind="cookware"
+                  data-component-ref-group="{{ e.index }}"
+                  data-component-ref-target="cookware"
+                >
+                  {{- item.display_name|capitalize -}}
+                </span>
+
+                {%- if 'OPT' in item.modifiers -%}
+                  <span> ({{ t("r.optMarker") }})</span>
+                {%- endif -%}
+
+                {%- if e.amounts is not empty -%}
+                  :
+                  <span class="text-base-11">
+                    {% for amnt in e.amounts %}
+                      {{ value_format(amnt) }}
+                      {{ ', ' if not loop.last }}
+                    {% endfor %}
+                  </span>
+                {%- endif -%}
+
+                {% if item.note %}
+                  <div
+                    class="ms-2 rounded border border-yellow-6 bg-yellow-3 p-2 text-base text-base-12"
+                  >
+                    {{ item.note }}
+                  </div>
+                {% endif %}
+              </li>
+            {% endif %}
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if r.sections is not empty %}
+    <div class="float-right flex gap-2">
+      <button
+        id="igr-layout-line"
+        type="button"
+        class="btn btn-primary mt-6 grid size-9 place-items-center border-2 border-transparent"
+      >
+        <i class="i-lucide-wrap-text"></i>
+        <span class="sr-only">{{ t("r.stepIngredientsView.compact") }}</span>
+      </button>
+      <button
+        id="igr-layout-list"
+        type="button"
+        class="btn btn-primary mt-6 grid size-9 place-items-center border-2 border-transparent"
+      >
+        <i class="i-lucide-layout-list"></i>
+        <span class="sr-only">{{ t("r.stepIngredientsView.list") }}</span>
+      </button>
+      <button
+        id="igr-layout-hidden"
+        type="button"
+        class="btn btn-primary mt-6 grid size-9 place-items-center border-2 border-transparent"
+      >
+        <i class="i-lucide-eye-off"></i>
+        <span class="sr-only">{{ t("r.stepIngredientsView.hidden") }}</span>
+      </button>
+    </div>
+
+    <h2 class="mb-2 mt-6 font-heading text-3xl">{{ t("r.method") }}</h2>
+  {% endif %}
+  <!-- Sections -->
+  {% for sect in r.sections %}
+    {% if not loop.first %}
+      <div class="divider mx-2 my-8"></div>
+    {% endif %}
+    {% set sect_index = loop.index0 %}
+    <div
+      class="bg-transparent transition-colors"
+      data-section-index="{{ sect_index }}"
+      id="section-{{ sect_index }}"
+    >
+      <h2 class="my-3 font-heading text-2xl">
+        {% if sect.name is not none %}
+          {{ sect.name }}
+        {% elif loop.length > 1 %}
+          {{ t("r.section", sect=loop.index) }}
+        {% endif %}
+      </h2>
+
+      <!-- Section content -->
+      {% for content in sect.content %}
+        {% if content.type == "step" %}
+          <!-- Step -->
+          {% set step_number = content.value.number %}
+          {% set igr_extra = step_ingredients(content.value.items, r.ingredients) %}
+          <div class="my-6 flex">
+            <span class="me-2 mt-2 font-sans font-semibold text-primary-12">
+              {{ step_number }}.
+            </span>
+            <div class="flex flex-grow flex-col-reverse gap-2 lg:flex-row">
+              <div
+                class="grow flex-col rounded border border-base-6 bg-base-2 p-4 shadow transition-colors"
+                data-step-index="{{ loop.index0 }}"
+                id="step-{{ sect_index }}-{{ loop.index0 }}"
+              >
+                <p class="grow">
+                  {% for item in content.value.items %}
+                    {%- if item.type == "text" -%}
+                      {{- item.value -}}
+                    {%- elif item.type == "ingredient" -%}
+                      {% set igr = r.ingredients[item.index] %}
+                      <span
+                        class="font-semibold text-green-11"
+                        data-component-kind="ingredient"
+                        data-component-ref-group="{{ item.index if 'REF' not in igr.modifiers else igr.references_to.index }}"
+                        data-component-ref-target="{{ igr.references_to.target|default('ingredient') }}"
+                      >
+                        {{- igr.display_name -}}
+                        {%- if igr_extra[item.index].subscript -%}
+                          <sub>{{ igr_extra[item.index].subscript }}</sub>
+                        {%- endif -%}
+                      </span>
+                    {%- elif item.type == "cookware" -%}
+                      {% set cw = r.cookware[item.index] %}
+                      <span
+                        class="font-semibold text-yellow-11"
+                        data-component-kind="cookware"
+                        data-component-ref-group="{{ item.index if 'REF' not in cw.modifiers else cw.references_to }}"
+                        data-component-ref-target="cookware"
+                      >
+                        {{- cw.display_name -}}
+                      </span>
+                    {%- elif item.type == "timer" -%}
+                      {% set tm = r.timers[item.index] %}
+                      {% set seconds = r.timers_seconds[item.index] %}
+                      {% if seconds is none %}
+                        <span class="font-semibold text-indigo-11">
+                          {{- tm.name if tm.name is not none -}}
+                          {% if tm.quantity %}
+                            {{- qty_format(tm.quantity) -}}
+                          {% endif %}
+                        </span>
+                      {% else %}
+                        <button
+                          class="inline font-semibold text-indigo-11 disabled:cursor-not-allowed"
+                          data-tooltip="{{ t('timer.start') }}"
+                          data-timer="{{ seconds }}"
+                          data-timer-name="{{ tm.name|or_else(false) }}"
+                        >
+                          {{- tm.name if tm.name is not none -}}
+                          {% if tm.quantity %}
+                            {{- qty_format(tm.quantity, editable=false) -}}
+                          {% endif %}
+                        </button>
+                      {% endif %}
+                    {%- elif item.type == "inlineQuantity" -%}
+                      {% set qty = r.inline_quantities[item.index] %}
+                      <span class="font-semibold text-red-11">
+                        {{- qty_format(qty) -}}
+                      </span>
+                    {%- endif -%}
+                  {% endfor %}
+                </p>
+
+                <!-- Ingredients line -->
+                {% if igr_extra|items|map(attribute="1.in_ingredients_line")|select is not empty %}
+                  <div class="divider igr-line-divider my-4"></div>
+                  <ul class="igr-line">
+                    {% for item in content.value.items|selectattr("type", "eq", "ingredient") %}
+                      {%- set data = igr_extra[item.index] -%}
+                      {% if data.in_ingredients_line %}
+                        {%- set igr = r.ingredients[item.index] -%}
+                        <li>
+                          <span
+                            data-component-kind="ingredient"
+                            data-component-ref-group="{{ item.index if 'REF' not in igr.modifiers else igr.references_to.index }}"
+                            data-component-ref-target="{{ igr.references_to.target|default('ingredient') }}"
+                          >
+                            {%- if 'RECIPE' in igr.modifiers -%}
+                              <!-- TODO Resolve relative links -->
+                              <a href="">{{ igr.display_name }}</a>
+                            {%- else -%}
+                              {{ igr.display_name }}
+                            {%- endif -%}
+                            {%- if data.subscript is not none -%}
+                              <sub>{{ data.subscript }}</sub>
+                            {%- endif -%}
+                          </span>
+                          {%- if 'OPT' in igr.modifiers -%}
+                            <span> ({{ t("r.optMarker") }})</span>
+                          {%- endif -%}
+                          {% if igr.references_to.target == "step" %}
+                            <a
+                              href="#step-{{ sect_index }}-{{ igr.references_to.index }}"
+                              class="italic text-base-11 underline"
+                              highlight-target-on-hover
+                              >{{ t("r.ref.fromStep", step=sect.content[igr.references_to.index].value.number) }}</a
+                            >
+                          {% elif igr.references_to.target == "section" %}
+                            <a
+                              href="#section-{{ igr.references_to.index }}"
+                              class="italic text-base-11 underline"
+                              highlight-target-on-hover
+                              >{{ t("r.ref.fromSect", sect=igr.references_to.index + 1) }}</a
+                            >
+                          {%- endif -%}
+                          {%- if igr.quantity is not none -%}
+                            :
+                            <span class="text-base-11">
+                              {{ qty_format(igr.quantity) }}
+                            </span>
+                          {% endif %}
+                        </li>
+                      {%- endif -%}
+                    {% endfor %}
+                  </ul>
+                {% endif %}
+              </div>
+              {% set step_image = images|select_image(sect_index, step_number - 1) %}
+              {% if step_image is not none %}
+                <div class="max-w-[40%] overflow-hidden rounded">
+                  <img
+                    src="/src/{{ step_image.path }}"
+                    class="h-full w-full object-cover"
+                  />
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% elif content.type == "text" %}
+          <!-- Step -->
+          <p class="indent-4">{{ content.value }}</p>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endfor %}
+</div>
+
+<script src="/js/recipe.js" defer></script>

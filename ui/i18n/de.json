@@ -1,0 +1,98 @@
+{
+    "_lang": "Deutsche",
+    "index": {
+        "divideInFolders": "Ordneransicht",
+        "search": "Suche",
+        "noRecipes": "Keine Rezepte gefunden"
+    },
+    "header": {
+        "autoUpdating": "automatische Aktualisierung der Inhalte",
+        "notAutoUpdating": "automatische Aktualisierung der Inhalte deaktiviert. Neu laden, um erneut zu versuchen."
+    },
+    "footer": {
+        "about": "Über",
+        "cookedWith": "Gekocht mit"
+    },
+    "themeToggle": {
+        "label": "Erscheinungsbild",
+        "light": "Hell",
+        "dark": "Dunkel",
+        "system": "System"
+    },
+    "openInEditor": {
+        "error": "Konnte Editor nicht öffnen",
+        "success": "Rezept geöffnet",
+        "text": "In Editor öffnen"
+    },
+    "r": {
+        "warnings": "Warnungen",
+        "meta": {
+            "servings": "Portionen",
+            "author": "Autor",
+            "source": "Quelle",
+            "totalTime": "Zeit insgesamt",
+            "prepTime": "Vorbereitungszeit",
+            "cookTime": "Kochzeit",
+            "moreData": "Weitere Angaben",
+            "added": "Hinzugefügt",
+            "modified": "Geändert",
+            "sourceFile": "Quelldatei"
+        },
+        "convertSelector": {
+            "label": "Einheiten umrechnen",
+            "default": "Standard",
+            "metric": "metrisch",
+            "imperial": "imperial"
+        },
+        "scaleSelector": {
+            "label": "Größenordnung",
+            "presets": "Vorgaben",
+            "reset": "Zurücksetzen"
+        },
+        "ingredients": "Zutaten",
+        "cookware": "Kochutensilien",
+        "optMarker": "wählen",
+        "method": "Zubereitung",
+        "stepIngredientsView": {
+            "label": "Zutatenansicht",
+            "compact": "kompakt",
+            "list": "Liste",
+            "hidden": "versteckt"
+        },
+        "section": "Abschnitt {{ sect }}",
+        "ref": {
+            "fromStep": "aus Schritt {{ step }}",
+            "fromSect": "aus Abschnitt {{ sect }}"
+        }
+    },
+    "outcome": {
+        "error": "Fehler beim Umrechnen",
+        "fixed": "Dieser Wert lässt sich nicht umrechnen"
+    },
+    "error": {
+        "notFound": "Rezept nicht gefunden",
+        "parse": "Fehler beim Verarbeiten des Rezepts",
+        "unknown": "unbekannter Fehler"
+    },
+    "timer": {
+        "start": "Timer starten"
+    },
+    "quantity": {
+        "roundError": "Fehler",
+        "cantConvert": "Bei der Umrechnung der Menge ist ein Fehler aufgetreten.",
+        "reset": "Reset"
+    },
+    "about": {
+        "about": "Über",
+        "body": "{{ chef }} ist eine Anwendung zur Visualisierung von in Cooklang geschriebenen Rezepten in einer Weise, die der Standardanwendung überlegen ist. {{ chef }} enthält Erweiterungen der Cooklang-Sprache, um deren Funktionalität zu erhöhen. Erfahren Sie mehr über Cooklang und {{ chef }} unter den untenstehenden Links.",
+        "darkModeExplain": "Der Dunkelmodus berücksichtigt die Einstellungen Ihres Geräts, bis Sie ihn ändern. Sie können ihn auf dem Gerät einstellen, indem Sie die Schaltfläche oben rechts oder die Schaltflächen unten verwenden.",
+        "langExplain": "Die Sprache wird automatisch ausgewählt. Wenn Sie sie ändern möchten, können Sie dies in der Fußzeile der Website tun. Um zur automatischen Sprachauswahl zurückzukehren, verwenden Sie die Schaltfläche unten.",
+        "langAuto": "Browser-Sprache",
+        "licenses": "Software-Lizenzierung",
+        "licensesExplain": "Die Lizenzen der Open-Source-Software, deren Quellcode in {{ chef }} für die Webansicht enthalten ist, werden angezeigt.",
+        "settings": "Anpassungen"
+    },
+    "hotReload": {
+        "deleted": "Das Rezept '{{ name }}' wurde gelöscht"
+    }
+}

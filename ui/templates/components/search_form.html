@@ -1,0 +1,33 @@
+<form
+  class="mb-8 flex w-full items-center justify-center gap-4"
+  action="/search"
+  method="get"
+>
+  <div class="relative flex w-full justify-center">
+    <input
+      class="w-full rounded-bl rounded-tl border border-r-0 border-base-7 bg-gray-50 px-2 text-black [color-scheme:light] hover:border-base-8 focus:z-10 md:max-w-72"
+      type="search"
+      name="q"
+      id="search"
+      autocomplete="off"
+      placeholder="{{ t('index.search') }}"
+      value="{{ search_query|default('') }}"
+      hx-get="/search"
+      hx-trigger="input changed delay:500ms, search"
+      hx-target="#content"
+      hx-indicator=".htmx-indicator"
+      hx-push-url="true"
+    />
+    <button
+      class="relative grid size-10 place-items-center rounded-br rounded-tr border border-base-7 bg-base-3  text-base-11 hover:bg-base-4 focus:z-10 active:bg-base-5"
+    >
+      <span class="htmx-indicator absolute inset-0">
+        <i
+          aria-hidden="true"
+          class="i-lucide-loader-2 aspect-square h-full animate-spin text-xl text-primary-9"
+        ></i>
+      </span>
+      <i class="inv-htmx-indicator i-lucide-search"></i>
+    </button>
+  </div>
+</form>

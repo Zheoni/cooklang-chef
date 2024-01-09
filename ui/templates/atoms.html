@@ -1,0 +1,82 @@
+{%- macro tag(name, emoji) -%}
+  <a href="/search?{{ {'q': 'tag:' ~ name}|urlencode }}">
+    <div
+      class="print-exact inline-flex h-7 w-auto select-none items-center justify-center
+		overflow-hidden text-ellipsis rounded border-2 border-primary-7 bg-primary-3 px-2 font-semibold tracking-wide
+		text-base-12 hover:border-primary-8 hover:bg-primary-4"
+    >
+      <span class="mr-1 inline-flex items-center text-base text-primary-11">
+        {% if emoji %}
+          <span twemoji>{{ emoji }}</span>
+        {% else %}
+          <i class="i-lucide-hash"></i>
+        {% endif %}
+      </span>
+      <span class="overflow-hidden text-ellipsis whitespace-nowrap lowercase">
+        {{ name }}
+      </span>
+    </div>
+  </a>
+{%- endmacro -%}
+
+{%- macro qty_format(q, editable = true) -%}
+  {% if q.unit is none %}
+    {% set editable = false %}
+  {% endif %}
+  <span
+    {% if editable %}
+      class="-m-0.5 cursor-pointer rounded p-0.5 hover:bg-base-2
+      transition-colors" hx-post="/convert_modal" hx-trigger="click"
+      hx-vals='{{ q|tojson }}' hx-target="body" hx-swap="beforeend"
+      hx-ext="json-enc" data-auto-id
+    {% endif %}
+  >
+    <span data-quantity-value>{{ value_format(q.value) }}</span>
+    {% if q.unit %}
+      <span data-quantity-unit class="italic">{{ q.unit }}</span>
+    {% endif %}
+  </span>
+{%- endmacro -%}
+
+{%- macro value_format(v) -%}
+  {% if v.type == "number" %}
+    {{ num_format(v.value) }}
+  {% elif v.type == "range" %}
+    {{ num_format(v.value.start) }}-{{ num_format(v.value.end) }}
+  {% else %}
+    {{ v.value }}
+  {% endif %}
+{%- endmacro -%}
+
+{%- macro num_format(num) -%}
+  {%- if num.type == "fraction" -%}
+    <span format-number>{{ num.value.whole }}</span>
+    {% if num.value.num > 0 %}
+      {{ (num.value.num ~ '/' ~ num.value.den)|unicode_fraction }}
+      {% if num.value.err|abs > 0.001 %}
+        <span data-fract-error hidden
+          >{{ '+' if num.value.err >= 0 }}<span format-number
+            >{{ num.value.err }}</span
+          ></span
+        >
+      {%- endif -%}
+    {% endif %}
+  {%- else -%}
+    <span format-number>{{ num.value }}</span>
+  {%- endif -%}
+{%- endmacro -%}
+
+{%- macro toast(text, color) -%}
+  <div
+    data-toast
+    class="border-{{ color }}-7 bg-{{ color }}-5 group relative z-20 mx-2 my-1 flex h-fit min-w-52 items-center overflow-hidden rounded border border-l-8 px-6 py-4 font-sans text-lg shadow"
+  >
+    <span>{{ text }}</span>
+    <button
+      class="m-2 grid place-items-center text-xl text-transparent transition-colors group-hover:text-base-11 group-hover:hover:text-red-9"
+      type="button"
+    >
+      <i class="i-lucide-x"></i>
+    </button>
+  </div>
+{%- endmacro -%}

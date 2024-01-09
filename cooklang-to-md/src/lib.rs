@@ -4,10 +4,11 @@ use std::{fmt::Write, io};
 
 use cooklang::{
     convert::Converter,
-    metadata::{IndexMap, Metadata, NameAndUrl, RecipeTime},
+    metadata::{IndexMap, Metadata},
     model::{Item, Section, Step},
     ScaledRecipe,
 };
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -23,66 +24,160 @@ pub enum Error {
 
 pub type Result<T = ()> = std::result::Result<T, Error>;
 
+/// Options for [`print_md_with_options`]
+///
+/// This implements [`Serialize`] and [`Deserialize`], so you can embed it in
+/// other configuration.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[non_exhaustive]
+pub struct Options {
+    /// Show the tags in the markdown body
+    ///
+    /// They will apear just after the title.
+    ///
+    /// The tags will have the following format:
+    /// ```md
+    /// #tag1 #tag2 #tag3
+    /// ```
+    pub tags: bool,
+    /// Show the description in the markdown body
+    ///
+    /// It will appear as a blockquotes just after the tags (if its enabled and
+    /// there are any tags; if not, after the title)
+    pub description: bool,
+    /// Make every step a regular paragraph
+    ///
+    /// A `cooklang` extensions allows to add paragraphs between steps. Because
+    /// some `Markdown` parser may not be able to set the start number of the
+    /// list, step numbers may be wrong. With this option enabled, all steps are
+    /// paragraphs because the number is escaped like:
+    /// ```md
+    /// 1\. Step.
+    /// ```
+    pub escape_step_numbers: bool,
+    /// Add the name of the recipe to the front-matter
+    ///
+    /// A key `name` in the metadata has preference over this.
+    pub front_matter_name: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            tags: true,
+            description: true,
+            escape_step_numbers: false,
+            front_matter_name: true,
+        }
+    }
+}
+
+/// Writes a recipe in Markdown format
+///
+/// This is an alias for [`print_md_with_options`] where the options are the
+/// default value.
 pub fn print_md(
     recipe: &ScaledRecipe,
     name: &str,
     converter: &Converter,
+    writer: impl io::Write,
+) -> Result {
+    print_md_with_options(recipe, name, Options::default(), converter, writer)
+}
+
+/// Writes a recipe in Markdown format
+///
+/// The metadata of the recipe will be in a YAML front-matter. Some special keys
+/// like `autor` or `servings` will be mappings or sequences instead of text if
+/// they were parsed correctly.
+///
+/// The [`Options`] are used to further customize the output. See it's
+/// documentation to know about them.
+pub fn print_md_with_options(
+    recipe: &ScaledRecipe,
+    name: &str,
+    opts: Options,
+    converter: &Converter,
     mut writer: impl io::Write,
 ) -> Result {
-    frontmatter(&mut writer, &recipe.metadata)?;
+    frontmatter(&mut writer, &recipe.metadata, name, &opts)?;
 
     writeln!(writer, "# {}", name)?;
-    for tag in &recipe.metadata.tags {
-        write!(writer, "#{tag} ")?;
-    }
-    if !recipe.metadata.tags.is_empty() {
-        writeln!(writer)?;
-    }
-    writeln!(writer)?;
 
-    if let Some(desc) = &recipe.metadata.description {
-        print_wrapped_with_options(&mut writer, desc, |o| {
-            o.initial_indent("> ").subsequent_indent("> ")
-        })?;
+    if opts.tags && !recipe.metadata.tags.is_empty() {
         writeln!(writer)?;
+        for (i, tag) in recipe.metadata.tags.iter().enumerate() {
+            write!(writer, "#{tag}")?;
+            if i < recipe.metadata.tags.len() - 1 {
+                write!(writer, " ")?;
+            }
+        }
+        writeln!(writer)?;
+    }
+
+    if opts.description {
+        if let Some(desc) = &recipe.metadata.description {
+            writeln!(writer)?;
+            print_wrapped_with_options(&mut writer, desc, |o| {
+                o.initial_indent("> ").subsequent_indent("> ")
+            })?;
+            writeln!(writer)?;
+        }
     }
 
     ingredients(&mut writer, recipe, converter)?;
     cookware(&mut writer, recipe)?;
-    sections(&mut writer, recipe)?;
+    sections(&mut writer, recipe, &opts)?;
 
     Ok(())
 }
 
-fn frontmatter(mut w: impl io::Write, metadata: &Metadata) -> Result<()> {
+fn frontmatter(
+    mut w: impl io::Write,
+    metadata: &Metadata,
+    name: &str,
+    opts: &Options,
+) -> Result<()> {
     if metadata.map.is_empty() {
         return Ok(());
     }
 
-    #[derive(serde::Serialize)]
-    struct CustomMetadata<'a> {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        emoji: Option<&'a str>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        author: Option<&'a NameAndUrl>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        source: Option<&'a NameAndUrl>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        time: Option<&'a RecipeTime>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        servings: Option<&'a [u32]>,
-        #[serde(flatten)]
-        map: IndexMap<String, String>,
+    let mut map = IndexMap::new();
+
+    if opts.front_matter_name {
+        // add name, will be overrided if other given
+        map.insert("name", name.into());
     }
 
-    let map = CustomMetadata {
-        emoji: metadata.emoji.as_deref(),
-        author: metadata.author.as_ref(),
-        source: metadata.source.as_ref(),
-        time: metadata.time.as_ref(),
-        servings: metadata.servings.as_deref(),
-        map: metadata.map_filtered(),
-    };
+    // add all the raw metadata entries
+    for (key, val) in &metadata.map {
+        map.insert(key.as_str(), val.to_string().into());
+    }
+
+    // overwrite special values if any and correct
+    macro_rules! override_special_key {
+        ($meta:ident, $thing:ident) => {
+            if let Some(val) = &$meta.$thing {
+                map.insert(
+                    stringify!($thing),
+                    serde_yaml::to_value(val.clone()).unwrap(),
+                );
+            }
+        };
+        ($meta:ident, $thing:ident : not_empty) => {
+            if !$meta.$thing.is_empty() {
+                map.insert(
+                    stringify!($thing),
+                    serde_yaml::to_value($meta.$thing.clone()).unwrap(),
+                );
+            }
+        };
+    }
+    override_special_key!(metadata, author);
+    override_special_key!(metadata, source);
+    override_special_key!(metadata, time);
+    override_special_key!(metadata, servings);
+    override_special_key!(metadata, tags : not_empty);
 
     const FRONTMATTER_FENCE: &str = "---";
     writeln!(w, "{}", FRONTMATTER_FENCE)?;
@@ -154,10 +249,10 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     Ok(())
 }
 
-fn sections(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result<()> {
+fn sections(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Result<()> {
     writeln!(w, "## Steps")?;
     for (idx, section) in recipe.sections.iter().enumerate() {
-        w_section(w, section, recipe, idx + 1)?;
+        w_section(w, section, recipe, idx + 1, opts)?;
     }
     Ok(())
 }
@@ -167,6 +262,7 @@ fn w_section(
     section: &Section,
     recipe: &ScaledRecipe,
     idx: usize,
+    opts: &Options,
 ) -> Result {
     if section.name.is_some() || recipe.sections.len() > 1 {
         if let Some(name) = &section.name {
@@ -177,7 +273,7 @@ fn w_section(
     }
     for content in &section.content {
         match content {
-            cooklang::Content::Step(step) => w_step(w, step, recipe)?,
+            cooklang::Content::Step(step) => w_step(w, step, recipe, opts)?,
             cooklang::Content::Text(text) => print_wrapped(w, text)?,
         };
         writeln!(w)?;
@@ -185,10 +281,13 @@ fn w_section(
     Ok(())
 }
 
-fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe) -> Result {
-    let mut step_str = String::new();
-
-    step_str += &format!("{}. ", step.number);
+fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe, opts: &Options) -> Result {
+    let mut step_str = step.number.to_string();
+    if opts.escape_step_numbers {
+        step_str.push_str("\\. ")
+    } else {
+        step_str.push_str(". ")
+    }
 
     for item in &step.items {
         match item {

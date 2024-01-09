@@ -1,46 +1,40 @@
 {
-	"name": "ui",
-	"version": "0.0.1",
-	"private": true,
-	"scripts": {
-		"dev": "vite dev",
-		"build": "vite build",
-		"preview": "vite preview",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-		"lint": "prettier --plugin-search-dir . --check . && eslint .",
-		"format": "prettier --plugin-search-dir . --write ."
-	},
-	"devDependencies": {
-		"@iconify-json/lucide": "^1.1.129",
-		"@rgossiaux/svelte-headlessui": "^2.0.0",
-		"@sveltejs/adapter-static": "^2.0.3",
-		"@sveltejs/kit": "^1.25.1",
-		"@typescript-eslint/eslint-plugin": "^5.62.0",
-		"@typescript-eslint/parser": "^5.62.0",
-		"@unocss/eslint-config": "^0.51.13",
-		"@unocss/reset": "^0.51.13",
-		"@unocss/transformer-directives": "^0.51.13",
-		"@zerodevx/svelte-toast": "^0.9.5",
-		"ansi-to-html": "^0.7.2",
-		"eslint": "^8.50.0",
-		"eslint-config-prettier": "^9.0.0",
-		"eslint-plugin-svelte": "^2.33.2",
-		"prettier": "^2.8.8",
-		"prettier-plugin-svelte": "^2.10.1",
-		"rosetta": "^1.1.0",
-		"svelte": "^4.2.1",
-		"svelte-check": "^3.5.2",
-		"svelte-floating-ui": "^1.5.3",
-		"svelte-preprocess": "^5.0.4",
-		"svooltip": "^0.7.4",
-		"tslib": "^2.6.2",
-		"twemoji": "^14.0.2",
-		"typescript": "^5.2.2",
-		"unocss": "^0.51.13",
-		"unocss-preset-radix": "2.5.1",
-		"unplugin-icons": "^0.17.0",
-		"vite": "^4.4.9"
-	},
-	"type": "module"
+  "private": true,
+  "scripts": {
+    "dev": "npx tailwindcss -i input.css -o assets/styles.css --watch",
+    "build": "npx tailwindcss -i input.css -o assets/styles.css --minify"
+  },
+  "devDependencies": {
+    "@egoist/tailwindcss-icons": "^1.7.1",
+    "@floating-ui/dom": "^1.5.3",
+    "@iconify-json/lucide": "^1.1.147",
+    "@radix-ui/colors": "^3.0.0",
+    "@twemoji/api": "^15.0.3",
+    "htmx.org": "^1.9.10",
+    "prettier": "^3.1.1",
+    "prettier-plugin-jinja-template": "^1.3.2",
+    "prettier-plugin-tailwindcss": "^0.5.9",
+    "tailwindcss": "^3.4.0",
+    "twemoji": "^14.0.2",
+    "windy-radix-palette": "^2.0.0-beta.7"
+  },
+  "frontendMappings": {
+    "target": "assets/vendor/",
+    "copy": [
+      "htmx.org/dist/htmx.min.js",
+      {
+        "src": "htmx.org/dist/ext/json-enc.js",
+        "target": "htmx-ext/json-enc.js"
+      },
+      "@twemoji/api/dist/twemoji.min.js",
+      "@floating-ui/dom/dist/floating-ui.dom.umd.min.js",
+      "@floating-ui/core/dist/floating-ui.core.umd.min.js"
+    ],
+    "licenses": {
+      "HTMX": "htmx.org/LICENSE",
+      "Twemoji": "twemoji/LICENSE",
+      "Floating-UI (dom)": "@floating-ui/dom/LICENSE",
+      "Floating-UI (core)": "@floating-ui/core/LICENSE"
+    }
+  }
 }

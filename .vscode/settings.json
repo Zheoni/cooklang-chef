@@ -1,4 +1,9 @@
 {
   "rust-analyzer.cargo.features": "all",
-  "unocss.root": ["./ui/"]
+  "[html]": {
+    "editor.tabSize": 2
+  },
+  "[javascript]": {
+    "editor.tabSize": 2
+  }
 }
