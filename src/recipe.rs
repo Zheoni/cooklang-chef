@@ -162,9 +162,13 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
                 }
             }
             OutputFormat::Cooklang => cooklang_to_cooklang::print_cooklang(&scaled_recipe, writer)?,
-            OutputFormat::Markdown => {
-                cooklang_to_md::print_md(&scaled_recipe, name, ctx.parser()?.converter(), writer)?
-            }
+            OutputFormat::Markdown => cooklang_to_md::print_md_with_options(
+                &scaled_recipe,
+                name,
+                &ctx.config.export.markdown,
+                ctx.parser()?.converter(),
+                writer,
+            )?,
             OutputFormat::Debug => write!(writer, "{scaled_recipe:?}")?,
         }
 

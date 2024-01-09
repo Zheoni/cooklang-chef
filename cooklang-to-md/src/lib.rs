@@ -22,13 +22,14 @@ pub enum Error {
     ),
 }
 
-pub type Result<T = ()> = std::result::Result<T, Error>;
+pub type Result<T = (), E = Error> = std::result::Result<T, E>;
 
 /// Options for [`print_md_with_options`]
 ///
 /// This implements [`Serialize`] and [`Deserialize`], so you can embed it in
 /// other configuration.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(default)]
 #[non_exhaustive]
 pub struct Options {
     /// Show the tags in the markdown body
@@ -40,11 +41,12 @@ pub struct Options {
     /// #tag1 #tag2 #tag3
     /// ```
     pub tags: bool,
-    /// Show the description in the markdown body
+    /// Set the description style in the markdown body
     ///
-    /// It will appear as a blockquotes just after the tags (if its enabled and
-    /// there are any tags; if not, after the title)
-    pub description: bool,
+    /// It will appear just after the tags (if its enabled and
+    /// there are any tags; if not, after the title).
+    #[serde(deserialize_with = "enum_or_bool")]
+    pub description: DescriptionStyle,
     /// Make every step a regular paragraph
     ///
     /// A `cooklang` extensions allows to add paragraphs between steps. Because
@@ -55,6 +57,11 @@ pub struct Options {
     /// 1\. Step.
     /// ```
     pub escape_step_numbers: bool,
+    /// Display amounts in italics
+    ///
+    /// This will affect the ingredients list, cookware list and inline
+    /// quantities such as temperature.
+    pub italic_amounts: bool,
     /// Add the name of the recipe to the front-matter
     ///
     /// A key `name` in the metadata has preference over this.
@@ -65,11 +72,53 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             tags: true,
-            description: true,
+            description: DescriptionStyle::Blockquote,
             escape_step_numbers: false,
+            italic_amounts: true,
             front_matter_name: true,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum DescriptionStyle {
+    /// Do not show the description in the body
+    Hidden,
+    /// Show as a blockquote
+    #[default]
+    #[serde(alias = "default")]
+    Blockquote,
+    /// Show as a heading
+    Heading,
+}
+
+impl From<bool> for DescriptionStyle {
+    fn from(value: bool) -> Self {
+        match value {
+            true => Self::default(),
+            false => Self::Hidden,
+        }
+    }
+}
+
+fn enum_or_bool<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de> + From<bool>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Wrapper<T> {
+        Bool(bool),
+        Enum(T),
+    }
+
+    let v = match Wrapper::deserialize(deserializer)? {
+        Wrapper::Bool(v) => T::from(v),
+        Wrapper::Enum(val) => val,
+    };
+    Ok(v)
 }
 
 /// Writes a recipe in Markdown format
@@ -82,7 +131,7 @@ pub fn print_md(
     converter: &Converter,
     writer: impl io::Write,
 ) -> Result {
-    print_md_with_options(recipe, name, Options::default(), converter, writer)
+    print_md_with_options(recipe, name, &Options::default(), converter, writer)
 }
 
 /// Writes a recipe in Markdown format
@@ -96,38 +145,44 @@ pub fn print_md(
 pub fn print_md_with_options(
     recipe: &ScaledRecipe,
     name: &str,
-    opts: Options,
+    opts: &Options,
     converter: &Converter,
     mut writer: impl io::Write,
 ) -> Result {
-    frontmatter(&mut writer, &recipe.metadata, name, &opts)?;
+    frontmatter(&mut writer, &recipe.metadata, name, opts)?;
 
-    writeln!(writer, "# {}", name)?;
+    writeln!(writer, "# {}\n", name)?;
 
     if opts.tags && !recipe.metadata.tags.is_empty() {
-        writeln!(writer)?;
         for (i, tag) in recipe.metadata.tags.iter().enumerate() {
             write!(writer, "#{tag}")?;
             if i < recipe.metadata.tags.len() - 1 {
                 write!(writer, " ")?;
             }
         }
-        writeln!(writer)?;
+        writeln!(writer, "\n")?;
     }
 
-    if opts.description {
-        if let Some(desc) = &recipe.metadata.description {
-            writeln!(writer)?;
-            print_wrapped_with_options(&mut writer, desc, |o| {
-                o.initial_indent("> ").subsequent_indent("> ")
-            })?;
-            writeln!(writer)?;
+    if let Some(desc) = &recipe.metadata.description {
+        match opts.description {
+            DescriptionStyle::Hidden => {}
+            DescriptionStyle::Blockquote => {
+                print_wrapped_with_options(&mut writer, desc, |o| {
+                    o.initial_indent("> ").subsequent_indent("> ")
+                })?;
+                writeln!(writer)?;
+            }
+            DescriptionStyle::Heading => {
+                writeln!(writer, "## Description\n")?;
+                print_wrapped(&mut writer, desc)?;
+                writeln!(writer)?;
+            }
         }
     }
 
-    ingredients(&mut writer, recipe, converter)?;
-    cookware(&mut writer, recipe)?;
-    sections(&mut writer, recipe, &opts)?;
+    ingredients(&mut writer, recipe, converter, opts)?;
+    cookware(&mut writer, recipe, opts)?;
+    sections(&mut writer, recipe, opts)?;
 
     Ok(())
 }
@@ -186,12 +241,17 @@ fn frontmatter(
     Ok(())
 }
 
-fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Converter) -> Result {
+fn ingredients(
+    w: &mut impl io::Write,
+    recipe: &ScaledRecipe,
+    converter: &Converter,
+    opts: &Options,
+) -> Result {
     if recipe.ingredients.is_empty() {
         return Ok(());
     }
 
-    writeln!(w, "## Ingredients")?;
+    writeln!(w, "## Ingredients\n")?;
 
     for entry in recipe.group_ingredients(converter) {
         let ingredient = entry.ingredient;
@@ -202,7 +262,11 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
 
         write!(w, "- ")?;
         if !entry.quantity.is_empty() {
-            write!(w, "*{}* ", entry.quantity)?;
+            if opts.italic_amounts {
+                write!(w, "*{}* ", entry.quantity)?;
+            } else {
+                write!(w, "{} ", entry.quantity)?;
+            }
         }
 
         write!(w, "{}", ingredient.display_name())?;
@@ -221,17 +285,21 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
     Ok(())
 }
 
-fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
+fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Result {
     if recipe.cookware.is_empty() {
         return Ok(());
     }
 
-    writeln!(w, "## Cookware")?;
+    writeln!(w, "## Cookware\n")?;
     for item in recipe.group_cookware() {
         let cw = item.cookware;
         write!(w, "- ")?;
         if !item.amount.is_empty() {
-            write!(w, "*{}* ", item.amount)?;
+            if opts.italic_amounts {
+                write!(w, "*{} * ", item.amount)?;
+            } else {
+                write!(w, "{} ", item.amount)?;
+            }
         }
         write!(w, "{}", cw.display_name())?;
 
@@ -250,7 +318,7 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
 }
 
 fn sections(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Result<()> {
-    writeln!(w, "## Steps")?;
+    writeln!(w, "## Steps\n")?;
     for (idx, section) in recipe.sections.iter().enumerate() {
         w_section(w, section, recipe, idx + 1, opts)?;
     }
@@ -266,9 +334,9 @@ fn w_section(
 ) -> Result {
     if section.name.is_some() || recipe.sections.len() > 1 {
         if let Some(name) = &section.name {
-            writeln!(w, "### {name}")?;
+            writeln!(w, "### {name}\n")?;
         } else {
-            writeln!(w, "### Section {idx}")?;
+            writeln!(w, "### Section {idx}\n")?;
         }
     }
     for content in &section.content {
@@ -311,9 +379,10 @@ fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe, opts: &Opt
             }
             &Item::InlineQuantity { index } => {
                 let q = &recipe.inline_quantities[index];
-                write!(&mut step_str, "{}", q.value).unwrap();
-                if let Some(u) = q.unit_text() {
-                    step_str.push_str(u);
+                if opts.italic_amounts {
+                    write!(&mut step_str, "*{q}*").unwrap();
+                } else {
+                    write!(&mut step_str, "{q}").unwrap();
                 }
             }
         }

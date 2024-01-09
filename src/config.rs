@@ -80,6 +80,8 @@ pub struct Config {
     pub load: Load,
     #[serde(skip_serializing_if = "UiConfig::is_empty")]
     pub ui: UiConfig,
+    #[serde(skip_serializing_if = "is_default")]
+    pub export: ExportConfig,
 }
 
 impl Default for Config {
@@ -92,6 +94,7 @@ impl Default for Config {
             max_depth: 10,
             load: Default::default(),
             ui: Default::default(),
+            export: Default::default(),
         }
     }
 }
@@ -126,6 +129,20 @@ impl UiConfig {
 #[serde(default)]
 pub struct TagProps {
     pub emoji: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq)]
+#[serde(default)]
+pub struct ExportConfig {
+    #[serde(skip_serializing_if = "is_default")]
+    pub markdown: cooklang_to_md::Options,
+}
+
+fn is_default<T>(this: &T) -> bool
+where
+    T: Default + PartialEq,
+{
+    this == &T::default()
 }
 
 impl Config {
