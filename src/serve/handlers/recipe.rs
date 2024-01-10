@@ -1,4 +1,4 @@
-use std::{collections::HashMap, net::SocketAddr, time::SystemTime};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::SystemTime};
 
 use axum::{
     extract::{ConnectInfo, Path, Query, State},
@@ -10,6 +10,7 @@ use cooklang::{error::SourceReport, Converter, ScaledRecipe};
 use cooklang_fs::{DirEntry, RecipeEntry};
 use minijinja::{context, Value};
 use serde::{Deserialize, Serialize};
+use tokio::task::block_in_place;
 
 use crate::{
     config::Config,
@@ -55,7 +56,7 @@ pub async fn recipe(
     let content = ok_status!(tokio::fs::read_to_string(&entry.path()).await, NOT_FOUND);
 
     let checker = state.checker(Some(entry.path()));
-    let res = tokio::task::block_in_place(|| {
+    let res = block_in_place(|| {
         state
             .parser
             .parse_with_recipe_ref_checker(&content, checker)
@@ -112,11 +113,26 @@ pub async fn recipe(
                 }
             }));
 
+            let resolve_recipe = {
+                let s = Arc::clone(&state);
+                Value::from_function(move |key: &str| {
+                    let res = block_in_place(|| s.recipe_index.get_blocking(key.to_string()));
+                    match res {
+                        Ok(entry) => {
+                            let path = clean_path(entry.path(), &s.base_path).with_extension("");
+                            Value::from(format!("/r/{path}"))
+                        }
+                        Err(_) => Value::from(key),
+                    }
+                })
+            };
+
             let ctx = context! {
                 name,
                 r,
                 query,
                 path => uri.path(),
+                resolve_recipe,
 
                 times,
                 images,
@@ -281,11 +297,8 @@ impl AppState {
         if self.config.recipe_ref_check {
             let relative_to = relative_to.map(|r| r.to_path_buf());
             Some(Box::new(move |name: &str| {
-                let res = as_path(name, relative_to.as_deref(), &self.base_path).or_else(|| {
-                    tokio::runtime::Handle::current()
-                        .block_on(self.recipe_index.get(name.to_string()))
-                        .ok()
-                });
+                let res = as_path(name, relative_to.as_deref(), &self.base_path)
+                    .or_else(|| self.recipe_index.get_blocking(name.to_string()).ok());
                 if res.is_some() {
                     cooklang::RecipeRefCheckResult::Found
                 } else {

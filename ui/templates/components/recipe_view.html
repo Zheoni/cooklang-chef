@@ -290,8 +290,11 @@
                   data-component-ref-target="ingredient"
                 >
                   {% if 'RECIPE' in ingredient.modifiers %}
-                    <!-- TODO resolve relative links -->
-                    <a href="" class="link">{{ display_name }}</a>
+                    <a
+                      href="{{ resolve_recipe(ingredient.name) }}"
+                      class="link underline"
+                      >{{ display_name }}</a
+                    >
                   {%- else -%}
                     {{- display_name -}}
                   {%- endif -%}
@@ -519,8 +522,12 @@
                             data-component-ref-target="{{ igr.references_to.target|default('ingredient') }}"
                           >
                             {%- if 'RECIPE' in igr.modifiers -%}
-                              <!-- TODO Resolve relative links -->
-                              <a href="">{{ igr.display_name }}</a>
+                              <a
+                                href="{{ resolve_recipe(igr.name) }}"
+                                class="link underline"
+                              >
+                                {{ igr.display_name }}
+                              </a>
                             {%- else -%}
                               {{ igr.display_name }}
                             {%- endif -%}

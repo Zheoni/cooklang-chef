@@ -89,6 +89,15 @@ impl AsyncFsIndex {
             .unwrap();
         rx.await.unwrap()
     }
+
+    pub fn get_blocking(&self, recipe: String) -> Result<RecipeEntry, cooklang_fs::Error> {
+        tracing::trace!("Looking up '{recipe}' (synchronous)");
+        let (tx, rx) = oneshot::channel();
+        self.calls_tx
+            .blocking_send(Call::Get { recipe, resp: tx })
+            .unwrap();
+        rx.blocking_recv().unwrap()
+    }
 }
 
 fn watch_changes_task(tx: mpsc::Sender<Update>, base_path: &Utf8Path) {

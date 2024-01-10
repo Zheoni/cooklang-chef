@@ -9,7 +9,7 @@ keywords = ["cooklang", "cooking", "recipes", "cli", "chef"]
 categories = ["command-line-utilities", "parser-implementations"]
 repository.workspace = true
 readme = "README.md"
-include = ["/src", "/Cargo.toml", "/README.md", "/ui/build"]
+include = ["/src", "/Cargo.toml", "/README.md", "/ui/assets", "/ui/i18n", "/ui/templates"]
 
 [[bin]]
 path = "src/main.rs"

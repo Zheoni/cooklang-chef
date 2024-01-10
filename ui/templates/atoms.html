@@ -25,10 +25,10 @@
   {% endif %}
   <span
     {% if editable %}
-      class="-m-0.5 cursor-pointer rounded p-0.5 hover:bg-base-2
-      transition-colors" hx-post="/convert_modal" hx-trigger="click"
-      hx-vals='{{ q|tojson }}' hx-target="body" hx-swap="beforeend"
-      hx-ext="json-enc" data-auto-id
+      class="-m-0.5 cursor-pointer rounded p-0.5 hover:bg-base-3
+      transition-colors" hx-post="/convert_modal"
+      hx-trigger="click[isPopoverClosed()]" hx-vals='{{ q|tojson }}'
+      hx-target="body" hx-swap="beforeend" hx-ext="json-enc" data-auto-id
     {% endif %}
   >
     <span data-quantity-value>{{ value_format(q.value) }}</span>

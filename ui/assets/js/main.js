@@ -386,8 +386,12 @@ function registerPopover(el) {
     document.removeEventListener("click", handleClick, true);
     el.classList.add("remove");
     cleanup();
-    setTimeout(() => el.remove(), 500);
+    setTimeout(() => el.remove(), 200);
   });
+}
+
+function isPopoverClosed() {
+  return document.querySelector("[data-popover]") == null;
 }
 
 htmx.onLoad((el) => {

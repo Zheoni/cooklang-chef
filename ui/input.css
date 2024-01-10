@@ -70,9 +70,8 @@ img.emoji {
   display: inline-block;
 }
 
-.link,
-p > a {
-  @apply text-primary-11 hover:underline;
+.link {
+  @apply text-primary-11 decoration-solid hover:underline;
 }
 
 .print-exact {
