@@ -1,19 +1,17 @@
-//! `cooklang-rs` helper crate.
+//! `cooklang-rs` helper crate for the file system.
 //!
 //! Utilities to deal with referencing recipe, images and data related to
 //! recipes that are in other files.
 //!
-//! It implements an index into the file system ([FsIndex]) to efficiently
-//! get recipes from a path. Also, get related images from a recipe.
+//! It implements an index into the file system to efficiently resolve recipes
+//! from a path. The index can be lazy or eager. Both created with
+//! [`new_index`].
 
 mod walker;
 
-use std::{
-    cell::RefCell,
-    collections::{HashMap, VecDeque},
-};
+use std::{cell::RefCell, collections::HashMap, path::Path};
 
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use cooklang::quantity::QuantityValue;
 use once_cell::sync::OnceCell;
 use serde::Serialize;
@@ -21,21 +19,112 @@ use serde::Serialize;
 pub use walker::DirEntry;
 use walker::Walker;
 
-/// Index of a directory for cooklang recipes
+pub fn new_index(
+    base_path: impl AsRef<std::path::Path>,
+    max_depth: usize,
+) -> Result<FsIndexBuilder, Error> {
+    FsIndexBuilder::new(base_path, max_depth)
+}
+
+pub struct FsIndexBuilder {
+    base_path: Utf8PathBuf,
+    walker: Walker,
+}
+
+impl FsIndexBuilder {
+    pub fn new(base_path: impl AsRef<std::path::Path>, max_depth: usize) -> Result<Self, Error> {
+        let base_path: &Utf8Path = base_path
+            .as_ref()
+            .try_into()
+            .map_err(|e: camino::FromPathError| e.into_io_error())?;
+
+        let walker = Walker::new(base_path, max_depth);
+        Ok(Self {
+            base_path: base_path.to_path_buf(),
+            walker,
+        })
+    }
+
+    /// Sets a config dir to the walker
+    ///
+    /// If this dir is found not in the top level, a warning will be printed.
+    ///
+    /// This also [Self::ignore]s the dir.
+    pub fn config_dir(mut self, dir: String) -> Self {
+        self.walker.set_config_dir(dir);
+        self
+    }
+
+    /// Ignores a given file/dir
+    pub fn ignore(mut self, dir: String) -> Self {
+        self.walker.ignore(dir);
+        self
+    }
+
+    /// Create a new [lazy index](`LazyFsIndex`)
+    ///
+    /// The structure this creates is not completely thread safe, see
+    /// [`LazyFsIndex`].
+    pub fn lazy(self) -> LazyFsIndex {
+        LazyFsIndex {
+            base_path: self.base_path,
+            walker: RefCell::new(self.walker),
+            cache: RefCell::new(Cache::default()),
+        }
+    }
+
+    /// Create a new [complete index](`FsIndex`)
+    pub fn indexed(mut self) -> Result<FsIndex, Error> {
+        let mut cache = Cache::default();
+        index_all(&mut cache, &mut self.walker)?;
+        Ok(FsIndex {
+            base_path: self.base_path,
+            cache,
+        })
+    }
+}
+
+#[tracing::instrument(level = "debug", skip_all)]
+fn index_all(cache: &mut Cache, walker: &mut Walker) -> Result<(), Error> {
+    for entry in walker {
+        let entry = entry?;
+        let Some((entry_name, path)) = process_entry(&entry) else {
+            continue;
+        };
+        cache.insert(entry_name, path);
+    }
+    Ok(())
+}
+
+/// Lazy index of a directory for cooklang recipes
 ///
 /// The index is lazy, so it will only search for things it needs when asked,
-/// not when created.
+/// not when created. Also, it tries to walk the least amount possible in the
+/// given directory.
+///
+/// Calling the methods on this structure when it's shared between threads can
+/// panic. To avoid this issue put it behind a [`Mutex`](std::sync::Mutex) (not
+/// [`RwLock`](std::sync::RwLock)) or use [`FsIndex`] by calling
+/// [`Self::index_all`] or creating a new one.
 #[derive(Debug)]
-pub struct FsIndex {
+pub struct LazyFsIndex {
     base_path: Utf8PathBuf,
     cache: RefCell<Cache>,
     walker: RefCell<Walker>,
 }
 
+/// Index of a directory for cooklang recipes
+///
+/// The index contains all recipes in the directory.
+#[derive(Debug)]
+pub struct FsIndex {
+    base_path: Utf8PathBuf,
+    cache: Cache,
+}
+
 #[derive(Debug, Default)]
 struct Cache {
     recipes: HashMap<String, Vec<Utf8PathBuf>>,
-    non_existent: VecDeque<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -48,6 +137,8 @@ pub enum Error {
     InvalidName(String),
     #[error(transparent)]
     NotRecipe(#[from] NotRecipe),
+    #[error("Path points outside the base dir: '{0}'")]
+    OutsideBase(String),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -55,145 +146,91 @@ pub enum Error {
 pub struct NonUtf8(std::path::PathBuf);
 
 impl FsIndex {
-    /// Create a new lazy index of the given path
-    pub fn new(base_path: impl AsRef<std::path::Path>, max_depth: usize) -> Result<Self, Error> {
-        let base_path: &Utf8Path = base_path
-            .as_ref()
-            .try_into()
-            .map_err(|e: camino::FromPathError| e.into_io_error())?;
-        let walker = Walker::new(base_path, max_depth);
-
-        Ok(Self {
-            base_path: base_path.into(),
-            cache: Cache::default().into(),
-            walker: walker.into(),
-        })
-    }
-
-    /// Create a new complete index of the given path
-    pub fn new_indexed(
-        base_path: impl AsRef<std::path::Path>,
-        max_depth: usize,
-    ) -> Result<Self, Error> {
-        let mut index = Self::new(base_path, max_depth)?;
-        index.index_all()?;
-        Ok(index)
-    }
-
-    /// Sets a config dir to the walker
-    ///
-    /// If this dir is found not in the top level, a warning will be printed.
-    ///
-    /// This also [Self::ignore]s the dir.
-    pub fn set_config_dir(&mut self, dir: String) {
-        self.walker.get_mut().set_config_dir(dir);
-    }
-
-    /// Ignores a given file/dir
-    pub fn ignore(&mut self, dir: String) {
-        self.walker.get_mut().ignore(dir);
-    }
-
     pub fn base_path(&self) -> &Utf8Path {
         &self.base_path
     }
 
-    /// Check if the index contains a recipe
     pub fn contains(&self, recipe: &str) -> bool {
-        self.get(recipe).is_ok()
+        let Ok((name, path)) = into_name_path(recipe) else {
+            return false;
+        };
+        self.cache.get(&name, &path).is_some()
     }
 
-    /// Completes the lazy indexing
-    #[tracing::instrument(level = "debug", skip_all)]
-    pub fn index_all(&mut self) -> Result<(), Error> {
-        for entry in self.walker.get_mut() {
-            let entry = entry?;
-            let Some((entry_name, path)) = process_entry(&entry) else {
-                continue;
-            };
-            self.cache.borrow_mut().insert(entry_name, path);
-        }
-        Ok(())
-    }
-
-    /// Get a recipe from the index
+    /// Resolves a recipe query first trying directly as a path and if it fails
+    /// performs a lookup in the index.
     ///
-    /// The input recipe is a partial path with or without the .cook extension.
-    #[tracing::instrument(level = "debug", name = "fs_index_get", skip(self))]
+    /// The recipe can be outside the base path. To don't allow it, use
+    /// [`resolve_internal`](Self::resolve_internal).
+    pub fn resolve(
+        &self,
+        recipe: &str,
+        relative_to: Option<&Utf8Path>,
+    ) -> Result<RecipeEntry, Error> {
+        try_path(recipe, relative_to, None).or_else(|_| self.get(recipe))
+    }
+
+    /// Same as [`resolve`](Self::resolve) but enforces that the recipe is
+    /// inside the base path.
+    pub fn resolve_internal(
+        &self,
+        recipe: &str,
+        relative_to: Option<&Utf8Path>,
+    ) -> Result<RecipeEntry, Error> {
+        try_path(recipe, relative_to, Some(self.base_path.as_std_path()))
+            .or_else(|_| self.get(recipe))
+    }
+
     pub fn get(&self, recipe: &str) -> Result<RecipeEntry, Error> {
         let (name, path) = into_name_path(recipe)?;
-
-        // Is in cache?
-        if let Some(path) = self.cache.borrow().get(&name, &path) {
-            return Ok(RecipeEntry::new(path));
+        match self.cache.get(&name, &path) {
+            Some(path) => Ok(RecipeEntry::new(path)),
+            None => Err(Error::NotFound(recipe.to_string())),
         }
-        if self.cache.borrow().non_existent.iter().any(|r| r == recipe) {
-            return Err(Error::NotFound(recipe.to_string()));
-        }
-
-        // Walk until found or no more files
-        // as walk is breadth-first and sorted by filename, the first found will
-        // be the wanted: outermost alphabetically
-        while let Some(entry) = self.walker.borrow_mut().next() {
-            let entry = entry?;
-
-            let Some((entry_name, entry_path)) = process_entry(&entry) else {
-                continue;
-            };
-
-            // Add to cache
-            self.cache.borrow_mut().insert(entry_name, entry_path);
-
-            if compare_path(entry_path, &path) {
-                return Ok(RecipeEntry::new(entry_path.into()));
-            }
-        }
-
-        self.cache.borrow_mut().mark_non_existent(recipe);
-        Err(Error::NotFound(recipe.to_string()))
     }
 
-    /// Remove a recipe from the cache
+    pub fn get_all(&self) -> impl Iterator<Item = RecipeEntry> + '_ {
+        self.cache
+            .recipes
+            .values()
+            .flatten()
+            .map(|p| RecipeEntry::new(p.to_path_buf()))
+    }
+
+    /// Remove a recipe from the index
     ///
-    /// The path cannot contain the current dir (`.`) or the parent
-    /// dir (`..`).
-    ///
-    /// Remember that the the indexing procedure is lazy, so further calls to
-    /// [FsIndex::get] may discover the removed recipe if it was not indexed
-    /// before.
-    ///
-    /// To avoid this, call [FsIndex::index_all] to index everything before
-    /// removing or [FsIndex::add_recipe].
+    /// The parameter is the path in disk and has to be prefixed with the
+    /// base path.
     ///
     /// # Errors
-    /// The only possible is [Error::InvalidName].
+    /// The only possible is [`Error::InvalidName``].
     ///
     /// # Panics
-    /// - If the path does not start with the base path
-    pub fn remove_recipe(&mut self, path: &Utf8Path) -> Result<(), Error> {
+    /// If the path does not start with the base path.
+    pub fn remove(&mut self, path: &Utf8Path) -> Result<(), Error> {
         tracing::trace!("manually removing {path}");
         assert!(
             path.starts_with(&self.base_path),
             "path does not start with the base path"
         );
-
         let (name, path) = into_name_path(path.as_str())?;
-        self.cache.get_mut().remove(&name, &path);
+        self.cache.remove(&name, &path);
         Ok(())
     }
 
-    /// Manually add a recipe to the cache.
+    /// Manually add a recipe to the index
     ///
-    /// The path cannot contain the current dir (`.`) or the parent
-    /// dir (`..`). The file must exist.
+    /// This does not check if the path contains references to parent
+    /// dirs and therefore a recipe outside the base directory can be
+    /// refereced.
     ///
     /// # Errors
-    /// The only possible is [Error::InvalidName].
+    /// The only possible is [`Error::InvalidName``].
     ///
     /// # Panics
     /// - If the path does not start with the base path
     /// - If the file does not exist.
-    pub fn add_recipe(&mut self, path: &Utf8Path) -> Result<(), Error> {
+    pub fn insert(&mut self, path: &Utf8Path) -> Result<(), Error> {
         tracing::trace!("manually adding {path}");
         assert!(
             path.starts_with(&self.base_path),
@@ -207,8 +244,86 @@ impl FsIndex {
         }
 
         let (name, path) = into_name_path(path.as_str())?;
-        self.cache.get_mut().insert(&name, &path);
+        self.cache.insert(&name, &path);
         Ok(())
+    }
+}
+
+impl LazyFsIndex {
+    pub fn base_path(&self) -> &Utf8Path {
+        &self.base_path
+    }
+
+    /// Check if the index contains a recipe
+    pub fn contains(&self, recipe: &str) -> bool {
+        self.get(recipe).is_ok()
+    }
+
+    /// Completes the lazy indexing returning a complete [`FsIndex`]
+    pub fn index_all(self) -> Result<FsIndex, Error> {
+        let mut cache = self.cache.into_inner();
+        let mut walker = self.walker.into_inner();
+        index_all(&mut cache, &mut walker)?;
+        Ok(FsIndex {
+            base_path: self.base_path,
+            cache,
+        })
+    }
+
+    /// Resolves a recipe query first trying directly as a path and if it fails
+    /// performs a lookup in the index.
+    ///
+    /// The recipe can be outside the base path. To don't allow it, use
+    /// [`resolve_internal`](Self::resolve_internal).
+    pub fn resolve(
+        &self,
+        recipe: &str,
+        relative_to: Option<&Utf8Path>,
+    ) -> Result<RecipeEntry, Error> {
+        try_path(recipe, relative_to, None).or_else(|_| self.get(recipe))
+    }
+
+    /// Same as [`resolve`](Self::resolve) but enforces that the recipe is
+    /// inside the base path.
+    pub fn resolve_internal(
+        &self,
+        recipe: &str,
+        relative_to: Option<&Utf8Path>,
+    ) -> Result<RecipeEntry, Error> {
+        try_path(recipe, relative_to, Some(self.base_path.as_std_path()))
+            .or_else(|_| self.get(recipe))
+    }
+
+    /// Get a recipe from the index
+    ///
+    /// The input recipe is a partial path with or without the .cook extension.
+    #[tracing::instrument(level = "debug", name = "lazy_index_get", skip(self))]
+    pub fn get(&self, recipe: &str) -> Result<RecipeEntry, Error> {
+        let (name, path) = into_name_path(recipe)?;
+
+        // Is in cache?
+        if let Some(path) = self.cache.borrow().get(&name, &path) {
+            return Ok(RecipeEntry::new(path));
+        }
+
+        // Walk until found or no more files
+        // as walk is breadth-first and sorted by filename, the first found will
+        // be the wanted: outermost alphabetically
+        let mut walker = self.walker.borrow_mut();
+        for entry in walker.by_ref() {
+            let entry = entry?;
+            let Some((entry_name, entry_path)) = process_entry(&entry) else {
+                continue;
+            };
+
+            // Add to cache
+            self.cache.borrow_mut().insert(entry_name, entry_path);
+
+            if compare_path(entry_path, &path) {
+                return Ok(RecipeEntry::new(entry_path.into()));
+            }
+        }
+        Err(Error::NotFound(recipe.to_string()))
     }
 }
 
@@ -224,7 +339,6 @@ fn process_entry(dir_entry: &DirEntry) -> Option<(&str, &Utf8Path)> {
 }
 
 impl Cache {
-    /// args should be lowercase already
     fn get(&self, name: &str, path: &Utf8Path) -> Option<Utf8PathBuf> {
         let paths = self.recipes.get(&name.to_lowercase())?;
         paths.iter().find(|p| compare_path(p, path)).cloned()
@@ -242,9 +356,6 @@ impl Cache {
             }
         });
         recipes.insert(pos, path.to_path_buf());
-        if let Some(marked) = self.non_existent.iter().position(|p| p == path.as_str()) {
-            self.non_existent.remove(marked);
-        }
     }
 
     fn remove(&mut self, name: &str, path: &Utf8Path) {
@@ -255,15 +366,6 @@ impl Cache {
                 recipes.remove(index);
             }
         }
-    }
-
-    const NON_EXISTENT_CACHE_SIZE: usize = 10;
-
-    fn mark_non_existent(&mut self, path: &str) {
-        if self.non_existent.len() == Self::NON_EXISTENT_CACHE_SIZE {
-            self.non_existent.pop_front();
-        }
-        self.non_existent.push_back(path.into());
     }
 }
 
@@ -368,46 +470,74 @@ pub enum Entry {
     Recipe(RecipeEntry),
 }
 
-/// Resolves a recipe query first trying directly as a path and if it fails performs
-/// a lookup in the index.
-///
-/// The path can be outside the indexed dir.
-#[tracing::instrument(level = "debug", skip(index), ret, err)]
-pub fn resolve_recipe(
-    query: &str,
-    index: &FsIndex,
+fn try_path(
+    recipe: &str,
     relative_to: Option<&Utf8Path>,
+    required_parent: Option<&Path>,
 ) -> Result<RecipeEntry, Error> {
-    fn as_path(query: &str, relative_to: Option<&Utf8Path>) -> Result<RecipeEntry, Error> {
-        let mut path = Utf8PathBuf::from(query);
+    let mut path = Utf8PathBuf::from(recipe).with_extension("cook");
 
-        if let Some(base) = relative_to {
-            if path.is_relative() {
-                path = base.join(path);
-            }
+    if let Some(base) = relative_to {
+        if path.is_relative() && !base.as_str().is_empty() {
+            path = base.join(path);
+            path = norm_path(&path);
         }
-
-        DirEntry::new(&path)
-            .map_err(Error::from)
-            .and_then(|e| RecipeEntry::try_from(e).map_err(Error::from))
     }
 
-    as_path(query, relative_to).or_else(|_| index.get(query))
+    if let Some(parent) = required_parent {
+        let parent = parent.canonicalize().expect(&format!("{parent:?} failed"));
+        let path = path.canonicalize().expect(&format!("{path:?} failed"));
+        if !path.starts_with(parent) {
+            return Err(Error::OutsideBase(recipe.to_string()));
+        }
+    }
+
+    DirEntry::new(&path)
+        .map_err(Error::from)
+        .and_then(|e| RecipeEntry::try_from(e).map_err(Error::from))
+}
+
+fn norm_path(path: &Utf8Path) -> Utf8PathBuf {
+    let mut components = path.components().peekable();
+    let mut ret = if let Some(c @ Utf8Component::Prefix(..)) = components.peek().cloned() {
+        components.next();
+        Utf8PathBuf::from(c.as_str())
+    } else {
+        Utf8PathBuf::new()
+    };
+
+    for component in components {
+        match component {
+            Utf8Component::Prefix(..) => unreachable!(),
+            Utf8Component::RootDir => {
+                ret.push(component.as_str());
+            }
+            Utf8Component::CurDir => {}
+            Utf8Component::ParentDir => {
+                ret.pop();
+            }
+            Utf8Component::Normal(c) => {
+                ret.push(c);
+            }
+        }
+    }
+    ret
 }
 
 #[derive(Debug, Clone)]
 pub struct RecipeEntry {
     path: Utf8PathBuf,
     images: OnceCell<Vec<Image>>,
-    content: OnceCell<RecipeContent>,
 }
 
 impl RecipeEntry {
+    /// Creates a new recipe entry
+    ///
+    /// The path is assumed to be a cooklang recipe file.
     pub fn new(path: Utf8PathBuf) -> Self {
         Self {
             path,
             images: OnceCell::new(),
-            content: OnceCell::new(),
         }
     }
 
@@ -435,13 +565,9 @@ impl RecipeEntry {
     }
 
     /// Reads the content of the entry
-    ///
-    /// The result is cached.
-    pub fn read(&self) -> std::io::Result<&RecipeContent> {
-        self.content.get_or_try_init(|| {
-            let content = std::fs::read_to_string(&self.path)?;
-            Ok(RecipeContent::new(content))
-        })
+    pub fn read(&self) -> std::io::Result<RecipeContent> {
+        let content = std::fs::read_to_string(&self.path)?;
+        Ok(RecipeContent::new(content))
     }
 
     /// Finds the images of the recipe
@@ -478,8 +604,6 @@ impl RecipeContent {
     }
 
     /// Parses the metadata of the recipe
-    ///  
-    /// The result is cached
     pub fn metadata(&self, parser: &cooklang::CooklangParser) -> cooklang::MetadataResult {
         parser.parse_metadata(&self.content)
     }
@@ -488,17 +612,12 @@ impl RecipeContent {
     ///
     /// This is an alias for [`Self::parse_with_recipe_ref_checker`] with no
     /// chcker.
-    ///
-    /// The result is cached, so if you cange the checker, you won't see any
-    /// change.
+
     pub fn parse(&self, parser: &cooklang::CooklangParser) -> cooklang::RecipeResult {
         self.parse_with_recipe_ref_checker(parser, None)
     }
 
     /// Parses the recipe checking referenced recipes
-    ///
-    /// The result is cached, so if you cange the checker, you won't see any
-    /// change.
     pub fn parse_with_recipe_ref_checker(
         &self,
         parser: &cooklang::CooklangParser,

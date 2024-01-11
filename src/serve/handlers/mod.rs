@@ -2,7 +2,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use cooklang_fs::RecipeEntry;
 use minijinja::{context, Value};
 
-use crate::config::UiConfig;
+use crate::{config::UiConfig, util::meta_name};
 
 use super::AppState;
 
@@ -108,10 +108,13 @@ fn recipe_entry_context(
                 if let Some(external_image) = m.map.get("image") {
                     image = Some(external_image.clone());
                 }
+
+                let name = meta_name(&m).unwrap_or(r.name()).to_string();
                 metadata = context! {
                     tags => Value::from_iter(tags),
                     emoji => m.emoji,
                     desc => m.description,
+                    name,
                 }
             } else {
                 error = true;
@@ -132,11 +135,10 @@ fn recipe_entry_context(
             .map(|i| format!("/src/{}", clean_path(&i.path, &state.base_path)));
     }
 
-    let path = clean_path(r.path(), &state.base_path);
-    let path = path.as_str().trim_end_matches(".cook");
+    let path = clean_path(r.path(), &state.base_path).with_extension("");
 
     Some(context! {
-        name => r.name(),
+        fallback_name => r.name(),
         href => format!("/r/{path}"),
         error,
         image,

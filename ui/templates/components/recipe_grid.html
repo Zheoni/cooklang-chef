@@ -31,7 +31,7 @@
           <div class="flex flex-1 flex-col overflow-auto p-4">
             <a href="{{ recipe.href }}" class="block">
               <h2 class="-mx-2 inline-block px-2 font-heading text-2xl">
-                {{ recipe.name }}
+                {{ recipe.name|default(recipe.fallback_name) }}
               </h2>
             </a>
             {% if recipe.emoji %}

@@ -61,7 +61,7 @@ pub async fn search(
     };
 
     let tmpl = mj_ok!(state.templates.get_template(template));
-    let t = Value::from(state.locales.from_headers(&headers));
+    let t = Value::from(state.locales.get_from_headers(&headers));
     let res = tmpl.render(context! {
         t,
         recipes,

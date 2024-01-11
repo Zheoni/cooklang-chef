@@ -5,7 +5,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use clap::Parser;
 use config::{global_load, ChefConfig, Config, CHEF_CONFIG_FILE};
 use cooklang::{convert::ConverterBuilder, Converter, CooklangParser};
-use cooklang_fs::{resolve_recipe, FsIndex};
+use cooklang_fs::LazyFsIndex;
 use once_cell::sync::OnceCell;
 
 // commands
@@ -82,7 +82,7 @@ fn init_color(color: colorchoice_clap::Color) -> ColorContext {
 
 pub struct Context {
     parser: OnceCell<CooklangParser>,
-    recipe_index: FsIndex,
+    recipe_index: LazyFsIndex,
     global_args: GlobalArgs,
     base_path: Utf8PathBuf,
     config: config::Config,
@@ -114,12 +114,13 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
     let mut config = Config::read(&base_path)?;
     config.override_with_args(&args);
 
-    let mut index = FsIndex::new(&base_path, config.max_depth)?;
-    index.set_config_dir(COOK_DIR.to_string());
+    let recipe_index = cooklang_fs::new_index(&base_path, config.max_depth)?
+        .config_dir(COOK_DIR.to_string())
+        .lazy();
 
     Ok(Context {
         parser: OnceCell::new(),
-        recipe_index: index,
+        recipe_index,
         config,
         chef_config,
         global_args: args,
@@ -138,9 +139,18 @@ impl Context {
 
     fn checker(&self, relative_to: Option<&Utf8Path>) -> Option<cooklang::RecipeRefChecker> {
         if self.config.recipe_ref_check {
-            let relative_to = relative_to.map(|r| r.to_path_buf());
+            let relative_to = relative_to.map(|r| {
+                r.to_path_buf()
+                    .parent()
+                    .expect("no parent for recipe entry")
+                    .to_owned()
+            });
             Some(Box::new(move |name: &str| {
-                if resolve_recipe(name, &self.recipe_index, relative_to.as_deref()).is_ok() {
+                if self
+                    .recipe_index
+                    .resolve(name, relative_to.as_deref())
+                    .is_ok()
+                {
                     cooklang::RecipeRefCheckResult::Found
                 } else {
                     cooklang::RecipeRefCheckResult::NotFound {

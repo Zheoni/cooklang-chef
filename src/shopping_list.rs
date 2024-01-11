@@ -7,7 +7,6 @@ use cooklang::{
     quantity::{GroupedQuantity, Quantity, Value},
     ScaledQuantity,
 };
-use cooklang_fs::resolve_recipe;
 use serde::Serialize;
 
 use crate::{util::write_to_output, util::Input, Context};
@@ -136,7 +135,7 @@ fn extract_ingredients(entry: &str, list: &mut IngredientList, ctx: &Context) ->
 
     // Resolve and parse the recipe
     let input = {
-        let entry = resolve_recipe(name, &ctx.recipe_index, None)?;
+        let entry = ctx.recipe_index.resolve(name, None)?;
         Input::File {
             entry,
             override_name: None,

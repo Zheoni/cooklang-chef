@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use anyhow::{bail, Context as _, Result};
 
 use camino::Utf8Path;
@@ -48,7 +50,7 @@ pub enum Input {
 impl Input {
     pub fn parse(&self, ctx: &Context) -> Result<cooklang::ScalableRecipe> {
         self.parse_result(ctx)
-            .and_then(|r| unwrap_recipe(r, self.file_name(), self.text()?, ctx))
+            .and_then(|r| unwrap_recipe(r, self.file_name(), self.text()?.as_ref(), ctx))
     }
 
     pub fn parse_result(&self, ctx: &Context) -> Result<cooklang::RecipeResult> {
@@ -57,7 +59,7 @@ impl Input {
             Input::File { entry, .. } => ctx.checker(Some(entry.path())),
             Input::Stdin { .. } => ctx.checker(None),
         };
-        let r = parser.parse_with_recipe_ref_checker(self.text()?, checker);
+        let r = parser.parse_with_recipe_ref_checker(self.text()?.as_ref(), checker);
         Ok(r)
     }
 
@@ -81,10 +83,10 @@ impl Input {
         }
     }
 
-    pub fn text(&self) -> Result<&str> {
+    pub fn text(&self) -> Result<Cow<str>> {
         Ok(match self {
-            Input::File { entry, .. } => entry.read()?.text(),
-            Input::Stdin { text, .. } => text,
+            Input::File { entry, .. } => entry.read()?.into_text().into(),
+            Input::Stdin { text, .. } => text.as_str().into(),
         })
     }
 
@@ -140,7 +142,7 @@ impl CachedRecipeEntry {
         }
     }
 
-    pub fn content(&self) -> Result<&RecipeContent> {
+    fn content(&self) -> Result<RecipeContent> {
         Ok(self.entry.read()?)
     }
 

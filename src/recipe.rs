@@ -3,7 +3,7 @@ use std::io::Read;
 use anyhow::{bail, Context as _, Result};
 use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
-use cooklang_fs::{check_recipe_images, recipe_images, resolve_recipe, FsIndex};
+use cooklang_fs::{check_recipe_images, recipe_images, LazyFsIndex};
 use owo_colors::OwoColorize;
 
 use crate::{
@@ -179,11 +179,11 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
 }
 
 impl ReadArgs {
-    fn read(&self, index: &FsIndex) -> Result<Input> {
+    fn read(&self, index: &LazyFsIndex) -> Result<Input> {
         let input = if let Some(query) = &self.recipe {
             // RecipeInputArgs::recipe is a pathbuf even if inmediatly converted
             // to a string to enforce validation.
-            let entry = resolve_recipe(query.as_str(), index, None)?;
+            let entry = index.resolve(query.as_str(), None)?;
 
             Input::File {
                 entry,
@@ -208,7 +208,7 @@ fn just_events(ctx: &Context, args: ReadArgs) -> Result<()> {
     let text = input.text()?;
     let file_name = input.file_name();
 
-    let events = cooklang::parser::PullParser::new(text, ctx.parser()?.extensions());
+    let events = cooklang::parser::PullParser::new(text.as_ref(), ctx.parser()?.extensions());
 
     if args.debug.ast {
         let r = cooklang::ast::build_ast(events);
@@ -217,12 +217,12 @@ fn just_events(ctx: &Context, args: ReadArgs) -> Result<()> {
             if ctx.global_args.ignore_warnings {
                 report.remove_warnings();
             }
-            report.eprint(file_name, text, ctx.color.color_stderr)?;
+            report.eprint(file_name, text.as_ref(), ctx.color.color_stderr)?;
             bail!("Error parsing recipe");
         };
         let (ast, warnings) = r.into_result().unwrap();
         if !ctx.global_args.ignore_warnings && !warnings.is_empty() {
-            warnings.eprint(file_name, text, ctx.color.color_stderr)?;
+            warnings.eprint(file_name, text.as_ref(), ctx.color.color_stderr)?;
         }
 
         let format = args.format.unwrap_or_else(|| {
@@ -293,7 +293,7 @@ fn just_check(ctx: &Context, args: ReadArgs) -> Result<()> {
         }
     }
     let file_name = input.file_name();
-    let recipe = unwrap_recipe(res, file_name, input.text()?, ctx).ok();
+    let recipe = unwrap_recipe(res, file_name, input.text()?.as_ref(), ctx).ok();
 
     if let Some(recipe) = &recipe {
         if let Some(path) = &input.path() {

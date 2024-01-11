@@ -5,9 +5,8 @@ use axum::{
     http::{HeaderMap, StatusCode, Uri},
     response::{Html, IntoResponse, Response},
 };
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
 use cooklang::{error::SourceReport, Converter, ScaledRecipe};
-use cooklang_fs::{DirEntry, RecipeEntry};
 use minijinja::{context, Value};
 use serde::{Deserialize, Serialize};
 use tokio::task::block_in_place;
@@ -52,7 +51,7 @@ pub async fn recipe(
         return e.into_response();
     }
 
-    let entry = ok_status!(state.recipe_index.get(path.to_string()).await, NOT_FOUND);
+    let entry = ok_status!(state.recipe_index.get(&path).await, NOT_FOUND);
     let content = ok_status!(tokio::fs::read_to_string(&entry.path()).await, NOT_FOUND);
 
     let checker = state.checker(Some(entry.path()));
@@ -63,7 +62,7 @@ pub async fn recipe(
             .into_result()
     });
 
-    let t = Value::from(state.locales.from_headers(&headers));
+    let t = Value::from(state.locales.get_from_headers(&headers));
     let tmpl = mj_ok!(state.templates.get_template("recipe.html"));
 
     let src_path = clean_path(entry.path(), &state.base_path);
@@ -116,7 +115,12 @@ pub async fn recipe(
             let resolve_recipe = {
                 let s = Arc::clone(&state);
                 Value::from_function(move |key: &str| {
-                    let res = block_in_place(|| s.recipe_index.get_blocking(key.to_string()));
+                    let res = block_in_place(|| {
+                        s.recipe_index.resolve_blocking(
+                            key,
+                            Some(entry.path().parent().expect("no parent for recipe entry")),
+                        )
+                    });
                     match res {
                         Ok(entry) => {
                             let path = clean_path(entry.path(), &s.base_path).with_extension("");
@@ -177,12 +181,16 @@ fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) 
         })
         .collect::<Value>();
 
-    let grouped_cookware = r.group_cookware().into_iter().map(|entry| {
-        context! {
-            index => entry.index,
-            amounts => entry.amount.iter().map(|v| Value::from_serializable(v)).collect::<Value>()
-        }
-    }).collect::<Value>();
+    let grouped_cookware = r
+        .group_cookware()
+        .into_iter()
+        .map(|entry| {
+            context! {
+                index => entry.index,
+                amounts => entry.amount.iter().map(Value::from_serializable).collect::<Value>()
+            }
+        })
+        .collect::<Value>();
 
     let timers_seconds = r
         .timers
@@ -295,11 +303,14 @@ async fn get_times(path: &Utf8Path) -> anyhow::Result<Value> {
 impl AppState {
     fn checker(&self, relative_to: Option<&Utf8Path>) -> Option<cooklang::RecipeRefChecker> {
         if self.config.recipe_ref_check {
-            let relative_to = relative_to.map(|r| r.to_path_buf());
+            let relative_to =
+                relative_to.map(|r| r.parent().expect("no parent for recipe entry").to_owned());
             Some(Box::new(move |name: &str| {
-                let res = as_path(name, relative_to.as_deref(), &self.base_path)
-                    .or_else(|| self.recipe_index.get_blocking(name.to_string()).ok());
-                if res.is_some() {
+                if self
+                    .recipe_index
+                    .resolve_blocking(name, relative_to.as_deref())
+                    .is_ok()
+                {
                     cooklang::RecipeRefCheckResult::Found
                 } else {
                     cooklang::RecipeRefCheckResult::NotFound {
@@ -311,28 +322,6 @@ impl AppState {
             None
         }
     }
-}
-
-fn as_path(
-    recipe_path: &str,
-    relative_to: Option<&Utf8Path>,
-    base_path: &Utf8Path,
-) -> Option<RecipeEntry> {
-    let mut path = Utf8PathBuf::from(recipe_path);
-
-    if let Some(base) = relative_to {
-        if path.is_relative() {
-            path = base.join(path);
-        }
-    }
-    let path = path.canonicalize().ok()?;
-
-    // make sure the path is inside the base path, the cli is allowed to be outside, not here
-    let safe_path = path.strip_prefix(base_path).ok()?;
-    let safe_utf8_path = Utf8Path::from_path(safe_path)?;
-    DirEntry::new(safe_utf8_path)
-        .ok()
-        .and_then(|e| RecipeEntry::try_from(e).ok())
 }
 
 fn report_to_html(report: &SourceReport, file_name: &str, content: &str) -> anyhow::Result<String> {

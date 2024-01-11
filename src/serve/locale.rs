@@ -29,21 +29,21 @@ impl LocaleStore {
             .expect("can't load default locale")
     }
 
-    pub fn from_cookie(&self, headers: &HeaderMap) -> Option<Arc<Locale>> {
+    pub fn get_from_cookie(&self, headers: &HeaderMap) -> Option<Arc<Locale>> {
         let value = get_cookie(headers, "language")?;
         self.get(value)
     }
 
-    pub fn from_langs(&self, headers: &HeaderMap) -> Option<Arc<Locale>> {
+    pub fn get_from_langs(&self, headers: &HeaderMap) -> Option<Arc<Locale>> {
         let langs = headers
             .get(axum::http::header::ACCEPT_LANGUAGE)
             .and_then(|e| e.to_str().ok())?;
         langs.split(',').find_map(|code| self.get(code))
     }
 
-    pub fn from_headers(&self, headers: &HeaderMap) -> Arc<Locale> {
-        self.from_cookie(headers)
-            .or_else(|| self.from_langs(headers))
+    pub fn get_from_headers(&self, headers: &HeaderMap) -> Arc<Locale> {
+        self.get_from_cookie(headers)
+            .or_else(|| self.get_from_langs(headers))
             .unwrap_or_else(|| self.get_default())
     }
 }
@@ -168,7 +168,7 @@ impl FromRequestParts<super::S> for UserLocale {
         state: &super::S,
     ) -> Result<Self, Self::Rejection> {
         Ok(Self(Value::from(
-            state.locales.from_headers(&parts.headers),
+            state.locales.get_from_headers(&parts.headers),
         )))
     }
 }

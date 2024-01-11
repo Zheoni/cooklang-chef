@@ -1,17 +1,70 @@
 use std::{
+    collections::BTreeMap,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
 use anyhow::Result;
 use camino::{Utf8Path, Utf8PathBuf};
+use cooklang::{CooklangParser, MetadataResult};
 use cooklang_fs::{FsIndex, RecipeEntry};
 use notify::{RecommendedWatcher, Watcher};
 use serde::Serialize;
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, RwLock};
 
 pub struct AsyncFsIndex {
-    calls_tx: mpsc::Sender<Call>,
+    indexes: Arc<RwLock<Indexes>>,
+}
+
+struct Indexes {
+    parser: CooklangParser,
+    fs: FsIndex,
+    srch: BTreeMap<Utf8PathBuf, MetadataResult>,
+}
+
+impl Indexes {
+    fn new(fs: FsIndex) -> Self {
+        // Empty (owned) parser just for metadata
+        let parser = cooklang::CooklangParser::new(
+            cooklang::Extensions::empty(),
+            cooklang::Converter::empty(),
+        );
+        let mut srch = BTreeMap::new();
+        let insert_search_entry = |index: &mut BTreeMap<_, _>, entry: RecipeEntry| {
+            let content = entry.read().expect("can't read recipe");
+            let meta = content.metadata(&parser);
+            index.insert(entry.path().to_owned(), meta);
+        };
+        for entry in fs.get_all() {
+            insert_search_entry(&mut srch, entry);
+        }
+
+        Self { fs, srch, parser }
+    }
+
+    fn revalidate(&mut self, path: &Utf8Path) -> Result<(), cooklang_fs::Error> {
+        self.srch.remove(path);
+        self.insert_srch(path)
+    }
+
+    fn remove(&mut self, path: &Utf8Path) {
+        self.srch.remove(path);
+        let _ = self.fs.remove(path);
+    }
+
+    fn insert_srch(&mut self, path: &Utf8Path) -> Result<(), cooklang_fs::Error> {
+        let meta = RecipeEntry::new(path.to_owned())
+            .read()?
+            .metadata(&self.parser);
+        self.srch.insert(path.to_owned(), meta);
+        Ok(())
+    }
+
+    fn insert(&mut self, path: &Utf8Path) -> Result<(), cooklang_fs::Error> {
+        let _ = self.fs.insert(path);
+        self.insert_srch(path)
+    }
 }
 
 // the paths are relative to the base path, but without the base path itself
@@ -25,88 +78,66 @@ pub enum Update {
     Renamed { from: Utf8PathBuf, to: Utf8PathBuf },
 }
 
-type Responder<T> = oneshot::Sender<Result<T, cooklang_fs::Error>>;
-
-#[derive(Debug)]
-enum Call {
-    Get {
-        recipe: String,
-        resp: Responder<RecipeEntry>,
-    },
-}
-
 impl AsyncFsIndex {
-    pub fn new(mut index: FsIndex) -> Result<(Self, broadcast::Receiver<Update>)> {
-        index.index_all()?;
-
+    pub fn new(index: FsIndex) -> Result<(Self, broadcast::Receiver<Update>)> {
         let (in_updt_tx, mut in_updt_rx) = mpsc::channel::<Update>(1);
-        let (calls_tx, mut calls_rx) = mpsc::channel::<Call>(1);
         let (out_updates_tx, out_updates_rx) = broadcast::channel::<Update>(1);
         watch_changes_task(in_updt_tx, index.base_path());
 
+        let indexes = Arc::new(RwLock::new(Indexes::new(index)));
+
+        let indexes2 = Arc::clone(&indexes);
         tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(call) = calls_rx.recv() => {
-                        match call {
-                            Call::Get { recipe, resp } => {
-                                let res = index.get(&recipe);
-                                let _ = resp.send(res);
-                            }
-                        }
+            let indexes = indexes2;
+            while let Some(update) = in_updt_rx.recv().await {
+                match &update {
+                    Update::Modified { path } => {
+                        let _ = indexes.write().await.revalidate(&path);
                     }
-                    Some(update) = in_updt_rx.recv() => {
-                        match &update {
-                            Update::Modified { .. } => {}
-                            Update::Added { path } => {
-                                index.add_recipe(&index.base_path().join(path)).unwrap();
-                            }
-                            Update::Deleted { path } => {
-                                index.remove_recipe(&index.base_path().join(path)).unwrap();
-                            }
-                            Update::Renamed { from, to } => {
-                                index.remove_recipe(&index.base_path().join(from)).unwrap();
-                                index.add_recipe(&index.base_path().join(to)).unwrap();
-                            },
-                        }
-                        // resend update after index is updated
-                        let _ = out_updates_tx.send(update);
+                    Update::Added { path } => {
+                        let _ = indexes.write().await.insert(&path);
                     }
-                    else => break,
+                    Update::Deleted { path } => {
+                        indexes.write().await.remove(&path);
+                    }
+                    Update::Renamed { from, to } => {
+                        let mut indexes = indexes.write().await;
+                        indexes.remove(&from);
+                        let _ = indexes.insert(&to);
+                    }
                 }
+                // resend update after index is updated
+                let _ = out_updates_tx.send(update);
             }
         });
 
-        Ok((Self { calls_tx }, out_updates_rx))
+        Ok((Self { indexes }, out_updates_rx))
     }
 
-    pub async fn get(&self, recipe: String) -> Result<RecipeEntry, cooklang_fs::Error> {
-        tracing::trace!("Looking up '{recipe}'");
-        let (tx, rx) = oneshot::channel();
-        self.calls_tx
-            .send(Call::Get { recipe, resp: tx })
-            .await
-            .unwrap();
-        rx.await.unwrap()
+    pub fn resolve_blocking(
+        &self,
+        recipe: &str,
+        relative_to: Option<&Utf8Path>,
+    ) -> Result<RecipeEntry, cooklang_fs::Error> {
+        let indexes = self.indexes.blocking_read();
+        // make sure the path is inside the base path, the cli is allowed to be outside, not here
+        indexes.fs.resolve_internal(recipe, relative_to)
     }
 
-    pub fn get_blocking(&self, recipe: String) -> Result<RecipeEntry, cooklang_fs::Error> {
-        tracing::trace!("Looking up '{recipe}' (synchronous)");
-        let (tx, rx) = oneshot::channel();
-        self.calls_tx
-            .blocking_send(Call::Get { recipe, resp: tx })
-            .unwrap();
-        rx.blocking_recv().unwrap()
+    pub async fn get(&self, recipe: &str) -> Result<RecipeEntry, cooklang_fs::Error> {
+        let indexes = self.indexes.read().await;
+        indexes.fs.get(recipe)
     }
 }
 
 fn watch_changes_task(tx: mpsc::Sender<Update>, base_path: &Utf8Path) {
-    let base_path = base_path.canonicalize().expect("Bad base path");
+    let watched_path = base_path.canonicalize().expect("Bad base path");
+    let base_path = base_path.to_owned();
 
     tokio::spawn(async move {
         let (mut watcher, mut w_rx) = async_watcher().unwrap();
         watcher
-            .watch(&base_path, notify::RecursiveMode::Recursive)
+            .watch(&watched_path, notify::RecursiveMode::Recursive)
             .unwrap();
 
         // debounce updates
@@ -124,6 +155,11 @@ fn watch_changes_task(tx: mpsc::Sender<Update>, base_path: &Utf8Path) {
             pending = Some(handle);
         };
 
+        // watcher returns canonicalized paths, iter_paths strips the
+        // canonicalized based path then this restores the path prefixed with
+        // the base path not canonicalized
+        let restore_path = |p| base_path.join(p);
+
         while let Some(res) = w_rx.recv().await {
             let ev = match res {
                 Ok(ev) => ev,
@@ -132,32 +168,44 @@ fn watch_changes_task(tx: mpsc::Sender<Update>, base_path: &Utf8Path) {
                     continue;
                 }
             };
-            let paths = iter_paths(&base_path, &ev.paths);
+            let paths = iter_paths(&watched_path, &ev.paths);
             match ev.kind {
                 notify::EventKind::Create(_) => {
                     for path in paths {
-                        send(Update::Added { path });
+                        send(Update::Added {
+                            path: restore_path(path),
+                        });
                     }
                 }
                 notify::EventKind::Modify(notify::event::ModifyKind::Name(rename)) => {
-                    if let Some(msg) = handle_rename(&ev.paths, rename, &mut w_rx, &base_path).await
+                    if let Some((from, to)) =
+                        handle_rename(&ev.paths, rename, &mut w_rx, &watched_path).await
                     {
-                        send(msg);
+                        send(Update::Renamed {
+                            from: restore_path(from),
+                            to: restore_path(to),
+                        })
                     } else {
                         // fallback
                         for path in paths {
-                            send(Update::Modified { path });
+                            send(Update::Modified {
+                                path: restore_path(path),
+                            });
                         }
                     }
                 }
                 notify::EventKind::Modify(_) => {
                     for path in paths {
-                        send(Update::Modified { path });
+                        send(Update::Modified {
+                            path: restore_path(path),
+                        });
                     }
                 }
                 notify::EventKind::Remove(_) => {
                     for path in paths {
-                        send(Update::Deleted { path });
+                        send(Update::Deleted {
+                            path: restore_path(path),
+                        });
                     }
                 }
                 _ => {}
@@ -170,9 +218,9 @@ async fn handle_rename(
     paths: &[PathBuf],
     rename: notify::event::RenameMode,
     w_rx: &mut mpsc::Receiver<Result<notify::Event, notify::Error>>,
-    base_path: &Path,
-) -> Option<Update> {
-    let mut paths = iter_paths(base_path, paths);
+    watched_path: &Path,
+) -> Option<(Utf8PathBuf, Utf8PathBuf)> {
+    let mut paths = iter_paths(watched_path, paths);
 
     match rename {
         notify::event::RenameMode::From => {
@@ -187,7 +235,7 @@ async fn handle_rename(
             };
 
             if let Some(Ok(next_ev)) = next_res {
-                let mut next_paths = iter_paths(base_path, &next_ev.paths).collect::<Vec<_>>();
+                let mut next_paths = iter_paths(watched_path, &next_ev.paths).collect::<Vec<_>>();
                 if next_paths.len() != 1 {
                     return None;
                 }
@@ -195,10 +243,9 @@ async fn handle_rename(
                     notify::event::RenameMode::To,
                 )) = next_ev.kind
                 {
-                    return Some(Update::Renamed {
-                        from: paths.pop().unwrap(),
-                        to: next_paths.pop().unwrap(),
-                    });
+                    let from = paths.pop().unwrap();
+                    let to = next_paths.pop().unwrap();
+                    return Some((from, to));
                 }
             }
             None
@@ -209,7 +256,7 @@ async fn handle_rename(
             if paths.next().is_some() {
                 return None;
             }
-            Some(Update::Renamed { from, to })
+            Some((from, to))
         }
         _ => None,
     }

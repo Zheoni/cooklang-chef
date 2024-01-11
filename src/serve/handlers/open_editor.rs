@@ -38,7 +38,7 @@ pub async fn open_editor(
         return (err, mj_ok!(err_html())).into_response();
     }
 
-    let entry = match state.recipe_index.get(path.to_string()).await {
+    let entry = match state.recipe_index.get(&path).await {
         Ok(entry) => entry,
         Err(_) => return (StatusCode::NOT_FOUND, mj_ok!(err_html())).into_response(),
     };

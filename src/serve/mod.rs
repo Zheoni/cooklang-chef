@@ -125,7 +125,7 @@ fn build_state(ctx: Context) -> Result<S> {
         ..
     } = ctx;
     let parser = parser.into_inner().unwrap();
-    let (recipe_index, updates) = AsyncFsIndex::new(recipe_index)?;
+    let (recipe_index, updates) = AsyncFsIndex::new(recipe_index.index_all()?)?;
 
     let locales = make_locale_store();
     let templates = make_template_env(&locales);
@@ -283,8 +283,8 @@ fn get_cookie<'a>(headers: &'a HeaderMap, cookie: &str) -> Option<&'a str> {
     let cookies = headers
         .get(axum::http::header::COOKIE)
         .and_then(|v| v.to_str().ok())?;
-    let lang_cookie = cookies.split(";").find(|c| c.trim().starts_with(&key))?;
-    let (_, value) = lang_cookie.split_once("=").unwrap();
+    let lang_cookie = cookies.split(';').find(|c| c.trim().starts_with(&key))?;
+    let (_, value) = lang_cookie.split_once('=').unwrap();
     Some(value)
 }
 
