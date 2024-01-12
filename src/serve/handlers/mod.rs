@@ -109,7 +109,7 @@ fn recipe_entry_context(
             image = Some(external_image.clone());
         }
 
-        let name = meta_name(&m).unwrap_or(r.name()).to_string();
+        let name = meta_name(m).unwrap_or(r.name()).to_string();
         metadata = context! {
             tags => Value::from_iter(tags),
             emoji => m.emoji,

@@ -46,7 +46,7 @@ pub async fn search(
             .search(
                 |entry, meta| match meta.and_then(|r| r.valid_output()) {
                     Some(m) => {
-                        let name = meta_name(&m).unwrap_or(entry.name());
+                        let name = meta_name(m).unwrap_or(entry.name());
                         srch.matches_recipe(name, &m.tags)
                     }
                     None => false,

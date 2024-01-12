@@ -59,12 +59,12 @@ pub fn run(ctx: &Context, mut args: ShoppingListArgs) -> Result<()> {
     let aisle = aisle_conf
         .as_ref()
         .map(|(content, path)| {
-            let res = cooklang::aisle::parse(&content);
+            let res = cooklang::aisle::parse(content);
             if let Err(e) = res {
                 cooklang::error::write_rich_error(
                     &e,
                     path.as_str(),
-                    &content,
+                    content,
                     true,
                     anstream::stderr().lock(),
                 )?;

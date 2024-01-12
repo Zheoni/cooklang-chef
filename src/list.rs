@@ -106,7 +106,7 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
         let mut all = iter.collect::<Vec<_>>();
         all.sort_unstable_by(|a, b| a.path().cmp(b.path()));
         for entry in &all {
-            let row = list_row(ctx, &args, &entry)?;
+            let row = list_row(ctx, &args, entry)?;
             table.add_row(row);
         }
         print!("{table}");
@@ -122,25 +122,23 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: &CachedRecipeEntry) -> Result
 
     let name = if args.absolute_paths {
         entry.path().canonicalize()?.to_string_lossy().to_string()
+    } else if args.paths {
+        entry.path().to_string()
+    } else if let Some(parent) = entry
+        .path()
+        .strip_prefix(&ctx.base_path)
+        .unwrap()
+        .parent()
+        .filter(|p| !p.as_str().is_empty())
+    {
+        format!(
+            "{}{}{}",
+            parent.cyan().italic(),
+            std::path::MAIN_SEPARATOR.cyan(),
+            entry.name()
+        )
     } else {
-        if args.paths {
-            entry.path().to_string()
-        } else if let Some(parent) = entry
-            .path()
-            .strip_prefix(&ctx.base_path)
-            .unwrap()
-            .parent()
-            .filter(|p| !p.as_str().is_empty())
-        {
-            format!(
-                "{}{}{}",
-                parent.cyan().italic(),
-                std::path::MAIN_SEPARATOR.cyan(),
-                entry.name()
-            )
-        } else {
-            entry.name().to_string()
-        }
+        entry.name().to_string()
     };
     row.add_ansi_cell(name);
 
@@ -159,7 +157,7 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: &CachedRecipeEntry) -> Result
     }
 
     if args.check {
-        row.add_ansi_cell(format!(" [{}]", check_str(ctx, &entry)));
+        row.add_ansi_cell(format!(" [{}]", check_str(ctx, entry)));
     } else {
         row.add_cell("");
     };

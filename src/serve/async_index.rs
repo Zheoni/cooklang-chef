@@ -54,7 +54,7 @@ impl Indexes {
     }
 
     fn insert_srch(&mut self, path: &Utf8Path) -> Result<(), cooklang_fs::Error> {
-        let meta = RecipeEntry::new(path.to_owned())
+        let meta = RecipeEntry::new(path)
             .read()?
             .metadata(&self.parser);
         self.srch.insert(path.to_owned(), meta);
@@ -93,21 +93,21 @@ impl AsyncFsIndex {
                 match &update {
                     Update::Modified { path } => {
                         tracing::info!("Updated '{path}'");
-                        let _ = indexes.write().await.revalidate(&path);
+                        let _ = indexes.write().await.revalidate(path);
                     }
                     Update::Added { path } => {
                         tracing::info!("Added '{path}'");
-                        let _ = indexes.write().await.insert(&path);
+                        let _ = indexes.write().await.insert(path);
                     }
                     Update::Deleted { path } => {
                         tracing::info!("Deleted '{path}'");
-                        indexes.write().await.remove(&path);
+                        indexes.write().await.remove(path);
                     }
                     Update::Renamed { from, to } => {
                         tracing::info!("Renamed '{from}' to '{to}'");
                         let mut indexes = indexes.write().await;
-                        indexes.remove(&from);
-                        let _ = indexes.insert(&to);
+                        indexes.remove(from);
+                        let _ = indexes.insert(to);
                     }
                 }
                 // resend update after index is updated
