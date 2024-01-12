@@ -13,10 +13,8 @@ use crate::{util::write_to_output, util::Input, Context};
 
 #[derive(Debug, Args)]
 pub struct ShoppingListArgs {
-    /// Recipe to add to the list
-    ///
-    /// Name or path to the file. It will use the default scaling of the recipe.
-    /// To use a custom scaling, add `*<servings>` at the end.
+    /// Recipes to add with optional servings number
+    #[arg(value_name = "RECIPE[*<SERVINGS>]")]
     recipes: Vec<String>,
 
     /// Output file, none for stdout.

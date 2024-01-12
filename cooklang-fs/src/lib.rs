@@ -9,7 +9,7 @@
 
 mod walker;
 
-use std::{cell::RefCell, collections::HashMap, path::Path};
+use std::{cell::RefCell, collections::HashMap};
 
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use cooklang::quantity::QuantityValue;
@@ -167,7 +167,7 @@ impl FsIndex {
         recipe: &str,
         relative_to: Option<&Utf8Path>,
     ) -> Result<RecipeEntry, Error> {
-        try_path(recipe, relative_to, None).or_else(|_| self.get(recipe))
+        try_path(recipe, relative_to, &self.base_path, false).or_else(|_| self.get(recipe))
     }
 
     /// Same as [`resolve`](Self::resolve) but enforces that the recipe is
@@ -177,8 +177,7 @@ impl FsIndex {
         recipe: &str,
         relative_to: Option<&Utf8Path>,
     ) -> Result<RecipeEntry, Error> {
-        try_path(recipe, relative_to, Some(self.base_path.as_std_path()))
-            .or_else(|_| self.get(recipe))
+        try_path(recipe, relative_to, &self.base_path, true).or_else(|_| self.get(recipe))
     }
 
     pub fn get(&self, recipe: &str) -> Result<RecipeEntry, Error> {
@@ -280,7 +279,7 @@ impl LazyFsIndex {
         recipe: &str,
         relative_to: Option<&Utf8Path>,
     ) -> Result<RecipeEntry, Error> {
-        try_path(recipe, relative_to, None).or_else(|_| self.get(recipe))
+        try_path(recipe, relative_to, &self.base_path, false).or_else(|_| self.get(recipe))
     }
 
     /// Same as [`resolve`](Self::resolve) but enforces that the recipe is
@@ -290,8 +289,7 @@ impl LazyFsIndex {
         recipe: &str,
         relative_to: Option<&Utf8Path>,
     ) -> Result<RecipeEntry, Error> {
-        try_path(recipe, relative_to, Some(self.base_path.as_std_path()))
-            .or_else(|_| self.get(recipe))
+        try_path(recipe, relative_to, &self.base_path, true).or_else(|_| self.get(recipe))
     }
 
     /// Get a recipe from the index
@@ -474,7 +472,8 @@ pub enum Entry {
 fn try_path(
     recipe: &str,
     relative_to: Option<&Utf8Path>,
-    required_parent: Option<&Path>,
+    base_path: &Utf8Path,
+    internal: bool,
 ) -> Result<RecipeEntry, Error> {
     let mut path = Utf8PathBuf::from(recipe).with_extension("cook");
 
@@ -485,13 +484,13 @@ fn try_path(
         }
     }
 
-    if let Some(parent) = required_parent {
-        let parent = parent.canonicalize()?;
-        let path = path.canonicalize()?;
-        if !path.starts_with(parent) {
-            return Err(Error::OutsideBase(recipe.to_string()));
-        }
-    }
+    let abs = path.canonicalize()?;
+    let parent = base_path.canonicalize()?;
+    path = match abs.strip_prefix(parent).ok().and_then(Utf8Path::from_path) {
+        Some(rel) => rel.to_path_buf(),
+        None if internal => return Err(Error::OutsideBase(recipe.to_string())),
+        None => path,
+    };
 
     DirEntry::new(&path)
         .map_err(Error::from)
@@ -541,7 +540,7 @@ impl RecipeEntry {
     /// The path is assumed to be a cooklang recipe file.
     pub fn new(path: impl AsRef<Utf8Path>) -> Self {
         Self {
-            path: norm_path(path.as_ref()),
+            path: path.as_ref().to_path_buf(),
             images: OnceCell::new(),
         }
     }

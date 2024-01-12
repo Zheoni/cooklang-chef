@@ -21,7 +21,7 @@ pub struct NewArgs {
 pub fn run(args: NewArgs, ctx: &Context) -> Result<()> {
     let file = Utf8Path::new(&args.name).with_extension("cook");
     let valid = !file.is_absolute()
-        || file
+        && file
             .components()
             .all(|c| matches!(c, camino::Utf8Component::Normal(_)));
     if !valid {
