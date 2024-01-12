@@ -311,7 +311,14 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
                     print_wrapped_with_options(w, &step_text, |o| o.subsequent_indent("    "))?;
                     print_wrapped_with_options(w, &step_ingredients, |o| {
                         let indent = "     "; // 5
-                        o.initial_indent(indent).subsequent_indent(indent)
+                        o.initial_indent(indent)
+                            .subsequent_indent(indent)
+                            .word_separator(textwrap::WordSeparator::Custom(|s| {
+                                Box::new(
+                                    s.split_inclusive(", ")
+                                        .map(|part| textwrap::core::Word::from(part)),
+                                )
+                            }))
                     })?;
                 }
                 cooklang::Content::Text(t) => {
