@@ -3,7 +3,8 @@ use clap::{Args, Parser, Subcommand};
 use cooklang::Extensions;
 
 use crate::{
-    collection, config_cmd, convert, generate_completions, list, new, recipe, shopping_list, units,
+    collection, config_cmd, convert, edit, generate_completions, list, new, recipe, shopping_list,
+    units,
 };
 
 #[cfg(feature = "serve")]
@@ -51,6 +52,8 @@ pub enum Command {
     GenerateCompletions(generate_completions::GenerateCompletionsArgs),
     /// Create a new recipe
     New(new::NewArgs),
+    /// Edit an existing recipe
+    Edit(edit::EditArgs),
 }
 
 #[derive(Debug, Args)]

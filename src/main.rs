@@ -12,6 +12,7 @@ use once_cell::sync::OnceCell;
 mod collection;
 mod config_cmd;
 mod convert;
+mod edit;
 mod generate_completions;
 mod list;
 mod new;
@@ -66,6 +67,7 @@ pub fn main() -> Result<()> {
         Command::Collection(args) => collection::run(&ctx, args),
         Command::GenerateCompletions(args) => generate_completions::run(args),
         Command::New(args) => new::run(args, &ctx),
+        Command::Edit(args) => edit::run(args, &ctx),
     }
 }
 
