@@ -54,6 +54,7 @@ impl Walker {
         self.ignore.push(dir);
     }
 
+    #[tracing::instrument(level = "trace", skip(self), ret)]
     fn process_dir(&mut self, dir: &Utf8Path) -> Result<(), std::io::Error> {
         // the entire dir needs to be processed as one because entry order
         // is not guaranteed, so we need to sort

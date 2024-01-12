@@ -1,4 +1,4 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::SystemTime};
+use std::{collections::HashMap, net::SocketAddr, time::SystemTime};
 
 use axum::{
     extract::{ConnectInfo, Path, Query, State},
@@ -6,7 +6,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 use camino::Utf8Path;
-use cooklang::{error::SourceReport, Converter, ScaledRecipe};
+use cooklang::{error::SourceReport, Converter, Modifiers, ScaledRecipe};
 use minijinja::{context, Value};
 use serde::{Deserialize, Serialize};
 use tokio::task::block_in_place;
@@ -103,6 +103,30 @@ pub async fn recipe(
                 .unwrap_or(entry.name())
                 .to_string();
 
+            let recipe_refs: HashMap<String, Value> = block_in_place(|| {
+                scaled
+                    .ingredients
+                    .iter()
+                    .filter(|igr| igr.modifiers().contains(Modifiers::RECIPE))
+                    .filter_map(|igr| {
+                        let res = state.recipe_index.resolve_internal_blocking(
+                            &igr.name,
+                            Some(entry.path().parent().expect("no parent for recipe entry")),
+                        );
+
+                        match res {
+                            Ok(entry) => {
+                                let path =
+                                    clean_path(entry.path(), &state.base_path).with_extension("");
+                                let value = Value::from(format!("/r/{path}"));
+                                Some((igr.name.clone(), value))
+                            }
+                            Err(_) => None,
+                        }
+                    })
+                    .collect()
+            });
+
             let r = make_recipe_context(scaled, state.parser.converter(), &state.config);
 
             let images = Value::from_iter(entry.images().iter().map(|img| {
@@ -112,31 +136,12 @@ pub async fn recipe(
                 }
             }));
 
-            let resolve_recipe = {
-                let s = Arc::clone(&state);
-                Value::from_function(move |key: &str| {
-                    let res = block_in_place(|| {
-                        s.recipe_index.resolve_blocking(
-                            key,
-                            Some(entry.path().parent().expect("no parent for recipe entry")),
-                        )
-                    });
-                    match res {
-                        Ok(entry) => {
-                            let path = clean_path(entry.path(), &s.base_path).with_extension("");
-                            Value::from(format!("/r/{path}"))
-                        }
-                        Err(_) => Value::from(key),
-                    }
-                })
-            };
-
             let ctx = context! {
                 name,
                 r,
                 query,
                 path => uri.path(),
-                resolve_recipe,
+                recipe_refs,
 
                 times,
                 images,
@@ -308,7 +313,7 @@ impl AppState {
             Some(Box::new(move |name: &str| {
                 if self
                     .recipe_index
-                    .resolve_blocking(name, relative_to.as_deref())
+                    .resolve_internal_blocking(name, relative_to.as_deref())
                     .is_ok()
                 {
                     cooklang::RecipeRefCheckResult::Found

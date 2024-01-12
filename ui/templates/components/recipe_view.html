@@ -290,11 +290,17 @@
                   data-component-ref-target="ingredient"
                 >
                   {% if 'RECIPE' in ingredient.modifiers %}
+                    {% set ref_href = recipe_refs[ingredient.name] %}
                     <a
-                      href="{{ resolve_recipe(ingredient.name) }}"
-                      class="link underline"
-                      >{{ display_name }}</a
+                      href="{{ ref_href|default('#') }}"
+                      {% if ref_href %}
+                        class="link underline"
+                      {% else %}
+                        class="text-red-11 underline decoration-wavy"
+                      {% endif %}
                     >
+                      {{ display_name }}
+                    </a>
                   {%- else -%}
                     {{- display_name -}}
                   {%- endif -%}
@@ -522,9 +528,14 @@
                             data-component-ref-target="{{ igr.references_to.target|default('ingredient') }}"
                           >
                             {%- if 'RECIPE' in igr.modifiers -%}
+                              {% set ref_href = recipe_refs[igr.name] %}
                               <a
-                                href="{{ resolve_recipe(igr.name) }}"
-                                class="link underline"
+                                href="{{ ref_href|default('#') }}"
+                                {% if ref_href %}
+                                  class="link underline"
+                                {% else %}
+                                  class="text-red-11 underline decoration-wavy"
+                                {% endif %}
                               >
                                 {{ igr.display_name }}
                               </a>

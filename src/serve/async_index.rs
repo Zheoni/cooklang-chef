@@ -79,7 +79,7 @@ pub enum Update {
 }
 
 impl AsyncFsIndex {
-    pub fn new(index: FsIndex) -> Result<(Self, broadcast::Receiver<Update>)> {
+    pub fn new(index: FsIndex) -> (Self, broadcast::Receiver<Update>) {
         let (in_updt_tx, mut in_updt_rx) = mpsc::channel::<Update>(1);
         let (out_updates_tx, out_updates_rx) = broadcast::channel::<Update>(1);
         watch_changes_task(in_updt_tx, index.base_path());
@@ -92,15 +92,19 @@ impl AsyncFsIndex {
             while let Some(update) = in_updt_rx.recv().await {
                 match &update {
                     Update::Modified { path } => {
+                        tracing::info!("Updated '{path}'");
                         let _ = indexes.write().await.revalidate(&path);
                     }
                     Update::Added { path } => {
+                        tracing::info!("Added '{path}'");
                         let _ = indexes.write().await.insert(&path);
                     }
                     Update::Deleted { path } => {
+                        tracing::info!("Deleted '{path}'");
                         indexes.write().await.remove(&path);
                     }
                     Update::Renamed { from, to } => {
+                        tracing::info!("Renamed '{from}' to '{to}'");
                         let mut indexes = indexes.write().await;
                         indexes.remove(&from);
                         let _ = indexes.insert(&to);
@@ -111,10 +115,10 @@ impl AsyncFsIndex {
             }
         });
 
-        Ok((Self { indexes }, out_updates_rx))
+        (Self { indexes }, out_updates_rx)
     }
 
-    pub fn resolve_blocking(
+    pub fn resolve_internal_blocking(
         &self,
         recipe: &str,
         relative_to: Option<&Utf8Path>,
@@ -127,6 +131,30 @@ impl AsyncFsIndex {
     pub async fn get(&self, recipe: &str) -> Result<RecipeEntry, cooklang_fs::Error> {
         let indexes = self.indexes.read().await;
         indexes.fs.get(recipe)
+    }
+
+    pub async fn search<T>(
+        &self,
+        pred: impl Fn(&RecipeEntry, Option<&MetadataResult>) -> bool,
+        map: impl Fn(RecipeEntry, Option<&MetadataResult>) -> T,
+        skip: usize,
+        take: usize,
+    ) -> Vec<T> {
+        let indexes = self.indexes.read().await;
+        indexes
+            .fs
+            .get_all()
+            .filter_map(|entry| {
+                let meta = indexes.srch.get(entry.path());
+                match pred(&entry, meta) {
+                    true => Some((entry, meta)),
+                    false => None,
+                }
+            })
+            .skip(skip)
+            .take(take)
+            .map(|(entry, meta)| map(entry, meta))
+            .collect()
     }
 }
 

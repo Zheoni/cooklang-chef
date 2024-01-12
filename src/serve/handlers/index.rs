@@ -5,12 +5,13 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
+use camino::Utf8PathBuf;
 use minijinja::{context, Value};
 use serde::Deserialize;
 
-use crate::serve::{handlers::clean_path, locale::UserLocale, S};
+use crate::serve::{locale::UserLocale, S};
 
-use super::{check_path, mj_ok, recipe_entry_context};
+use super::{check_path, clean_path, mj_ok, recipe_entry_context};
 
 #[derive(Deserialize)]
 pub struct IndexQuery {
@@ -20,15 +21,18 @@ pub struct IndexQuery {
 pub async fn index(
     UserLocale(t): UserLocale,
     State(state): State<S>,
-    path: Option<Path<String>>,
+    requested_path: Option<Path<String>>,
     Query(q): Query<IndexQuery>,
 ) -> Response {
-    let path = path.as_ref().map(|p| p.0.as_str()).unwrap_or("");
-    if let Err(e) = check_path(path) {
-        return e.into_response();
+    let mut path = Utf8PathBuf::from(&state.base_path);
+    if let Some(Path(p)) = &requested_path {
+        match check_path(p) {
+            Ok(_) => {
+                path = path.join(p);
+            }
+            Err(e) => return e.into_response(),
+        }
     }
-
-    let path = state.base_path.join(path);
 
     let entries = match cooklang_fs::walk_dir(&path) {
         Ok(entries) => entries,
@@ -51,7 +55,8 @@ pub async fn index(
                 path => clean_path(dir.path(), &state.base_path)
             }),
             cooklang_fs::Entry::Recipe(r) => {
-                recipes.push(recipe_entry_context(r, &state, None).unwrap());
+                let meta = r.read().ok().map(|c| c.metadata(&state.parser));
+                recipes.push(recipe_entry_context(r, &state, meta.as_ref()).unwrap());
             }
         }
     }

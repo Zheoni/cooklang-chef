@@ -28,7 +28,7 @@ mod util;
 
 const COOK_DIR: &str = ".cooklang";
 const APP_NAME: &str = "cooklang-chef";
-const UTF8_PATH_PANIC: &str = "chef currently only supports UTF-8 paths. If this is problem for you, file an issue in the cooklang-chef github repository";
+const UTF8_PATH_PANIC: &str = "chef only supports UTF-8 paths. If this is problem for you, file an issue in the cooklang-chef github repository";
 
 pub fn main() -> Result<()> {
     let args = CliArgs::parse();
@@ -104,27 +104,25 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
                 .then_some(Utf8Path::new("."))
         })
         .or(chef_config.default_collection.as_deref())
-        .unwrap_or(Utf8Path::new("."))
-        .to_path_buf();
-
+        .unwrap_or(Utf8Path::new("."));
     if !base_path.is_dir() {
-        bail!("Base path is not a directory: {base_path}");
+        bail!("Base path is not a directory: '{base_path}'");
     }
 
-    let mut config = Config::read(&base_path)?;
+    let mut config = Config::read(base_path)?;
     config.override_with_args(&args);
 
-    let recipe_index = cooklang_fs::new_index(&base_path, config.max_depth)?
+    let recipe_index = cooklang_fs::new_index(base_path, config.max_depth)?
         .config_dir(COOK_DIR.to_string())
         .lazy();
 
     Ok(Context {
+        base_path: base_path.to_owned(),
         parser: OnceCell::new(),
         recipe_index,
         config,
         chef_config,
         global_args: args,
-        base_path,
         color: color_ctx,
     })
 }

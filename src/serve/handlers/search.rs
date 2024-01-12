@@ -6,9 +6,9 @@ use axum::{
 use minijinja::{context, Value};
 use serde::Deserialize;
 
-use crate::serve::S;
+use crate::{serve::S, util::meta_name};
 
-use super::{mj_ok, ok_status, recipe_entry_context, Searcher};
+use super::{mj_ok, recipe_entry_context, Searcher};
 
 #[derive(Deserialize)]
 pub struct SearchQuery {
@@ -36,20 +36,26 @@ pub async fn search(
     State(state): State<S>,
     Query(query): Query<SearchQuery>,
 ) -> Response {
-    let all_recipes = ok_status!(cooklang_fs::all_recipes(
-        &state.base_path,
-        state.config.max_depth
-    ));
-
     let srch = Searcher::from(query);
 
     let recipes = if srch.is_empty() {
         Vec::new()
     } else {
-        all_recipes
-            .filter_map(|r| recipe_entry_context(r, &state, Some(&srch)))
-            .take(12)
-            .collect()
+        state
+            .recipe_index
+            .search(
+                |entry, meta| match meta.and_then(|r| r.valid_output()) {
+                    Some(m) => {
+                        let name = meta_name(&m).unwrap_or(entry.name());
+                        srch.matches_recipe(name, &m.tags)
+                    }
+                    None => false,
+                },
+                |entry, meta| recipe_entry_context(entry, &state, meta),
+                0,
+                12,
+            )
+            .await
     };
 
     let is_htmx_search = headers.get("HX-Trigger").is_some_and(|v| v == "search");

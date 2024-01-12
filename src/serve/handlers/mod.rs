@@ -1,4 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
+use cooklang::MetadataResult;
 use cooklang_fs::RecipeEntry;
 use minijinja::{context, Value};
 
@@ -64,10 +65,16 @@ pub(crate) use mj_ok;
 
 pub fn check_path(p: &str) -> Result<(), axum::http::StatusCode> {
     let path = camino::Utf8Path::new(p);
-    if !path
-        .components()
-        .all(|c| matches!(c, camino::Utf8Component::Normal(_)))
-    {
+    if !path.components().all(|c| match c {
+        camino::Utf8Component::Normal(comp) => {
+            // https://github.com/tower-rs/tower-http/pull/204
+            let valid = Utf8Path::new(comp)
+                .components()
+                .all(|c| matches!(c, camino::Utf8Component::Normal(_)));
+            valid
+        }
+        _ => false,
+    }) {
         return Err(axum::http::StatusCode::BAD_REQUEST);
     }
     Ok(())
@@ -87,44 +94,30 @@ fn clean_path(p: &Utf8Path, base_path: &Utf8Path) -> Utf8PathBuf {
 fn recipe_entry_context(
     r: RecipeEntry,
     state: &AppState,
-    srch: Option<&Searcher>,
+    meta: Option<&MetadataResult>,
 ) -> Option<Value> {
     let mut metadata = Value::UNDEFINED;
     let mut error = false;
     let mut image = None;
-    match r.read() {
-        Ok(content) => {
-            let res = content.metadata(&state.parser).clone();
-            if res.is_valid() {
-                let m = res.unwrap_output();
-                if srch.is_some_and(|s| !s.matches_recipe(r.name(), &m.tags)) {
-                    return None;
-                }
 
-                let tags = m
-                    .tags
-                    .iter()
-                    .map(|t| tag_context(t.as_str(), &state.config.ui));
-                if let Some(external_image) = m.map.get("image") {
-                    image = Some(external_image.clone());
-                }
-
-                let name = meta_name(&m).unwrap_or(r.name()).to_string();
-                metadata = context! {
-                    tags => Value::from_iter(tags),
-                    emoji => m.emoji,
-                    desc => m.description,
-                    name,
-                }
-            } else {
-                error = true;
-            }
+    if let Some(m) = meta.and_then(|res| res.valid_output()) {
+        let tags = m
+            .tags
+            .iter()
+            .map(|t| tag_context(t.as_str(), &state.config.ui));
+        if let Some(external_image) = m.map.get("image") {
+            image = Some(external_image.clone());
         }
-        Err(_) => error = true,
-    }
 
-    if error && srch.is_some() {
-        return None;
+        let name = meta_name(&m).unwrap_or(r.name()).to_string();
+        metadata = context! {
+            tags => Value::from_iter(tags),
+            emoji => m.emoji,
+            desc => m.description,
+            name,
+        }
+    } else {
+        error = true;
     }
 
     if image.is_none() {
@@ -132,10 +125,10 @@ fn recipe_entry_context(
             .images()
             .iter()
             .find(|i| i.indexes.is_none())
-            .map(|i| format!("/src/{}", clean_path(&i.path, &state.base_path)));
+            .map(|i| format!("/src/{}", i.path));
     }
 
-    let path = clean_path(r.path(), &state.base_path).with_extension("");
+    let path = r.path().with_extension("");
 
     Some(context! {
         fallback_name => r.name(),

@@ -3,9 +3,11 @@ use clap::{Args, Parser, Subcommand};
 use cooklang::Extensions;
 
 use crate::{
-    collection, config_cmd, convert, generate_completions, list, new, recipe, serve, shopping_list,
-    units,
+    collection, config_cmd, convert, generate_completions, list, new, recipe, shopping_list, units,
 };
+
+#[cfg(feature = "serve")]
+use crate::serve;
 
 #[derive(Parser, Debug)]
 #[command(

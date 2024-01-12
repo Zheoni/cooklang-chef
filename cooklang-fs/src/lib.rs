@@ -49,15 +49,15 @@ impl FsIndexBuilder {
     ///
     /// If this dir is found not in the top level, a warning will be printed.
     ///
-    /// This also [Self::ignore]s the dir.
+    /// This also [ignores](Self::ignore) the dir.
     pub fn config_dir(mut self, dir: String) -> Self {
         self.walker.set_config_dir(dir);
         self
     }
 
     /// Ignores a given file/dir
-    pub fn ignore(mut self, dir: String) -> Self {
-        self.walker.ignore(dir);
+    pub fn ignore(mut self, path: String) -> Self {
+        self.walker.ignore(path);
         self
     }
 
@@ -84,7 +84,7 @@ impl FsIndexBuilder {
     }
 }
 
-#[tracing::instrument(level = "debug", skip_all)]
+#[tracing::instrument(level = "debug", skip_all, ret)]
 fn index_all(cache: &mut Cache, walker: &mut Walker) -> Result<(), Error> {
     for entry in walker {
         let entry = entry?;
@@ -320,7 +320,7 @@ impl LazyFsIndex {
             self.cache.borrow_mut().insert(entry_name, entry_path);
 
             if compare_path(entry_path, &path) {
-                return Ok(RecipeEntry::new(entry_path.into()));
+                return Ok(RecipeEntry::new(entry_path));
             }
         }
         Err(Error::NotFound(recipe.to_string()))
@@ -470,6 +470,7 @@ pub enum Entry {
     Recipe(RecipeEntry),
 }
 
+#[tracing::instrument(level = "trace", ret)]
 fn try_path(
     recipe: &str,
     relative_to: Option<&Utf8Path>,
@@ -478,15 +479,15 @@ fn try_path(
     let mut path = Utf8PathBuf::from(recipe).with_extension("cook");
 
     if let Some(base) = relative_to {
-        if path.is_relative() && !base.as_str().is_empty() {
+        if path.is_relative() {
             path = base.join(path);
             path = norm_path(&path);
         }
     }
 
     if let Some(parent) = required_parent {
-        let parent = parent.canonicalize().expect(&format!("{parent:?} failed"));
-        let path = path.canonicalize().expect(&format!("{path:?} failed"));
+        let parent = parent.canonicalize()?;
+        let path = path.canonicalize()?;
         if !path.starts_with(parent) {
             return Err(Error::OutsideBase(recipe.to_string()));
         }
@@ -514,7 +515,11 @@ fn norm_path(path: &Utf8Path) -> Utf8PathBuf {
             }
             Utf8Component::CurDir => {}
             Utf8Component::ParentDir => {
-                ret.pop();
+                if ret.components().count() > 0 {
+                    ret.pop();
+                } else {
+                    ret.push(component.as_str());
+                }
             }
             Utf8Component::Normal(c) => {
                 ret.push(c);
@@ -534,9 +539,9 @@ impl RecipeEntry {
     /// Creates a new recipe entry
     ///
     /// The path is assumed to be a cooklang recipe file.
-    pub fn new(path: Utf8PathBuf) -> Self {
+    pub fn new(path: impl AsRef<Utf8Path>) -> Self {
         Self {
-            path,
+            path: norm_path(path.as_ref()),
             images: OnceCell::new(),
         }
     }

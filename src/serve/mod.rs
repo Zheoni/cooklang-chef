@@ -7,7 +7,7 @@ use self::{
     locale::{make_locale_store, LocaleStore},
 };
 use crate::Context;
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use axum::{
     extract::Request,
     http::{header::CONTENT_TYPE, HeaderMap, HeaderValue, StatusCode},
@@ -37,20 +37,14 @@ pub struct ServeArgs {
     port: u16,
 
     /// Open browser on start
-    #[arg(long, default_value_t = false)]
+    #[arg(long, conflicts_with = "host", default_value_t = false)]
     open: bool,
 }
 
 #[tokio::main]
 pub async fn run(ctx: Context, args: ServeArgs) -> Result<()> {
-    let state = build_state(ctx)?;
+    let state = build_state(ctx).context("failed to build web server")?;
     let app = make_router(state);
-
-    // let app = app.with_state(state).layer(
-    //     CorsLayer::new()
-    //         .allow_origin("*".parse::<HeaderValue>().unwrap())
-    //         .allow_methods([Method::GET]),
-    // );
 
     let addr = if args.host {
         SocketAddr::from(([0, 0, 0, 0], args.port))
@@ -80,6 +74,7 @@ pub async fn run(ctx: Context, args: ServeArgs) -> Result<()> {
     Ok(())
 }
 
+#[tracing::instrument(level = "debug", skip_all)]
 fn make_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(handlers::index))
@@ -95,7 +90,7 @@ fn make_router(state: Arc<AppState>) -> Router {
             ServiceBuilder::new()
                 .layer(middleware::from_fn(filter_files))
                 .layer(middleware::from_fn(cook_mime_type))
-                .service(tower_http::services::ServeDir::new(&state.base_path)),
+                .service(tower_http::services::ServeDir::new(".")),
         )
         .fallback(handlers::static_file)
         .with_state(state)
@@ -114,6 +109,7 @@ pub struct AppState {
 
 type S = Arc<AppState>;
 
+#[tracing::instrument(level = "debug", skip_all)]
 fn build_state(ctx: Context) -> Result<S> {
     ctx.parser()?;
     let Context {
@@ -125,7 +121,10 @@ fn build_state(ctx: Context) -> Result<S> {
         ..
     } = ctx;
     let parser = parser.into_inner().unwrap();
-    let (recipe_index, updates) = AsyncFsIndex::new(recipe_index.index_all()?)?;
+    let complete_index = recipe_index
+        .index_all()
+        .context("failed to index the recipes")?;
+    let (recipe_index, updates) = AsyncFsIndex::new(complete_index);
 
     let locales = make_locale_store();
     let templates = make_template_env(&locales);

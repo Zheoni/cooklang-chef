@@ -106,6 +106,6 @@ fn create_collection(path: &Utf8Path) -> Result<()> {
 
 fn set_default_collection(global: &ChefConfig, path: Option<Utf8PathBuf>) -> Result<()> {
     let mut global = global.clone();
-    global.default_collection = path;
+    global.default_collection = path.map(|p| p.canonicalize_utf8()).transpose()?;
     global_store(CHEF_CONFIG_FILE, &global)
 }

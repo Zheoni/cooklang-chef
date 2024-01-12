@@ -1,4 +1,4 @@
-use anstream::println;
+use anstream::print;
 use anyhow::Result;
 use clap::{builder::ArgPredicate, Args};
 use cooklang_fs::all_recipes;
@@ -100,7 +100,7 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
             table.add_row(row!("With images", with_images));
             table.add_row(row!("Total images", total_images));
         }
-        println!("{table}");
+        print!("{table}");
     } else {
         let mut table = tabular::Table::new("{:<}{:<}{:<}{:<}");
         let mut all = iter.collect::<Vec<_>>();
@@ -109,7 +109,7 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
             let row = list_row(ctx, &args, &entry)?;
             table.add_row(row);
         }
-        println!("{table}");
+        print!("{table}");
     }
 
     Ok(())
@@ -123,13 +123,13 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: &CachedRecipeEntry) -> Result
     let name = if args.absolute_paths {
         entry.path().canonicalize()?.to_string_lossy().to_string()
     } else {
-        let p = entry.path().strip_prefix(&ctx.base_path).unwrap();
         if args.paths {
-            p.to_string()
+            entry.path().to_string()
         } else if let Some(parent) = entry
             .path()
+            .strip_prefix(&ctx.base_path)
+            .unwrap()
             .parent()
-            .and_then(|p| p.strip_prefix(&ctx.base_path).ok())
             .filter(|p| !p.as_str().is_empty())
         {
             format!(
