@@ -1,7 +1,6 @@
 {
     "_lang": null,
     "index": {
-        "divideInFolders": null,
         "search": null,
         "noRecipes": null
     },
@@ -44,17 +43,11 @@
             "metric": null,
             "imperial": null
         },
-        "scaleSelector": {
-            "label": null,
-            "presets": null,
-            "reset": null
-        },
         "ingredients": null,
         "cookware": null,
         "optMarker": null,
         "method": null,
         "stepIngredientsView": {
-            "label": null,
             "compact": null,
             "list": null,
             "hidden": null
@@ -70,16 +63,12 @@
         "fixed": null
     },
     "error": {
-        "notFound": null,
-        "parse": null,
-        "unknown": null
+        "parse": null
     },
     "timer": {
         "start": null
     },
     "quantity": {
-        "roundError": null,
-        "cantConvert": null,
         "reset": null
     },
     "about": {

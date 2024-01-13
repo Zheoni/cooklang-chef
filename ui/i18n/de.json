@@ -1,7 +1,6 @@
 {
     "_lang": "Deutsche",
     "index": {
-        "divideInFolders": "Ordneransicht",
         "search": "Suche",
         "noRecipes": "Keine Rezepte gefunden"
     },
@@ -44,17 +43,11 @@
             "metric": "metrisch",
             "imperial": "imperial"
         },
-        "scaleSelector": {
-            "label": "Größenordnung",
-            "presets": "Vorgaben",
-            "reset": "Zurücksetzen"
-        },
         "ingredients": "Zutaten",
         "cookware": "Kochutensilien",
         "optMarker": "wählen",
         "method": "Zubereitung",
         "stepIngredientsView": {
-            "label": "Zutatenansicht",
             "compact": "kompakt",
             "list": "Liste",
             "hidden": "versteckt"
@@ -70,16 +63,12 @@
         "fixed": "Dieser Wert lässt sich nicht umrechnen"
     },
     "error": {
-        "notFound": "Rezept nicht gefunden",
-        "parse": "Fehler beim Verarbeiten des Rezepts",
-        "unknown": "unbekannter Fehler"
+        "parse": "Fehler beim Verarbeiten des Rezepts"
     },
     "timer": {
         "start": "Timer starten"
     },
     "quantity": {
-        "roundError": "Fehler",
-        "cantConvert": "Bei der Umrechnung der Menge ist ein Fehler aufgetreten.",
         "reset": "Reset"
     },
     "about": {

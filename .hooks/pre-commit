@@ -1,8 +1,16 @@
 #!/bin/sh
 
-# This hook prevents commiting changes when the css is not built for production
-
+# Check that CSS is built for production
 if [ $(wc -l < ui/assets/styles.css) -gt 1 ]; then
 	echo "styles.css not minified: run 'npm run build' in ui/"
 	exit 1
 fi
+
+# Check i18n translations
+python ui/i18n/check.py
+res=$?
+if [ $res -ne 0 ]; then
+	echo "There is a problem with the translations"
+	exit 1
+fi
+

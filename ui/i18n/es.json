@@ -1,7 +1,6 @@
 {
     "_lang": "Español",
     "index": {
-        "divideInFolders": "Por carpetas",
         "search": "Buscar",
         "noRecipes": "No se han encontrado recetas"
     },
@@ -44,17 +43,11 @@
             "metric": "Métrico",
             "imperial": "Imperial"
         },
-        "scaleSelector": {
-            "label": "Escalar",
-            "presets": "Preajustes",
-            "reset": "Reiniciar"
-        },
         "ingredients": "Ingredientes",
         "cookware": "Menaje",
         "optMarker": "opcional",
         "method": "Método",
         "stepIngredientsView": {
-            "label": "Vista de ingredients del paso",
             "compact": "Compacto",
             "list": "Lista",
             "hidden": "Oculto"
@@ -70,16 +63,12 @@
         "fixed": "Este valor no escala"
     },
     "error": {
-        "notFound": "Receta no econtrada",
-        "parse": "Error interpretando la receta",
-        "unknown": "Error desconocido"
+        "parse": "Error interpretando la receta"
     },
     "timer": {
         "start": "Iniciar temporizador"
     },
     "quantity": {
-        "roundError": "Error",
-        "cantConvert": "Ha habido un error convirtiendo la cantidad",
         "reset": "Reset"
     },
     "about": {
