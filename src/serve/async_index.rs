@@ -27,7 +27,7 @@ impl Indexes {
     fn new(fs: FsIndex) -> Self {
         // Empty (owned) parser just for metadata
         let parser = cooklang::CooklangParser::new(
-            cooklang::Extensions::empty(),
+            cooklang::Extensions::SPECIAL_METADATA,
             cooklang::Converter::empty(),
         );
         let mut srch = BTreeMap::new();
@@ -54,9 +54,7 @@ impl Indexes {
     }
 
     fn insert_srch(&mut self, path: &Utf8Path) -> Result<(), cooklang_fs::Error> {
-        let meta = RecipeEntry::new(path)
-            .read()?
-            .metadata(&self.parser);
+        let meta = RecipeEntry::new(path).read()?.metadata(&self.parser);
         self.srch.insert(path.to_owned(), meta);
         Ok(())
     }

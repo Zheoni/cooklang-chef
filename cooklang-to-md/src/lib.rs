@@ -45,7 +45,7 @@ pub struct Options {
     ///
     /// It will appear just after the tags (if its enabled and
     /// there are any tags; if not, after the title).
-    #[serde(deserialize_with = "enum_or_bool")]
+    #[serde(deserialize_with = "des_or_bool")]
     pub description: DescriptionStyle,
     /// Make every step a regular paragraph
     ///
@@ -65,7 +65,8 @@ pub struct Options {
     /// Add the name of the recipe to the front-matter
     ///
     /// A key `name` in the metadata has preference over this.
-    pub front_matter_name: bool,
+    #[serde(deserialize_with = "des_or_bool")]
+    pub front_matter_name: FrontMatterName,
 }
 
 impl Default for Options {
@@ -75,7 +76,7 @@ impl Default for Options {
             description: DescriptionStyle::Blockquote,
             escape_step_numbers: false,
             italic_amounts: true,
-            front_matter_name: true,
+            front_matter_name: FrontMatterName::default(),
         }
     }
 }
@@ -102,7 +103,26 @@ impl From<bool> for DescriptionStyle {
     }
 }
 
-fn enum_or_bool<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(transparent)]
+pub struct FrontMatterName(pub Option<String>);
+
+impl Default for FrontMatterName {
+    fn default() -> Self {
+        Self(Some("name".to_string()))
+    }
+}
+
+impl From<bool> for FrontMatterName {
+    fn from(value: bool) -> Self {
+        match value {
+            true => Self::default(),
+            false => Self(None),
+        }
+    }
+}
+
+fn des_or_bool<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: serde::Deserializer<'de>,
     T: serde::Deserialize<'de> + From<bool>,
@@ -111,12 +131,12 @@ where
     #[serde(untagged)]
     enum Wrapper<T> {
         Bool(bool),
-        Enum(T),
+        Thing(T),
     }
 
     let v = match Wrapper::deserialize(deserializer)? {
         Wrapper::Bool(v) => T::from(v),
-        Wrapper::Enum(val) => val,
+        Wrapper::Thing(val) => val,
     };
     Ok(v)
 }
@@ -153,17 +173,19 @@ pub fn print_md_with_options(
 
     writeln!(writer, "# {}\n", name)?;
 
-    if opts.tags && !recipe.metadata.tags.is_empty() {
-        for (i, tag) in recipe.metadata.tags.iter().enumerate() {
-            write!(writer, "#{tag}")?;
-            if i < recipe.metadata.tags.len() - 1 {
-                write!(writer, " ")?;
+    if opts.tags {
+        if let Some(tags) = recipe.metadata.tags() {
+            for (i, tag) in tags.iter().enumerate() {
+                write!(writer, "#{tag}")?;
+                if i < tags.len() - 1 {
+                    write!(writer, " ")?;
+                }
             }
+            writeln!(writer, "\n")?;
         }
-        writeln!(writer, "\n")?;
     }
 
-    if let Some(desc) = &recipe.metadata.description {
+    if let Some(desc) = recipe.metadata.description() {
         match opts.description {
             DescriptionStyle::Hidden => {}
             DescriptionStyle::Blockquote => {
@@ -199,9 +221,9 @@ fn frontmatter(
 
     let mut map = IndexMap::new();
 
-    if opts.front_matter_name {
+    if let Some(name_key) = &opts.front_matter_name.0 {
         // add name, will be overrided if other given
-        map.insert("name", name.into());
+        map.insert(name_key.as_str(), name.into());
     }
 
     // add all the raw metadata entries
@@ -212,18 +234,10 @@ fn frontmatter(
     // overwrite special values if any and correct
     macro_rules! override_special_key {
         ($meta:ident, $thing:ident) => {
-            if let Some(val) = &$meta.$thing {
+            if let Some(val) = &$meta.$thing() {
                 map.insert(
                     stringify!($thing),
                     serde_yaml::to_value(val.clone()).unwrap(),
-                );
-            }
-        };
-        ($meta:ident, $thing:ident : not_empty) => {
-            if !$meta.$thing.is_empty() {
-                map.insert(
-                    stringify!($thing),
-                    serde_yaml::to_value($meta.$thing.clone()).unwrap(),
                 );
             }
         };
@@ -232,7 +246,7 @@ fn frontmatter(
     override_special_key!(metadata, source);
     override_special_key!(metadata, time);
     override_special_key!(metadata, servings);
-    override_special_key!(metadata, tags : not_empty);
+    override_special_key!(metadata, tags);
 
     const FRONTMATTER_FENCE: &str = "---";
     writeln!(w, "{}", FRONTMATTER_FENCE)?;

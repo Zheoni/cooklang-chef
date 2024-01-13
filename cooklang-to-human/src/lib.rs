@@ -45,20 +45,19 @@ fn header(w: &mut impl io::Write, recipe: &ScaledRecipe, name: &str) -> Result {
         " {}{} ",
         recipe
             .metadata
-            .emoji
-            .as_ref()
+            .emoji()
             .map(|s| format!("{s} "))
             .unwrap_or_default(),
         name
     );
     writeln!(w, "{}", title_text.style(styles().title))?;
-    if !recipe.metadata.tags.is_empty() {
-        let mut tags = String::new();
-        for tag in &recipe.metadata.tags {
+    if let Some(tags) = recipe.metadata.tags() {
+        let mut tags_str = String::new();
+        for tag in tags {
             let color = tag_color(tag);
-            write!(&mut tags, "{} ", format!("#{tag}").color(color)).unwrap();
+            write!(&mut tags_str, "{} ", format!("#{tag}").color(color)).unwrap();
         }
-        print_wrapped(w, &tags)?;
+        print_wrapped(w, &tags_str)?;
     }
     writeln!(w)
 }
@@ -84,7 +83,7 @@ fn tag_color(tag: &str) -> owo_colors::AnsiColors {
 }
 
 fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
-    if let Some(desc) = &recipe.metadata.description {
+    if let Some(desc) = recipe.metadata.description() {
         print_wrapped_with_options(w, desc, |o| {
             o.initial_indent("\u{2502} ").subsequent_indent("\u{2502}")
         })?;
@@ -93,21 +92,21 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
 
     let mut meta_fmt =
         |name: &str, value: &str| writeln!(w, "{}: {}", name.style(styles().meta_key), value);
-    if let Some(author) = &recipe.metadata.author {
+    if let Some(author) = recipe.metadata.author() {
         let text = author
             .name()
             .or(author.url().map(|u| u.as_str()))
             .unwrap_or("-");
         meta_fmt("author", text)?;
     }
-    if let Some(source) = &recipe.metadata.source {
+    if let Some(source) = recipe.metadata.source() {
         let text = source
             .name()
             .or(source.url().map(|u| u.as_str()))
             .unwrap_or("-");
         meta_fmt("source", text)?;
     }
-    if let Some(time) = &recipe.metadata.time {
+    if let Some(time) = recipe.metadata.time() {
         let time_fmt = |t: u32| {
             format!(
                 "{}",
@@ -130,7 +129,7 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             }
         }
     }
-    if let Some(servings) = &recipe.metadata.servings {
+    if let Some(servings) = recipe.metadata.servings() {
         let index = recipe
             .scaled_data()
             .and_then(|d| d.target.index())
@@ -162,7 +161,7 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
         meta_fmt("servings", &text)?;
     }
     for (key, value) in recipe.metadata.map_filtered() {
-        meta_fmt(&key, &value)?;
+        meta_fmt(key, value)?;
     }
     if !recipe.metadata.map.is_empty() {
         writeln!(w)?;

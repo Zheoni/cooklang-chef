@@ -57,7 +57,11 @@ pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
             tracing::warn!("Skipping '{}': could not parse metadata", entry.path());
             return None;
         };
-        if !args.tag.iter().all(|t| metadata.tags.contains(t)) {
+        if !args
+            .tag
+            .iter()
+            .all(|t| metadata.tags().is_some_and(|tags| tags.contains(t)))
+        {
             return None;
         }
         Some(entry)
@@ -144,10 +148,10 @@ fn list_row(ctx: &Context, args: &ListArgs, entry: &CachedRecipeEntry) -> Result
 
     if args.tags {
         if let Ok(metadata) = entry.metadata(ctx, args.check) {
-            if metadata.tags.is_empty() {
-                row.add_ansi_cell(format!(" [{}]", "-".dimmed()));
+            if let Some(tags) = metadata.tags() {
+                row.add_cell(format!(" [{}]", tags.join(", ")));
             } else {
-                row.add_cell(format!(" [{}]", metadata.tags.join(", ")));
+                row.add_ansi_cell(format!(" [{}]", "-".dimmed()));
             }
         } else {
             row.add_ansi_cell(format!(" ({})", "cannot parse".red().bold()));

@@ -36,7 +36,7 @@
 <!-- Metadata -->
 <div class="m-4 flex flex-wrap gap-2">
   {% for t in r.meta.tags %}
-    {{ tag(t.name, t.color) }}
+    {{ tag(t.name, t.emoji) }}
   {% endfor %}
 </div>
 {% if r.meta.description %}

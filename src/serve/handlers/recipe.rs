@@ -217,13 +217,16 @@ fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) 
 
     context! {
         meta => context! {
-            description => r.metadata.description,
-            tags => Value::from_iter(r.metadata.tags.iter().map(|t| tag_context(t, &config.ui))),
-            emoji => r.metadata.emoji,
-            author => r.metadata.author,
-            source => r.metadata.source,
-            time => r.metadata.time,
-            servings => r.metadata.servings,
+            description => r.metadata.description(),
+            tags => Value::from_iter(r.metadata.tags().iter().flat_map(|tags| {
+                tags.iter()
+                    .map(|t| tag_context(t.as_str(), &config.ui))
+            })),
+            emoji => r.metadata.emoji(),
+            author => r.metadata.author(),
+            source => r.metadata.source(),
+            time => r.metadata.time(),
+            servings => r.metadata.servings(),
             other => Value::from_iter(r.metadata.map_filtered())
         },
         grouped_ingredients,

@@ -101,19 +101,21 @@ fn recipe_entry_context(
     let mut image = None;
 
     if let Some(m) = meta.and_then(|res| res.valid_output()) {
-        let tags = m
-            .tags
-            .iter()
-            .map(|t| tag_context(t.as_str(), &state.config.ui));
+        let tags = Value::from_iter(
+            m.tags()
+                .unwrap_or(&[])
+                .iter()
+                .map(|t| tag_context(t.as_str(), &state.config.ui)),
+        );
         if let Some(external_image) = m.map.get("image") {
             image = Some(external_image.clone());
         }
 
         let name = meta_name(m).unwrap_or(r.name()).to_string();
         metadata = context! {
-            tags => Value::from_iter(tags),
-            emoji => m.emoji,
-            desc => m.description,
+            tags,
+            emoji => m.emoji(),
+            desc => m.description(),
             name,
         }
     } else {
@@ -140,7 +142,18 @@ fn recipe_entry_context(
 }
 
 fn tag_context(name: &str, ui_config: &UiConfig) -> Value {
-    let emoji = ui_config.tags.get(name).and_then(|c| c.emoji.as_deref());
+    let emoji = ui_config
+        .tags
+        .get(name)
+        .and_then(|c| c.emoji.as_deref())
+        .and_then(|s| {
+            if s.starts_with(':') && s.ends_with(':') {
+                emojis::get_by_shortcode(&s[1..s.len() - 1])
+            } else {
+                emojis::get(s)
+            }
+        })
+        .map(|e| e.as_str());
     context! { emoji, name }
 }
 
