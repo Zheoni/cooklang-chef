@@ -125,10 +125,10 @@ fn recipe_entry_context(
             .images()
             .iter()
             .find(|i| i.indexes.is_none())
-            .map(|i| format!("/src/{}", i.path));
+            .map(|i| format!("/src/{}", clean_path(&i.path, &state.base_path)));
     }
 
-    let path = r.path().with_extension("");
+    let path = clean_path(r.path(), &state.base_path).with_extension("");
 
     Some(context! {
         fallback_name => r.name(),

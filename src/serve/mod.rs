@@ -90,7 +90,7 @@ fn make_router(state: Arc<AppState>) -> Router {
             ServiceBuilder::new()
                 .layer(middleware::from_fn(filter_files))
                 .layer(middleware::from_fn(cook_mime_type))
-                .service(tower_http::services::ServeDir::new(".")),
+                .service(tower_http::services::ServeDir::new(&state.base_path)),
         )
         .fallback(handlers::static_file)
         .with_state(state)
