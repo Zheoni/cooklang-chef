@@ -6,7 +6,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 use camino::Utf8Path;
-use cooklang::{error::SourceReport, Converter, Modifiers, ScaledRecipe};
+use cooklang::{error::SourceReport, Converter, Modifiers, ParseOptions, ScaledRecipe};
 use minijinja::{context, Value};
 use serde::{Deserialize, Serialize};
 use tokio::task::block_in_place;
@@ -18,11 +18,11 @@ use crate::{
         handlers::{clean_path, ok_status, tag_context},
         AppState, S,
     },
-    util::meta_name,
+    util::{meta_name, metadata_validator},
     RECIPE_REF_ERROR,
 };
 
-use super::{check_path, mj_ok};
+use super::{check_path, image_url, mj_ok};
 
 #[derive(Deserialize, Serialize)]
 pub struct RecipeQuery {
@@ -54,11 +54,10 @@ pub async fn recipe(
     let entry = ok_status!(state.recipe_index.get(&path).await, NOT_FOUND);
     let content = ok_status!(tokio::fs::read_to_string(&entry.path()).await, NOT_FOUND);
 
-    let checker = state.checker(Some(entry.path()));
     let res = block_in_place(|| {
         state
             .parser
-            .parse_with_recipe_ref_checker(&content, checker)
+            .parse_with_options(&content, state.parse_options(Some(entry.path())))
             .into_result()
     });
 
@@ -109,7 +108,7 @@ pub async fn recipe(
                     .iter()
                     .filter(|igr| igr.modifiers().contains(Modifiers::RECIPE))
                     .filter_map(|igr| {
-                        let res = state.recipe_index.resolve_internal_blocking(
+                        let res = state.recipe_index.resolve_blocking(
                             &igr.name,
                             Some(entry.path().parent().expect("no parent for recipe entry")),
                         );
@@ -127,14 +126,21 @@ pub async fn recipe(
                     .collect()
             });
 
-            let r = make_recipe_context(scaled, state.parser.converter(), &state.config);
-
             let images = Value::from_iter(entry.images().iter().map(|img| {
                 context! {
                     indexes => img.indexes,
-                    path => clean_path(&img.path, &state.base_path)
+                    href => image_url(&img.path, &state.base_path)
                 }
             }));
+            let main_image = scaled.metadata.map.get("image").cloned().or_else(|| {
+                entry
+                    .images()
+                    .iter()
+                    .find(|img| img.indexes.is_none())
+                    .map(|img| image_url(&img.path, &state.base_path))
+            });
+
+            let r = make_recipe_context(scaled, state.parser.converter(), &state.config);
 
             let ctx = context! {
                 name,
@@ -145,6 +151,7 @@ pub async fn recipe(
 
                 times,
                 images,
+                main_image,
 
                 is_loopback => addr.ip().is_loopback(),
                 igr_layout => get_cookie(&headers, "igr_layout").unwrap_or("line"),
@@ -309,25 +316,33 @@ async fn get_times(path: &Utf8Path) -> anyhow::Result<Value> {
 }
 
 impl AppState {
-    fn checker(&self, relative_to: Option<&Utf8Path>) -> Option<cooklang::RecipeRefChecker> {
+    fn checker(
+        &self,
+        relative_to: Option<&Utf8Path>,
+    ) -> Option<cooklang::analysis::RecipeRefCheck> {
         if self.config.recipe_ref_check {
             let relative_to =
                 relative_to.map(|r| r.parent().expect("no parent for recipe entry").to_owned());
             Some(Box::new(move |name: &str| {
                 if self
                     .recipe_index
-                    .resolve_internal_blocking(name, relative_to.as_deref())
+                    .resolve_blocking(name, relative_to.as_deref())
                     .is_ok()
                 {
-                    cooklang::RecipeRefCheckResult::Found
+                    cooklang::analysis::CheckResult::Ok
                 } else {
-                    cooklang::RecipeRefCheckResult::NotFound {
-                        hints: vec![RECIPE_REF_ERROR.into()],
-                    }
+                    cooklang::analysis::CheckResult::Warning(vec![RECIPE_REF_ERROR.into()])
                 }
-            }) as cooklang::RecipeRefChecker)
+            }) as cooklang::analysis::RecipeRefCheck)
         } else {
             None
+        }
+    }
+
+    fn parse_options(&self, relative_to: Option<&Utf8Path>) -> ParseOptions {
+        ParseOptions {
+            recipe_ref_check: self.checker(relative_to),
+            metadata_validator: Some(Box::new(metadata_validator)),
         }
     }
 }

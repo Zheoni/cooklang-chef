@@ -1,6 +1,6 @@
 [package]
 name = "cooklang-fs"
-version = "0.12.0"
+version = "0.13.0"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "Utilities for cooklang recipes in a file system"

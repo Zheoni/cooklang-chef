@@ -57,7 +57,9 @@ function hrConnect() {
     if (!path.startsWith("/r/")) {
       return false;
     }
-    return path.slice(3) == triggered.replace(/\.cook$/, "");
+    let currentRecipe = decodeURI(path.slice(3));
+    let triggeredRecipe = triggered.replace(/\.cook$/, "");
+    return currentRecipe === triggeredRecipe;
   }
 
   hrEventSource.addEventListener("open", () => hrSetIndicatorState(true));

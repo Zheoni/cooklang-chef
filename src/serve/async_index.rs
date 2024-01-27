@@ -116,14 +116,14 @@ impl AsyncFsIndex {
         (Self { indexes }, out_updates_rx)
     }
 
-    pub fn resolve_internal_blocking(
+    pub fn resolve_blocking(
         &self,
         recipe: &str,
         relative_to: Option<&Utf8Path>,
     ) -> Result<RecipeEntry, cooklang_fs::Error> {
         let indexes = self.indexes.blocking_read();
         // make sure the path is inside the base path, the cli is allowed to be outside, not here
-        indexes.fs.resolve_internal(recipe, relative_to)
+        indexes.fs.resolve(recipe, relative_to)
     }
 
     pub async fn get(&self, recipe: &str) -> Result<RecipeEntry, cooklang_fs::Error> {

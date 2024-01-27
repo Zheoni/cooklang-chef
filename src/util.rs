@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use anyhow::{bail, Context as _, Result};
 
 use camino::Utf8Path;
-use cooklang::Metadata;
+use cooklang::{analysis::CheckResult, Metadata};
 use cooklang_fs::{RecipeContent, RecipeEntry};
 
 use crate::Context;
@@ -55,11 +55,11 @@ impl Input {
 
     pub fn parse_result(&self, ctx: &Context) -> Result<cooklang::RecipeResult> {
         let parser = ctx.parser()?;
-        let checker = match self {
-            Input::File { entry, .. } => ctx.checker(Some(entry.path())),
-            Input::Stdin { .. } => ctx.checker(None),
+        let options = match self {
+            Input::File { entry, .. } => ctx.parse_options(Some(entry.path())),
+            Input::Stdin { .. } => ctx.parse_options(None),
         };
-        let r = parser.parse_with_recipe_ref_checker(self.text()?.as_ref(), checker);
+        let r = parser.parse_with_options(self.text()?.as_ref(), options);
         Ok(r)
     }
 
@@ -150,10 +150,9 @@ impl CachedRecipeEntry {
         self.parsed
             .get_or_try_init(|| {
                 let parser = ctx.parser()?;
-                let checker = ctx.checker(Some(self.entry.path()));
                 let r = self
                     .content()?
-                    .parse_with_recipe_ref_checker(parser, checker);
+                    .parse_with_options(parser, ctx.parse_options(Some(self.entry.path())));
                 Ok(Box::new(r))
             })
             .map(|r| r.as_ref())
@@ -182,7 +181,7 @@ impl CachedRecipeEntry {
                 }
                 let m = self
                     .content()?
-                    .metadata(parser)
+                    .metadata_with_options(parser, ctx.parse_options(None))
                     .into_output()
                     .ok_or(anyhow::anyhow!("Can't parse metadata"))?;
                 Ok(Box::new(m))
@@ -196,5 +195,62 @@ impl std::ops::Deref for CachedRecipeEntry {
 
     fn deref(&self) -> &Self::Target {
         &self.entry
+    }
+}
+
+pub fn metadata_validator(key: &str, value: &str) -> (CheckResult, bool) {
+    match key {
+        "tag" | "tags" => {
+            for t in value.split(',') {
+                let t = t.trim();
+                if t.is_empty() {
+                    return (CheckResult::Warning(vec!["The tag is empty".into()]), true);
+                } else if t.chars().count() > 32 {
+                    return (CheckResult::Warning(vec![TAG_TOO_LONG_MSG.into()]), true);
+                } else if !is_valid_tag(t) {
+                    return (CheckResult::Warning(vec![IS_VALID_TAG_MSG.into()]), true);
+                }
+            }
+        }
+        _ => {}
+    }
+    (CheckResult::Ok, true)
+}
+
+/// Checks that a tag is valid
+///
+/// A tag is valid when:
+/// - 32 characters
+/// - lowercase letters and numbers separated by a single '-'
+/// - starts with a letter
+pub fn is_valid_tag(tag: &str) -> bool {
+    let tag_len = 1..=32;
+    let re = regex!(r"^\p{Ll}[\p{Ll}\d]*(-[\p{Ll}\d]+)*$");
+
+    tag_len.contains(&tag.chars().count()) && re.is_match(tag)
+}
+
+const IS_VALID_TAG_MSG: &str =
+    "The tag should only have lower case letters and numbers separated by a single hyphen ('-')";
+
+const TAG_TOO_LONG_MSG: &str = "The tag is too long";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_valid_tag() {
+        assert!(is_valid_tag("uwu"));
+        assert!(is_valid_tag("italian-food"));
+        assert!(is_valid_tag("contains-number-1"));
+        assert!(is_valid_tag("unicode-ñçá"));
+        assert!(!is_valid_tag(""));
+        assert!(!is_valid_tag("1ow"));
+        assert!(!is_valid_tag("111"));
+        assert!(!is_valid_tag("1starts-with-number"));
+        assert!(!is_valid_tag("many---hyphens"));
+        assert!(!is_valid_tag("other/characters"));
+        assert!(!is_valid_tag("other@[]chara€cters"));
     }
 }

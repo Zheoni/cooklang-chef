@@ -21,7 +21,11 @@ use clap::Args;
 use cooklang::CooklangParser;
 use minijinja::{context, Environment, Value};
 use rust_embed::RustEmbed;
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{atomic::AtomicI32, Arc},
+};
 use tokio::sync::broadcast;
 use tower::ServiceBuilder;
 use tracing::info;
@@ -105,6 +109,7 @@ pub struct AppState {
     updates_stream: broadcast::Receiver<Update>,
     config: crate::config::Config,
     editor_command: Option<Vec<String>>,
+    editor_count: AtomicI32,
 }
 
 type S = Arc<AppState>;
@@ -138,6 +143,7 @@ fn build_state(ctx: Context) -> Result<S> {
         updates_stream: updates,
         config,
         editor_command: chef_config.editor().ok(),
+        editor_count: 0.into(),
     }))
 }
 

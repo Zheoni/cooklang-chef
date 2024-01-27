@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
     extract::{ConnectInfo, Path, State},
@@ -52,13 +52,33 @@ pub async fn open_editor(
     };
     let (editor, args) = (&args[0], &args[1..]);
 
-    if tokio::process::Command::new(editor)
+    // to be safe
+    let editor_count = state
+        .editor_count
+        .load(std::sync::atomic::Ordering::Relaxed);
+    if editor_count >= 10 {
+        tracing::warn!("Too many editors");
+        return (StatusCode::SERVICE_UNAVAILABLE, mj_ok!(err_html())).into_response();
+    }
+
+    match tokio::process::Command::new(editor)
         .args(args)
         .arg(entry.path())
         .spawn()
-        .is_err()
     {
-        return (StatusCode::INTERNAL_SERVER_ERROR, mj_ok!(err_html())).into_response();
+        Ok(mut child) => {
+            let s = Arc::clone(&state);
+            s.editor_count
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            tokio::task::spawn(async move {
+                let _ = child.wait().await;
+                s.editor_count
+                    .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+            });
+        }
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, mj_ok!(err_html())).into_response();
+        }
     }
 
     mj_ok!(toast_html("openInEditor.success", "green")).into_response()

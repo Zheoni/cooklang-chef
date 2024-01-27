@@ -160,24 +160,13 @@ impl FsIndex {
     /// Resolves a recipe query first trying directly as a path and if it fails
     /// performs a lookup in the index.
     ///
-    /// The recipe can be outside the base path. To don't allow it, use
-    /// [`resolve_internal`](Self::resolve_internal).
+    /// The recipe cannot be outside the base path.
     pub fn resolve(
         &self,
         recipe: &str,
         relative_to: Option<&Utf8Path>,
     ) -> Result<RecipeEntry, Error> {
-        try_path(recipe, relative_to, &self.base_path, false).or_else(|_| self.get(recipe))
-    }
-
-    /// Same as [`resolve`](Self::resolve) but enforces that the recipe is
-    /// inside the base path.
-    pub fn resolve_internal(
-        &self,
-        recipe: &str,
-        relative_to: Option<&Utf8Path>,
-    ) -> Result<RecipeEntry, Error> {
-        try_path(recipe, relative_to, &self.base_path, true).or_else(|_| self.get(recipe))
+        try_path(recipe, relative_to, &self.base_path).or_else(|_| self.get(recipe))
     }
 
     pub fn get(&self, recipe: &str) -> Result<RecipeEntry, Error> {
@@ -272,24 +261,13 @@ impl LazyFsIndex {
     /// Resolves a recipe query first trying directly as a path and if it fails
     /// performs a lookup in the index.
     ///
-    /// The recipe can be outside the base path. To don't allow it, use
-    /// [`resolve_internal`](Self::resolve_internal).
+    /// The recipe can be outside the base path.
     pub fn resolve(
         &self,
         recipe: &str,
         relative_to: Option<&Utf8Path>,
     ) -> Result<RecipeEntry, Error> {
-        try_path(recipe, relative_to, &self.base_path, false).or_else(|_| self.get(recipe))
-    }
-
-    /// Same as [`resolve`](Self::resolve) but enforces that the recipe is
-    /// inside the base path.
-    pub fn resolve_internal(
-        &self,
-        recipe: &str,
-        relative_to: Option<&Utf8Path>,
-    ) -> Result<RecipeEntry, Error> {
-        try_path(recipe, relative_to, &self.base_path, true).or_else(|_| self.get(recipe))
+        try_path(recipe, relative_to, &self.base_path).or_else(|_| self.get(recipe))
     }
 
     /// Get a recipe from the index
@@ -473,24 +451,27 @@ fn try_path(
     recipe: &str,
     relative_to: Option<&Utf8Path>,
     base_path: &Utf8Path,
-    internal: bool,
 ) -> Result<RecipeEntry, Error> {
     let mut path = Utf8PathBuf::from(recipe).with_extension("cook");
 
-    if let Some(base) = relative_to {
-        if path.is_relative() {
-            path = base.join(path);
-            path = norm_path(&path);
-        }
+    if path
+        .components()
+        .any(|c| matches!(c, Utf8Component::Prefix(_)))
+    {
+        return Err(Error::InvalidName(recipe.to_string()));
     }
 
-    let abs = path.canonicalize()?;
-    let parent = base_path.canonicalize()?;
-    path = match abs.strip_prefix(parent).ok().and_then(Utf8Path::from_path) {
-        Some(rel) => rel.to_path_buf(),
-        None if internal => return Err(Error::OutsideBase(recipe.to_string())),
-        None => path,
-    };
+    if path.has_root() {
+        let no_root = path.as_str().trim_start_matches(['/', '\\']);
+        path = base_path.join(no_root);
+    } else if let Some(parent) = relative_to {
+        path = parent.join(&path);
+    }
+    path = norm_path(&path);
+
+    if !path.starts_with(base_path) {
+        return Err(Error::OutsideBase(recipe.to_string()));
+    }
 
     DirEntry::new(&path)
         .map_err(Error::from)
@@ -512,7 +493,11 @@ fn norm_path(path: &Utf8Path) -> Utf8PathBuf {
             Utf8Component::RootDir => {
                 ret.push(component.as_str());
             }
-            Utf8Component::CurDir => {}
+            Utf8Component::CurDir => {
+                if ret.components().count() == 0 {
+                    ret.push(component.as_str());
+                }
+            }
             Utf8Component::ParentDir => {
                 if ret.components().count() > 0 {
                     ret.pop();
@@ -612,22 +597,27 @@ impl RecipeContent {
         parser.parse_metadata(&self.content)
     }
 
-    /// Parses the recipe
-    ///
-    /// This is an alias for [`Self::parse_with_recipe_ref_checker`] with no
-    /// chcker.
-
-    pub fn parse(&self, parser: &cooklang::CooklangParser) -> cooklang::RecipeResult {
-        self.parse_with_recipe_ref_checker(parser, None)
-    }
-
-    /// Parses the recipe checking referenced recipes
-    pub fn parse_with_recipe_ref_checker(
+    /// Same as [`Self::metadata_with_options`] but with extra options
+    pub fn metadata_with_options(
         &self,
         parser: &cooklang::CooklangParser,
-        checker: Option<cooklang::RecipeRefChecker>,
+        options: cooklang::analysis::ParseOptions,
+    ) -> cooklang::MetadataResult {
+        parser.parse_metadata_with_options(&self.content, options)
+    }
+
+    /// Parses the recipe
+    pub fn parse(&self, parser: &cooklang::CooklangParser) -> cooklang::RecipeResult {
+        parser.parse(&self.content)
+    }
+
+    /// Same as [`Self::parse`] but with extra options
+    pub fn parse_with_options(
+        &self,
+        parser: &cooklang::CooklangParser,
+        options: cooklang::analysis::ParseOptions,
     ) -> cooklang::RecipeResult {
-        parser.parse_with_recipe_ref_checker(&self.content, checker)
+        parser.parse_with_options(&self.content, options)
     }
 
     pub fn text(&self) -> &str {

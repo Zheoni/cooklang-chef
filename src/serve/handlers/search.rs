@@ -6,7 +6,10 @@ use axum::{
 use minijinja::{context, Value};
 use serde::Deserialize;
 
-use crate::{serve::S, util::meta_name};
+use crate::{
+    serve::S,
+    util::{is_valid_tag, meta_name},
+};
 
 use super::{mj_ok, recipe_entry_context, Searcher};
 
@@ -86,7 +89,7 @@ impl From<SearchQuery> for Searcher {
         if let Some(q) = value.q {
             for part in q.split_whitespace() {
                 if let Some(tag) = part.strip_prefix("tag:") {
-                    if cooklang::metadata::is_valid_tag(tag) {
+                    if is_valid_tag(tag) {
                         tags.push(tag.to_string())
                     }
                 } else {

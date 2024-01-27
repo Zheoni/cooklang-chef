@@ -4,9 +4,10 @@ use args::{CliArgs, Command, GlobalArgs};
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::Parser;
 use config::{global_load, ChefConfig, Config, CHEF_CONFIG_FILE};
-use cooklang::{convert::ConverterBuilder, Converter, CooklangParser};
+use cooklang::{convert::ConverterBuilder, Converter, CooklangParser, ParseOptions};
 use cooklang_fs::LazyFsIndex;
 use once_cell::sync::OnceCell;
+use util::metadata_validator;
 
 // commands
 mod collection;
@@ -137,7 +138,10 @@ impl Context {
             .get_or_try_init(|| configure_parser(&self.config, &self.base_path))
     }
 
-    fn checker(&self, relative_to: Option<&Utf8Path>) -> Option<cooklang::RecipeRefChecker> {
+    fn checker(
+        &self,
+        relative_to: Option<&Utf8Path>,
+    ) -> Option<cooklang::analysis::RecipeRefCheck> {
         if self.config.recipe_ref_check {
             let relative_to = relative_to.map(|r| {
                 r.to_path_buf()
@@ -151,15 +155,20 @@ impl Context {
                     .resolve(name, relative_to.as_deref())
                     .is_ok()
                 {
-                    cooklang::RecipeRefCheckResult::Found
+                    cooklang::analysis::CheckResult::Ok
                 } else {
-                    cooklang::RecipeRefCheckResult::NotFound {
-                        hints: vec![RECIPE_REF_ERROR.into()],
-                    }
+                    cooklang::analysis::CheckResult::Warning(vec![RECIPE_REF_ERROR.into()])
                 }
-            }) as cooklang::RecipeRefChecker)
+            }) as cooklang::analysis::RecipeRefCheck)
         } else {
             None
+        }
+    }
+
+    fn parse_options(&self, relative_to: Option<&Utf8Path>) -> ParseOptions {
+        ParseOptions {
+            recipe_ref_check: self.checker(relative_to),
+            metadata_validator: Some(Box::new(metadata_validator)),
         }
     }
 }

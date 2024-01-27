@@ -127,7 +127,7 @@ fn recipe_entry_context(
             .images()
             .iter()
             .find(|i| i.indexes.is_none())
-            .map(|i| format!("/src/{}", clean_path(&i.path, &state.base_path)));
+            .map(|i| image_url(&i.path, &state.base_path));
     }
 
     let path = clean_path(r.path(), &state.base_path).with_extension("");
@@ -139,6 +139,10 @@ fn recipe_entry_context(
         image,
         ..metadata,
     })
+}
+
+fn image_url(path: &Utf8Path, base_path: &Utf8Path) -> String {
+    format!("/src/{}", clean_path(path, base_path))
 }
 
 fn tag_context(name: &str, ui_config: &UiConfig) -> Value {

@@ -46,7 +46,7 @@ class RecipeTimer {
   }
 
   pause() {
-    if (this.state === "finihsed") return;
+    if (this.state === "finished") return;
     if (this.timeoutId) clearTimeout(this.timeoutId);
     if (this.intervalId) clearInterval(this.intervalId);
     this.timeoutId = null;
@@ -148,7 +148,7 @@ function registerTimerBtn(el) {
   if (name === "false") name = null;
   if (!Number.isFinite(seconds)) return;
   el.addEventListener("click", () => {
-    // if (currentTimer && currentTimer.state !== "finished") return;
+    if (currentTimer !== null && currentTimer.state !== "finished") return;
     currentTimer = new RecipeTimer(seconds, name);
     currentTimer.start();
   });
