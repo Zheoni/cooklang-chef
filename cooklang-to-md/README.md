@@ -5,5 +5,3 @@
 ![Crates.io](https://img.shields.io/crates/l/cooklang-to-md)
 
 Format a cooklang recipe into markdown.
-
-Entire `cooklang-rs` project: https://github.com/Zheoni/cooklang-rs
