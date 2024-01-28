@@ -50,7 +50,9 @@
 
 {%- macro num_format(num) -%}
   {%- if num.type == "fraction" -%}
-    <span format-number>{{ num.value.whole }}</span>
+    {% if num.value.whole > 0 or num.value.num == 0 %}
+      <span format-number>{{ num.value.whole }}</span>
+    {% endif %}
     {% if num.value.num > 0 %}
       {{ (num.value.num ~ '/' ~ num.value.den)|unicode_fraction }}
       {% if num.value.err|abs > 0.001 %}
