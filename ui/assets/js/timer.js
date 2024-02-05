@@ -78,18 +78,20 @@ class RecipeTimer {
 
   destroy() {
     this.timerEl.classList.add("remove");
-    setTimeout(() => (this.timerEl.hidden = true), 1000);
+    setTimeout(() => {
+      this.timerEl.hidden = true;
+      currentTimer = null;
+      // reenable timer buttons
+      document
+        .querySelectorAll("[data-timer]")
+        .forEach((el) => (el.disabled = false));
+    }, 1000);
     if (this.timeoutId) clearTimeout(this.timeoutId);
     this.timeoutId = null;
     if (this.intervalId) clearInterval(this.intervalId);
     this.intervalId = null;
     this.end = null;
     this.seconds = 0;
-
-    // reenable timer buttons
-    document
-      .querySelectorAll("[data-timer]")
-      .forEach((el) => (el.disabled = false));
   }
 
   remainingSeconds() {
