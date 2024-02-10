@@ -261,7 +261,7 @@ impl LazyFsIndex {
     /// Resolves a recipe query first trying directly as a path and if it fails
     /// performs a lookup in the index.
     ///
-    /// The recipe can be outside the base path.
+    /// The recipe cannot be outside the base path.
     pub fn resolve(
         &self,
         recipe: &str,

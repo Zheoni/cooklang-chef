@@ -3,7 +3,7 @@ use std::io::Read;
 use anyhow::{bail, Context as _, Result};
 use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
-use cooklang_fs::{check_recipe_images, recipe_images, LazyFsIndex};
+use cooklang_fs::{check_recipe_images, recipe_images, LazyFsIndex, RecipeEntry};
 use owo_colors::OwoColorize;
 
 use crate::{
@@ -181,9 +181,13 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
 impl ReadArgs {
     fn read(&self, index: &LazyFsIndex) -> Result<Input> {
         let input = if let Some(query) = &self.recipe {
-            // RecipeInputArgs::recipe is a pathbuf even if inmediatly converted
-            // to a string to enforce validation.
-            let entry = index.resolve(query.as_str(), None)?;
+            let entry = if query.extension().is_some_and(|e| e == "cook") && query.is_file() {
+                RecipeEntry::new(query)
+            } else {
+                // RecipeInputArgs::recipe is a pathbuf even if inmediatly converted
+                // to a string to enforce validation.
+                index.resolve(query.as_str(), None)?
+            };
 
             Input::File {
                 entry,

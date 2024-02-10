@@ -25,7 +25,7 @@ pub struct CliArgs {
     pub global_args: GlobalArgs,
 }
 
-#[derive(Debug, Subcommand, strum::Display)]
+#[derive(Debug, Subcommand)]
 pub enum Command {
     /// Read a recipe
     #[command(alias = "read", visible_alias = "r")]
