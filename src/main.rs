@@ -91,6 +91,7 @@ pub struct Context {
     config: config::Config,
     chef_config: config::ChefConfig,
     color: ColorContext,
+    is_collection: bool,
 }
 
 #[tracing::instrument(level = "debug", skip_all)]
@@ -120,6 +121,7 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
         .lazy();
 
     Ok(Context {
+        is_collection: base_path.join(COOK_DIR).is_dir(),
         base_path: base_path.to_owned(),
         parser: OnceCell::new(),
         recipe_index,

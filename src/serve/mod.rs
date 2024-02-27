@@ -7,7 +7,7 @@ use self::{
     locale::{make_locale_store, LocaleStore},
 };
 use crate::Context;
-use anyhow::{Context as _, Result};
+use anyhow::{bail, Context as _, Result};
 use axum::{
     extract::Request,
     http::{header::CONTENT_TYPE, HeaderMap, HeaderValue, StatusCode},
@@ -47,6 +47,10 @@ pub struct ServeArgs {
 
 #[tokio::main]
 pub async fn run(ctx: Context, args: ServeArgs) -> Result<()> {
+    if !ctx.is_collection {
+        bail!("`serve` needs to run inside a collection");
+    }
+
     let state = build_state(ctx).context("failed to build web server")?;
     let app = make_router(state);
 

@@ -1,5 +1,5 @@
 use anstream::print;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use clap::{builder::ArgPredicate, Args};
 use cooklang_fs::all_recipes;
 
@@ -44,9 +44,17 @@ pub struct ListArgs {
     /// Only count the number of recipes
     #[arg(short = 'n', long, conflicts_with_all = ["paths", "absolute_paths"])]
     count: bool,
+
+    /// Force to list recipes even outside a collection
+    #[arg(short, long)]
+    force: bool,
 }
 
 pub fn run(ctx: &Context, args: ListArgs) -> Result<()> {
+    if !args.force && !ctx.is_collection {
+        bail!("`list` needs to run inside a collection or pass `--force`");
+    }
+
     let iter = all_recipes(&ctx.base_path, ctx.config.max_depth)?.filter_map(|entry| {
         let entry = CachedRecipeEntry::new(entry);
         if args.tag.is_empty() {
