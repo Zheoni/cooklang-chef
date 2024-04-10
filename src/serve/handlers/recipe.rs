@@ -199,7 +199,7 @@ fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) 
         .map(|entry| {
             context! {
                 index => entry.index,
-                amounts => entry.amount.iter().map(Value::from_serializable).collect::<Value>()
+                amounts => entry.amount.iter().map(Value::from_serialize).collect::<Value>()
             }
         })
         .collect::<Value>();
@@ -266,13 +266,13 @@ impl minijinja::value::StructObject for TemplateIngredient {
             "name" => self.0.name.as_str().into(),
             "display_name" => self.0.display_name().into(),
             "alias" => mj_opt!(self.0.alias.as_deref()),
-            "quantity" => Value::from_serializable(&self.0.quantity),
+            "quantity" => Value::from_serialize(&self.0.quantity),
             "note" => mj_opt!(self.0.note.as_deref()),
             "references_to" => mj_opt!(self.0.relation.references_to().map(|rel| context! {
                 index => rel.0,
                 target => rel.1
             })),
-            "modifiers" => Value::from_serializable(&self.0.modifiers()),
+            "modifiers" => Value::from_serialize(&self.0.modifiers()),
             _ => return None,
         };
 
@@ -288,14 +288,14 @@ impl minijinja::value::StructObject for TemplateCookware {
             "name" => self.0.name.as_str().into(),
             "display_name" => self.0.display_name().into(),
             "alias" => mj_opt!(self.0.alias.as_deref()),
-            "quantity" => Value::from_serializable(&self.0.quantity),
+            "quantity" => Value::from_serialize(&self.0.quantity),
             "note" => mj_opt!(self.0.note.as_deref()),
             "references_to" => mj_opt!(self
                 .0
                 .relation
                 .references_to()
-                .map(|rel| Value::from_serializable(&rel))),
-            "modifiers" => Value::from_serializable(&self.0.modifiers()),
+                .map(|rel| Value::from_serialize(&rel))),
+            "modifiers" => Value::from_serialize(&self.0.modifiers()),
             _ => return None,
         };
 
