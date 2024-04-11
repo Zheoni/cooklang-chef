@@ -148,6 +148,12 @@ description = "blockquote"       # or "heading" or "hidden"
 escape_step_numbers = false      # everything is a paragraph
 italic_amounts = true            # put amounts in italics
 front_matter_name = "name"       # key "name" in the frontmatter with the recipe name
+heading.section = "Section %n"   # used in sections without name. `%n` is the section number
+heading.ingredients = "Ingredients"
+heading.cookware = "Cookware"
+heading.steps = "Steps"
+heading.description = "Description" # used when `description = "heading"
+optional_marker = "(optional)"
 ```
 
 The paths in `load`, if relative, they are relative from the `.cooklang` dir.
