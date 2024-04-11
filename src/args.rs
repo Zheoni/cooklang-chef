@@ -2,13 +2,13 @@ use camino::Utf8PathBuf;
 use clap::{Args, Parser, Subcommand};
 use cooklang::Extensions;
 
-use crate::{
-    collection, config_cmd, convert, edit, generate_completions, list, new, recipe, shopping_list,
+use crate::cmd::{
+    collection, config, convert, edit, generate_completions, list, new, recipe, shopping_list,
     units,
 };
 
 #[cfg(feature = "serve")]
-use crate::serve;
+use crate::cmd::serve;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -45,7 +45,7 @@ pub enum Command {
     #[command(visible_alias = "c")]
     Convert(convert::ConvertArgs),
     /// See loaded configuration
-    Config(config_cmd::ConfigArgs),
+    Config(config::ConfigArgs),
     /// Manage the recipe collection
     Collection(collection::CollectionArgs),
     /// Generate shell completions

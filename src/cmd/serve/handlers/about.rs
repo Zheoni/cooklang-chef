@@ -4,7 +4,7 @@ use axum::{
 };
 use minijinja::context;
 
-use crate::serve::{locale::UserLocale, Assets, S};
+use crate::cmd::serve::{locale::UserLocale, Assets, S};
 
 use super::mj_ok;
 

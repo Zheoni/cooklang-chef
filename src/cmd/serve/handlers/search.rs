@@ -7,7 +7,7 @@ use minijinja::{context, Value};
 use serde::Deserialize;
 
 use crate::{
-    serve::S,
+    cmd::serve::S,
     util::{is_valid_tag, meta_name},
 };
 

@@ -8,7 +8,7 @@ use axum::{
 use futures::{Stream, TryStreamExt};
 use tokio_stream::wrappers::{errors::BroadcastStreamRecvError, BroadcastStream};
 
-use crate::serve::{async_index::Update, S};
+use crate::cmd::serve::{async_index::Update, S};
 
 use super::clean_path;
 

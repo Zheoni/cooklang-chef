@@ -9,7 +9,7 @@ use camino::Utf8PathBuf;
 use minijinja::{context, Value};
 use serde::Deserialize;
 
-use crate::serve::{locale::UserLocale, S};
+use crate::cmd::serve::{locale::UserLocale, S};
 
 use super::{check_path, clean_path, mj_ok, recipe_entry_context};
 

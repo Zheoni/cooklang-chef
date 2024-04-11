@@ -4,7 +4,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 
-use crate::serve::Assets;
+use crate::cmd::serve::Assets;
 
 pub async fn static_file(uri: Uri, headers: HeaderMap) -> Result<Response, StatusCode> {
     const INDEX_HTML: &str = "index.html";

@@ -7,7 +7,7 @@ use axum::{
 };
 use minijinja::context;
 
-use crate::serve::{handlers::mj_ok, locale::UserLocale, S};
+use crate::cmd::serve::{handlers::mj_ok, locale::UserLocale, S};
 
 use super::check_path;
 

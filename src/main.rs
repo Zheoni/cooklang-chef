@@ -10,18 +10,7 @@ use once_cell::sync::OnceCell;
 use util::metadata_validator;
 
 // commands
-mod collection;
-mod config_cmd;
-mod convert;
-mod edit;
-mod generate_completions;
-mod list;
-mod new;
-mod recipe;
-#[cfg(feature = "serve")]
-mod serve;
-mod shopping_list;
-mod units;
+mod cmd;
 
 // other modules
 mod args;
@@ -57,18 +46,18 @@ pub fn main() -> Result<()> {
     let ctx = configure_context(args.global_args, color_ctx)?;
 
     match args.command {
-        Command::Recipe(args) => recipe::run(&ctx, args),
-        Command::List(args) => list::run(&ctx, args),
+        Command::Recipe(args) => cmd::recipe::run(&ctx, args),
+        Command::List(args) => cmd::list::run(&ctx, args),
         #[cfg(feature = "serve")]
-        Command::Serve(args) => serve::run(ctx, args),
-        Command::ShoppingList(args) => shopping_list::run(&ctx, args),
-        Command::Units(args) => units::run(ctx.parser()?.converter(), args),
-        Command::Convert(args) => convert::run(ctx.parser()?.converter(), args),
-        Command::Config(args) => config_cmd::run(&ctx, args),
-        Command::Collection(args) => collection::run(&ctx, args),
-        Command::GenerateCompletions(args) => generate_completions::run(args),
-        Command::New(args) => new::run(args, &ctx),
-        Command::Edit(args) => edit::run(args, &ctx),
+        Command::Serve(args) => cmd::serve::run(ctx, args),
+        Command::ShoppingList(args) => cmd::shopping_list::run(&ctx, args),
+        Command::Units(args) => cmd::units::run(ctx.parser()?.converter(), args),
+        Command::Convert(args) => cmd::convert::run(ctx.parser()?.converter(), args),
+        Command::Config(args) => cmd::config::run(&ctx, args),
+        Command::Collection(args) => cmd::collection::run(&ctx, args),
+        Command::GenerateCompletions(args) => cmd::generate_completions::run(args),
+        Command::New(args) => cmd::new::run(args, &ctx),
+        Command::Edit(args) => cmd::edit::run(args, &ctx),
     }
 }
 

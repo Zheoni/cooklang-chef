@@ -58,7 +58,7 @@ macro_rules! mj_ok {
             }
         }
         #[cfg(not(debug_assertions))]
-        crate::serve::handlers::ok_status!($res, INTERNAL_SERVER_ERROR)
+        crate::cmd::serve::handlers::ok_status!($res, INTERNAL_SERVER_ERROR)
     }};
 }
 pub(crate) use mj_ok;

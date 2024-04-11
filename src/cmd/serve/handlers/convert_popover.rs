@@ -7,7 +7,7 @@ use axum::{
 use cooklang::ScaledQuantity;
 use minijinja::context;
 
-use crate::serve::{locale::UserLocale, S};
+use crate::cmd::serve::{locale::UserLocale, S};
 
 use super::mj_ok;
 

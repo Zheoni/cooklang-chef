@@ -12,12 +12,12 @@ use serde::{Deserialize, Serialize};
 use tokio::task::block_in_place;
 
 use crate::{
-    config::Config,
-    serve::{
+    cmd::serve::{
         get_cookie,
         handlers::{clean_path, ok_status, tag_context},
         AppState, S,
     },
+    config::Config,
     util::{meta_name, metadata_validator},
     RECIPE_REF_ERROR,
 };
