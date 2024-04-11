@@ -67,6 +67,10 @@ pub struct Options {
     /// A key `name` in the metadata has preference over this.
     #[serde(deserialize_with = "des_or_bool")]
     pub front_matter_name: FrontMatterName,
+    /// Text to write in headings
+    pub heading: Headings,
+    /// Text to write when an ingredient or cookware item is optional
+    pub optional_marker: String,
 }
 
 impl Default for Options {
@@ -77,6 +81,8 @@ impl Default for Options {
             escape_step_numbers: false,
             italic_amounts: true,
             front_matter_name: FrontMatterName::default(),
+            heading: Headings::default(),
+            optional_marker: "(optional)".to_string(),
         }
     }
 }
@@ -118,6 +124,37 @@ impl From<bool> for FrontMatterName {
         match value {
             true => Self::default(),
             false => Self(None),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct Headings {
+    /// Heading for steps sections without name
+    ///
+    /// If found, `%n` is replaced by the section number.
+    pub section: String,
+    /// Ingredients section
+    pub ingredients: String,
+    /// Cookware section
+    pub cookware: String,
+    /// Steps section
+    pub steps: String,
+    /// Description section
+    ///
+    /// The description is only shown in a section if enabled.
+    pub description: String,
+}
+
+impl Default for Headings {
+    fn default() -> Self {
+        Self {
+            section: "Section %n".into(),
+            ingredients: "Ingredients".into(),
+            cookware: "Cookware".into(),
+            steps: "Steps".into(),
+            description: "Description".into(),
         }
     }
 }
@@ -195,7 +232,7 @@ pub fn print_md_with_options(
                 writeln!(writer)?;
             }
             DescriptionStyle::Heading => {
-                writeln!(writer, "## Description\n")?;
+                writeln!(writer, "## {}\n", opts.heading.description)?;
                 print_wrapped(&mut writer, desc)?;
                 writeln!(writer)?;
             }
@@ -265,7 +302,7 @@ fn ingredients(
         return Ok(());
     }
 
-    writeln!(w, "## Ingredients\n")?;
+    writeln!(w, "## {}\n", opts.heading.ingredients)?;
 
     for entry in recipe.group_ingredients(converter) {
         let ingredient = entry.ingredient;
@@ -286,7 +323,7 @@ fn ingredients(
         write!(w, "{}", ingredient.display_name())?;
 
         if ingredient.modifiers().is_optional() {
-            write!(w, " (optional)")?;
+            write!(w, " {}", opts.optional_marker)?;
         }
 
         if let Some(note) = &ingredient.note {
@@ -304,7 +341,7 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Re
         return Ok(());
     }
 
-    writeln!(w, "## Cookware\n")?;
+    writeln!(w, "## {}\n", opts.heading.cookware)?;
     for item in recipe.group_cookware() {
         let cw = item.cookware;
         write!(w, "- ")?;
@@ -318,7 +355,7 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Re
         write!(w, "{}", cw.display_name())?;
 
         if cw.modifiers().is_optional() {
-            write!(w, " (optional)")?;
+            write!(w, " {}", opts.optional_marker)?;
         }
 
         if let Some(note) = &cw.note {
@@ -332,7 +369,7 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Re
 }
 
 fn sections(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Result<()> {
-    writeln!(w, "## Steps\n")?;
+    writeln!(w, "## {}\n", opts.heading.steps)?;
     for (idx, section) in recipe.sections.iter().enumerate() {
         w_section(w, section, recipe, idx + 1, opts)?;
     }
@@ -343,14 +380,15 @@ fn w_section(
     w: &mut impl io::Write,
     section: &Section,
     recipe: &ScaledRecipe,
-    idx: usize,
+    num: usize,
     opts: &Options,
 ) -> Result {
     if section.name.is_some() || recipe.sections.len() > 1 {
         if let Some(name) = &section.name {
             writeln!(w, "### {name}\n")?;
         } else {
-            writeln!(w, "### Section {idx}\n")?;
+            let s = opts.heading.section.replace("%n", &num.to_string());
+            writeln!(w, "### {s}\n")?;
         }
     }
     for content in &section.content {

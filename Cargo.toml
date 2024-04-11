@@ -25,7 +25,7 @@ cooklang = { workspace = true }
 cooklang-fs = { version = "0.13", path = "./cooklang-fs" }
 cooklang-to-human = { version = "0.13", path = "./cooklang-to-human" }
 cooklang-to-cooklang = { version = "0.13", path = "./cooklang-to-cooklang" }
-cooklang-to-md = { version = "0.13", path = "./cooklang-to-md" }
+cooklang-to-md = { version = "0.14", path = "./cooklang-to-md" }
 textwrap = { workspace = true, features = ["terminal_size"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
