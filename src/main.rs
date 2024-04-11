@@ -102,7 +102,11 @@ fn configure_context(args: GlobalArgs, color_ctx: ColorContext) -> Result<Contex
         bail!("Base path is not a directory: '{base_path}'");
     }
 
-    let mut config = Config::read(base_path)?;
+    let mut config = if let Some(file) = &args.config_file {
+        Config::read(file)?
+    } else {
+        Config::read(&config::config_file_path(base_path))?
+    };
     config.override_with_args(&args);
 
     let recipe_index = cooklang_fs::new_index(base_path, config.max_depth)?

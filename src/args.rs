@@ -145,4 +145,8 @@ pub struct GlobalArgs {
 
     #[arg(long, hide_short_help = true, global = true)]
     pub debug_trace: bool,
+
+    /// Use a specific configuration fileignoring the expected path
+    #[arg(long = "config", global = true, hide_short_help = true)]
+    pub config_file: Option<Utf8PathBuf>,
 }

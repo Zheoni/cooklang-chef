@@ -146,8 +146,8 @@ where
 }
 
 impl Config {
-    pub fn read(base_path: &Utf8Path) -> Result<Self> {
-        let local = config_file_path(base_path);
+    pub fn read(path: &Utf8Path) -> Result<Self> {
+        let local = path;
         if !local.is_file() {
             tracing::debug!("Local config not found, loading global default");
             return default_config().context("Error loading default global config file");
