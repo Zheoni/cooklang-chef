@@ -44,7 +44,7 @@ impl ChefConfig {
             let editor = ENV_VARS
                 .iter()
                 .filter_map(|v| env::var(v).ok())
-                .find(|v| v.is_empty())
+                .find(|v| !v.is_empty())
                 .unwrap_or_else(|| HARD_CODED.to_string());
 
             shell_words::split(&editor)?
