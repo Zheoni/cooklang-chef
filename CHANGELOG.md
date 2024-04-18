@@ -2,6 +2,10 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.9.1 - 2024/04/18
+
+- Fix `VISUAL` and/or `EDITOR` env vars that were ignored. ( #26 )
+
 ## 0.9.0 - 2024/04/11
 
 - Add more markdown customization to change all hard coded words.
