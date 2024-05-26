@@ -500,7 +500,6 @@
                           data-timer="{{ seconds }}"
                           data-timer-name="{{ tm.name|or_else(false) }}"
                         >
-                          {{- tm.name if tm.name is not none -}}
                           {% if tm.quantity %}
                             {{- qty_format(tm.quantity, editable=false) -}}
                           {% endif %}
