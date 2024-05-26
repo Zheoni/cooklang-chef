@@ -488,7 +488,6 @@
                       {% set seconds = r.timers_seconds[item.index] %}
                       {% if seconds is none %}
                         <span class="font-semibold text-indigo-11">
-                          {{- tm.name if tm.name is not none -}}
                           {% if tm.quantity %}
                             {{- qty_format(tm.quantity) -}}
                           {% endif %}
