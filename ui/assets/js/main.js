@@ -304,8 +304,8 @@ function formatNumber(num) {
   }).format(num);
 }
 
-htmx.onLoad((el) => {
-  htmx.findAll(el, "[format-minutes]").forEach((el) => {
+function formatAllElements(rootElement) {
+  htmx.findAll(rootElement, "[format-minutes]").forEach((el) => {
     const num = Number(el.textContent);
     if (Number.isFinite(num)) {
       const formatted = formatTime(num);
@@ -313,7 +313,7 @@ htmx.onLoad((el) => {
     }
   });
 
-  htmx.findAll(el, "[format-timestamp]").forEach((el) => {
+  htmx.findAll(rootElement, "[format-timestamp]").forEach((el) => {
     const secs = Number(el.textContent);
     if (Number.isFinite(secs)) {
       const formatted = formatTimestamp(secs);
@@ -321,13 +321,31 @@ htmx.onLoad((el) => {
     }
   });
 
-  htmx.findAll(el, "[format-number]").forEach((el) => {
+  htmx.findAll(rootElement, "[format-number]").forEach((el) => {
     const num = Number(el.textContent);
     if (Number.isFinite(num)) {
       const formatted = formatNumber(num);
       el.textContent = formatted;
     }
   });
+}
+
+// Format on initial page load
+document.addEventListener('DOMContentLoaded', function() {
+  formatAllElements(document.body)
+});
+
+// Format before we swap new element in
+document.addEventListener('htmx:beforeSwap', function(event) {
+  let content = event.detail.xhr.responseText;
+            
+  // Create a temporary container to manipulate the content
+  let tempDiv = document.createElement('div');
+  tempDiv.innerHTML = content;
+
+  formatAllElements(tempDiv)
+  
+  event.detail.serverResponse = tempDiv.innerHTML;
 });
 
 /* Autoasign an id */
