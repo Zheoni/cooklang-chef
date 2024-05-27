@@ -64,7 +64,7 @@
       {%- endif -%}
     {% endif %}
   {%- else -%}
-    <span format-number>{{ num.value }}</span>
+    <span format-number>{{ num.value|zeroless_float }}</span>
   {%- endif -%}
 {%- endmacro -%}
 

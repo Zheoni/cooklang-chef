@@ -260,6 +260,14 @@ fn make_template_env(locales: &LocaleStore) -> Environment<'static> {
         },
     );
 
+    env.add_filter("zeroless_float", |v: f64| {
+        if v.fract() == 0.0 {
+            Value::from(v as i128)
+        } else {
+            Value::from(v)
+        }
+    });
+
     env
 }
 
