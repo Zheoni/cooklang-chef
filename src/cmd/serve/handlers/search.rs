@@ -47,15 +47,18 @@ pub async fn search(
         state
             .recipe_index
             .search(
-                |entry, recipe| match recipe.and_then(|r| r.valid_output()) {
-                    Some(r) => {
-                        let m = &r.metadata;
-                        let name = meta_name(m).unwrap_or(entry.name());
-                        srch.matches_recipe(name, m.tags().unwrap_or(&[]))
+                |entry, tokens| match tokens {
+                    Some(t) => {
+                        let name = if let Some(meta) = t.metadata.valid_output() {
+                            meta_name(meta).unwrap_or(entry.name())
+                        } else {
+                            entry.name()
+                        };
+                        srch.matches_recipe(name, t)
                     }
                     None => false,
                 },
-                |entry, meta| recipe_entry_context(entry, &state, meta),
+                |entry, tokens| recipe_entry_context(entry, &state, tokens),
                 0,
                 12,
             )
@@ -85,39 +88,44 @@ pub async fn search(
 
 impl From<SearchQuery> for Searcher {
     fn from(value: SearchQuery) -> Self {
-        let mut tags = Vec::new();
-        let mut name_parts = Vec::new();
+        let mut parts = Vec::new();
         if let Some(q) = value.q {
             for part in q.split_whitespace() {
                 if let Some(tag) = part.strip_prefix("tag:") {
                     if is_valid_tag(tag) {
-                        tags.push(tag.to_string())
+                        parts.push(Searcher::Tag(tag.to_owned()));
                     }
+                } else if let Some(ingredient) = part.strip_prefix("uses:") {
+                    parts.push(Searcher::Ingredient(ingredient.to_owned()));
                 } else {
-                    name_parts.push(part.to_lowercase());
+                    parts.push(Searcher::NamePart(part.to_owned()));
                 }
             }
         }
-        Self { tags, name_parts }
+        if parts.len() == 1 {
+            return parts.pop().unwrap();
+        } else {
+            return Searcher::All(parts);
+        }
     }
 }
 
 impl Searcher {
     fn to_query(&self) -> String {
-        let mut q = String::new();
-        for part in &self.name_parts {
-            q.push_str(part);
-            q.push(' ');
+        match self {
+            Searcher::All(v) => v.iter().map(|s| s.to_query()).collect::<Vec<_>>().join(" "),
+            Searcher::NamePart(name) => name.to_owned(),
+            Searcher::Tag(tag) => format!("tag:{tag}"),
+            Searcher::Ingredient(ingredient) => format!("uses:{ingredient}"),
         }
-        for t in &self.tags {
-            q.push_str(&format!("tag:{t}"));
-            q.push(' ');
-        }
-        q.pop();
-        q
     }
 
     fn is_empty(&self) -> bool {
-        self.name_parts.is_empty() && self.tags.is_empty()
+        match self {
+            Searcher::All(v) => v.is_empty(),
+            Searcher::NamePart(name) => name.is_empty(),
+            Searcher::Tag(tag) => tag.is_empty(),
+            Searcher::Ingredient(ingredient) => ingredient.is_empty(),
+        }
     }
 }

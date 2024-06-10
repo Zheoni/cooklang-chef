@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use camino::{Utf8Path, Utf8PathBuf};
-use cooklang::{CooklangParser, RecipeResult};
+use cooklang::{CooklangParser, MetadataResult};
 use cooklang_fs::{FsIndex, RecipeEntry};
 use notify::{RecommendedWatcher, Watcher};
 use serde::Serialize;
@@ -17,10 +17,15 @@ pub struct AsyncFsIndex {
     indexes: Arc<RwLock<Indexes>>,
 }
 
+pub struct RecipeData {
+    pub metadata: MetadataResult,
+    pub ingredients: Vec<String>,
+}
+
 struct Indexes {
     parser: CooklangParser,
     fs: FsIndex,
-    srch: BTreeMap<Utf8PathBuf, RecipeResult>,
+    srch: BTreeMap<Utf8PathBuf, RecipeData>,
 }
 
 impl Indexes {
@@ -33,8 +38,15 @@ impl Indexes {
         let mut srch = BTreeMap::new();
         let insert_search_entry = |index: &mut BTreeMap<_, _>, entry: RecipeEntry| {
             let content = entry.read().expect("can't read recipe");
-            let recipe = content.parse(&parser);
-            index.insert(entry.path().to_owned(), recipe);
+            let metadata = content.metadata(&parser);
+            let ingredients = content.ingredients(&parser);
+            index.insert(
+                entry.path().to_owned(),
+                RecipeData {
+                    metadata,
+                    ingredients,
+                },
+            );
         };
         for entry in fs.get_all() {
             insert_search_entry(&mut srch, entry);
@@ -54,8 +66,14 @@ impl Indexes {
     }
 
     fn insert_srch(&mut self, path: &Utf8Path) -> Result<(), cooklang_fs::Error> {
-        let recipe = RecipeEntry::new(path).read()?.parse(&self.parser);
-        self.srch.insert(path.to_owned(), recipe);
+        let content = RecipeEntry::new(path).read()?;
+        self.srch.insert(
+            path.to_owned(),
+            RecipeData {
+                metadata: content.metadata(&self.parser),
+                ingredients: content.ingredients(&self.parser),
+            },
+        );
         Ok(())
     }
 
@@ -133,8 +151,8 @@ impl AsyncFsIndex {
 
     pub async fn search<T>(
         &self,
-        pred: impl Fn(&RecipeEntry, Option<&RecipeResult>) -> bool,
-        map: impl Fn(RecipeEntry, Option<&RecipeResult>) -> T,
+        pred: impl Fn(&RecipeEntry, Option<&RecipeData>) -> bool,
+        map: impl Fn(RecipeEntry, Option<&RecipeData>) -> T,
         skip: usize,
         take: usize,
     ) -> Vec<T> {
@@ -143,9 +161,9 @@ impl AsyncFsIndex {
             .fs
             .get_all()
             .filter_map(|entry| {
-                let recipe = indexes.srch.get(entry.path());
-                match pred(&entry, recipe) {
-                    true => Some((entry, recipe)),
+                let tokens = indexes.srch.get(entry.path());
+                match pred(&entry, tokens) {
+                    true => Some((entry, tokens)),
                     false => None,
                 }
             })
