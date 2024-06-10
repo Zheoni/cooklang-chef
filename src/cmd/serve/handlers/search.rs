@@ -91,16 +91,36 @@ impl From<SearchQuery> for Searcher {
         let mut parts = Vec::new();
         if let Some(q) = value.q {
             for part in q.split_whitespace() {
-                if let Some(tag) = part.strip_prefix("tag:") {
+                let mut negated = false;
+                let part = {
+                    let new_part = part.strip_prefix("!");
+                    match new_part {
+                        Some(n) => {
+                            negated = true;
+                            n
+                        }
+                        None => part,
+                    }
+                };
+                let next = if let Some(tag) = part.strip_prefix("tag:") {
                     if is_valid_tag(tag) {
-                        parts.push(Searcher::Tag(tag.to_owned()));
+                        Some(Searcher::Tag(tag.to_owned()))
+                    } else {
+                        None
                     }
                 } else if let Some(ingredient) = part.strip_prefix("uses:") {
-                    parts.push(Searcher::Ingredient(ingredient.to_owned()));
+                    Some(Searcher::Ingredient(ingredient.to_owned()))
                 } else if let Some(cookware) = part.strip_prefix("needs:") {
-                    parts.push(Searcher::Cookware(cookware.to_owned()));
+                    Some(Searcher::Cookware(cookware.to_owned()))
                 } else {
-                    parts.push(Searcher::NamePart(part.to_owned()));
+                    Some(Searcher::NamePart(part.to_owned()))
+                };
+                if let Some(n) = next {
+                    if negated {
+                        parts.push(Searcher::Not(Box::new(n)));
+                    } else {
+                        parts.push(n);
+                    }
                 }
             }
         }
@@ -116,6 +136,10 @@ impl Searcher {
     fn to_query(&self) -> String {
         match self {
             Searcher::All(v) => v.iter().map(|s| s.to_query()).collect::<Vec<_>>().join(" "),
+            Searcher::Not(s) => {
+                let str = s.to_query();
+                format!("!{str}")
+            }
             Searcher::NamePart(name) => name.to_owned(),
             Searcher::Tag(tag) => format!("tag:{tag}"),
             Searcher::Ingredient(ingredient) => format!("uses:{ingredient}"),
@@ -126,6 +150,7 @@ impl Searcher {
     fn is_empty(&self) -> bool {
         match self {
             Searcher::All(v) => v.is_empty(),
+            Searcher::Not(s) => s.is_empty(),
             Searcher::NamePart(name) => name.is_empty(),
             Searcher::Tag(tag) => tag.is_empty(),
             Searcher::Ingredient(ingredient) => ingredient.is_empty(),

@@ -164,6 +164,7 @@ fn tag_context(name: &str, ui_config: &UiConfig) -> Value {
 #[derive(Debug)]
 enum Searcher {
     All(Vec<Self>),
+    Not(Box<Self>),
     NamePart(String),
     Tag(String),
     Ingredient(String),
@@ -174,6 +175,7 @@ impl Searcher {
     fn matches_recipe(&self, name: &str, tokens: &RecipeData) -> bool {
         match self {
             Self::All(v) => v.iter().all(|s| s.matches_recipe(name, tokens)),
+            Self::Not(searcher) => !searcher.matches_recipe(name, tokens),
             Self::NamePart(part) => name.to_lowercase().contains(part),
             Self::Tag(tag) => match tokens.metadata.valid_output() {
                 Some(meta) => meta.tags().unwrap_or(&[]).contains(tag),
