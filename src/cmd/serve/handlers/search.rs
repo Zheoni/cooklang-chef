@@ -109,9 +109,9 @@ impl From<SearchQuery> for Searcher {
                     } else {
                         None
                     }
-                } else if let Some(ingredient) = part.strip_prefix("uses:") {
+                } else if let Some(ingredient) = part.strip_prefix("ingredient:") {
                     Some(Searcher::Ingredient(ingredient.to_owned()))
-                } else if let Some(cookware) = part.strip_prefix("needs:") {
+                } else if let Some(cookware) = part.strip_prefix("cookware:") {
                     Some(Searcher::Cookware(cookware.to_owned()))
                 } else {
                     Some(Searcher::NamePart(part.to_owned()))
