@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use camino::{Utf8Path, Utf8PathBuf};
-use cooklang::{CooklangParser, MetadataResult};
+use cooklang::{CooklangParser, RecipeResult};
 use cooklang_fs::{FsIndex, RecipeEntry};
 use notify::{RecommendedWatcher, Watcher};
 use serde::Serialize;
@@ -20,7 +20,7 @@ pub struct AsyncFsIndex {
 struct Indexes {
     parser: CooklangParser,
     fs: FsIndex,
-    srch: BTreeMap<Utf8PathBuf, MetadataResult>,
+    srch: BTreeMap<Utf8PathBuf, RecipeResult>,
 }
 
 impl Indexes {
@@ -33,8 +33,8 @@ impl Indexes {
         let mut srch = BTreeMap::new();
         let insert_search_entry = |index: &mut BTreeMap<_, _>, entry: RecipeEntry| {
             let content = entry.read().expect("can't read recipe");
-            let meta = content.metadata(&parser);
-            index.insert(entry.path().to_owned(), meta);
+            let recipe = content.parse(&parser);
+            index.insert(entry.path().to_owned(), recipe);
         };
         for entry in fs.get_all() {
             insert_search_entry(&mut srch, entry);
@@ -54,8 +54,8 @@ impl Indexes {
     }
 
     fn insert_srch(&mut self, path: &Utf8Path) -> Result<(), cooklang_fs::Error> {
-        let meta = RecipeEntry::new(path).read()?.metadata(&self.parser);
-        self.srch.insert(path.to_owned(), meta);
+        let recipe = RecipeEntry::new(path).read()?.parse(&self.parser);
+        self.srch.insert(path.to_owned(), recipe);
         Ok(())
     }
 
@@ -133,8 +133,8 @@ impl AsyncFsIndex {
 
     pub async fn search<T>(
         &self,
-        pred: impl Fn(&RecipeEntry, Option<&MetadataResult>) -> bool,
-        map: impl Fn(RecipeEntry, Option<&MetadataResult>) -> T,
+        pred: impl Fn(&RecipeEntry, Option<&RecipeResult>) -> bool,
+        map: impl Fn(RecipeEntry, Option<&RecipeResult>) -> T,
         skip: usize,
         take: usize,
     ) -> Vec<T> {
@@ -143,9 +143,9 @@ impl AsyncFsIndex {
             .fs
             .get_all()
             .filter_map(|entry| {
-                let meta = indexes.srch.get(entry.path());
-                match pred(&entry, meta) {
-                    true => Some((entry, meta)),
+                let recipe = indexes.srch.get(entry.path());
+                match pred(&entry, recipe) {
+                    true => Some((entry, recipe)),
                     false => None,
                 }
             })

@@ -55,8 +55,8 @@ pub async fn index(
                 path => clean_path(dir.path(), &state.base_path)
             }),
             cooklang_fs::Entry::Recipe(r) => {
-                let meta = r.read().ok().map(|c| c.metadata(&state.parser));
-                recipes.push(recipe_entry_context(r, &state, meta.as_ref()).unwrap());
+                let recipe = r.read().ok().map(|c| c.parse(&state.parser));
+                recipes.push(recipe_entry_context(r, &state, recipe.as_ref()).unwrap());
             }
         }
     }

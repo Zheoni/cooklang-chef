@@ -1,5 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use cooklang::MetadataResult;
+use cooklang::RecipeResult;
 use cooklang_fs::RecipeEntry;
 use minijinja::{context, Value};
 
@@ -94,13 +94,14 @@ fn clean_path(p: &Utf8Path, base_path: &Utf8Path) -> Utf8PathBuf {
 fn recipe_entry_context(
     r: RecipeEntry,
     state: &AppState,
-    meta: Option<&MetadataResult>,
+    recipe: Option<&RecipeResult>,
 ) -> Option<Value> {
     let mut metadata = Value::UNDEFINED;
     let mut error = false;
     let mut image = None;
 
-    if let Some(m) = meta.and_then(|res| res.valid_output()) {
+    if let Some(re) = recipe.and_then(|res| res.valid_output()) {
+        let m = &re.metadata;
         let tags = Value::from_iter(
             m.tags()
                 .unwrap_or(&[])
