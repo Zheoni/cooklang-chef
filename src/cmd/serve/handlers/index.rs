@@ -59,6 +59,7 @@ pub async fn index(
                 let tokens = r.read().ok().map(|c| RecipeData {
                     metadata: c.metadata(&state.parser),
                     ingredients: c.ingredients(&state.parser),
+                    cookware: c.cookware(&state.parser),
                 });
                 recipes.push(recipe_entry_context(r, &state, tokens.as_ref()).unwrap());
             }

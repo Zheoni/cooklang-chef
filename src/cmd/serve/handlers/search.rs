@@ -97,6 +97,8 @@ impl From<SearchQuery> for Searcher {
                     }
                 } else if let Some(ingredient) = part.strip_prefix("uses:") {
                     parts.push(Searcher::Ingredient(ingredient.to_owned()));
+                } else if let Some(cookware) = part.strip_prefix("needs:") {
+                    parts.push(Searcher::Cookware(cookware.to_owned()));
                 } else {
                     parts.push(Searcher::NamePart(part.to_owned()));
                 }
@@ -117,6 +119,7 @@ impl Searcher {
             Searcher::NamePart(name) => name.to_owned(),
             Searcher::Tag(tag) => format!("tag:{tag}"),
             Searcher::Ingredient(ingredient) => format!("uses:{ingredient}"),
+            Searcher::Cookware(cookware) => format!("needs:{cookware}"),
         }
     }
 
@@ -126,6 +129,7 @@ impl Searcher {
             Searcher::NamePart(name) => name.is_empty(),
             Searcher::Tag(tag) => tag.is_empty(),
             Searcher::Ingredient(ingredient) => ingredient.is_empty(),
+            Searcher::Cookware(cookware) => cookware.is_empty(),
         }
     }
 }

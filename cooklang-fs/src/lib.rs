@@ -644,6 +644,30 @@ impl RecipeContent {
         return ingredients;
     }
 
+    /// Parses the names of cookware required by the recipe.
+    pub fn cookware(&self, parser: &cooklang::CooklangParser) -> Vec<String> {
+        Self::get_cookware_from(self.parse(parser))
+    }
+
+    /// Same as [`Self::cookware`] but with extra options
+    pub fn cookware_with_options(
+        &self,
+        parser: &cooklang::CooklangParser,
+        options: cooklang::analysis::ParseOptions,
+    ) -> Vec<String> {
+        Self::get_cookware_from(self.parse_with_options(parser, options))
+    }
+
+    fn get_cookware_from(recipe: cooklang::RecipeResult) -> Vec<String> {
+        let mut cookware = Vec::new();
+        if let Some(r) = recipe.valid_output() {
+            for tool in &r.cookware {
+                cookware.push(tool.name.to_owned());
+            }
+        }
+        return cookware;
+    }
+
     pub fn text(&self) -> &str {
         &self.content
     }

@@ -167,6 +167,7 @@ enum Searcher {
     NamePart(String),
     Tag(String),
     Ingredient(String),
+    Cookware(String),
 }
 
 impl Searcher {
@@ -182,6 +183,10 @@ impl Searcher {
                 .ingredients
                 .iter()
                 .any(|str| &str.to_lowercase() == ingredient),
+            Self::Cookware(cookware) => tokens
+                .cookware
+                .iter()
+                .any(|str| &str.to_lowercase() == cookware),
         }
     }
 }
