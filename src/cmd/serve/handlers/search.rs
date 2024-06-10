@@ -101,7 +101,8 @@ impl From<SearchQuery> for Searcher {
                         }
                         None => part,
                     }
-                };
+                }
+                .replace("+", " ");
                 let next = if let Some(tag) = part.strip_prefix("tag:") {
                     if is_valid_tag(tag) {
                         Some(Searcher::Tag(tag.to_owned()))
@@ -140,10 +141,10 @@ impl Searcher {
                 let str = s.to_query();
                 format!("!{str}")
             }
-            Searcher::NamePart(name) => name.to_owned(),
-            Searcher::Tag(tag) => format!("tag:{tag}"),
-            Searcher::Ingredient(ingredient) => format!("uses:{ingredient}"),
-            Searcher::Cookware(cookware) => format!("needs:{cookware}"),
+            Searcher::NamePart(name) => name.replace(" ", "+"),
+            Searcher::Tag(tag) => format!("tag:{tag}").replace(" ", "+"),
+            Searcher::Ingredient(ingredient) => format!("uses:{ingredient}").replace(" ", "+"),
+            Searcher::Cookware(cookware) => format!("needs:{cookware}").replace(" ", "+"),
         }
     }
 
