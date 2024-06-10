@@ -40,6 +40,7 @@ pub async fn search(
     Query(query): Query<SearchQuery>,
 ) -> Response {
     let srch = Searcher::from(query);
+    tracing::trace!("{:?}", srch);
 
     let recipes = if srch.is_empty() {
         Vec::new()
@@ -86,24 +87,123 @@ pub async fn search(
     Html(content).into_response()
 }
 
+/// Balances parenthesis in the query.
+fn error_correct_query(query: &str) -> String {
+    let mut depth = 0;
+    let mut pad_left = 0;
+    for ch in query.chars() {
+        if ch == '(' {
+            depth += 1;
+        }
+        if ch == ')' {
+            if depth == 0 {
+                pad_left += 1;
+            } else {
+                depth -= 1;
+            }
+        }
+    }
+    let mut working_string = "(".repeat(pad_left);
+    working_string.push_str(query);
+    working_string.push_str(&")".repeat(depth));
+    working_string
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_correct_query() {
+        assert_eq!(error_correct_query("a b c"), "a b c");
+        assert_eq!(error_correct_query("a | c"), "a | c");
+        assert_eq!(error_correct_query("(b c"), "(b c)");
+        assert_eq!(error_correct_query("(a b)"), "(a b)");
+        assert_eq!(error_correct_query("a | (b | c)"), "a | (b | c)");
+        assert_eq!(error_correct_query("b) c"), "(b) c");
+    }
+}
+
+fn parse_disjunct_chunks<'a>(query: &'a str) -> Vec<&'a str> {
+    let mut depth = 0;
+    let mut from = 0;
+    let mut output = Vec::new();
+    for (to, ch) in query.char_indices() {
+        if ch == '(' {
+            depth += 1;
+        } else if ch == ')' {
+            depth -= 1;
+        } else if depth == 0 && ch == '|' {
+            if from != to {
+                output.push(query[from..to].trim())
+            }
+            from = to + 1;
+        }
+    }
+    if from < query.len() {
+        output.push(query[from..query.len()].trim());
+    }
+    output
+}
+
+fn parse_conjunct_chunks<'a>(query: &'a str) -> Vec<&'a str> {
+    let mut depth = 0;
+    let mut from = 0;
+    let mut output = Vec::new();
+    for (to, ch) in query.char_indices() {
+        if ch == '(' {
+            depth += 1;
+        } else if ch == ')' {
+            depth -= 1;
+        } else if depth == 0 && ch.is_whitespace() {
+            if from != to {
+                output.push(query[from..to].trim())
+            }
+            from = to + 1;
+        }
+    }
+    if from < query.len() {
+        output.push(query[from..query.len()].trim());
+    }
+    output
+}
+
 impl From<SearchQuery> for Searcher {
     fn from(value: SearchQuery) -> Self {
-        let mut parts = Vec::new();
-        if let Some(q) = value.q {
-            for part in q.split_whitespace() {
-                let mut negated = false;
-                let part = {
-                    let new_part = part.strip_prefix("!");
-                    match new_part {
-                        Some(n) => {
-                            negated = true;
-                            n
-                        }
-                        None => part,
-                    }
+        if value.q.is_none() {
+            return Searcher::All(Vec::new());
+        }
+        let q = error_correct_query(
+            value
+                .q
+                .unwrap()
+                // We can bring back the necessary parenthesis via error correction.
+                .trim_matches(|m: char| m.is_whitespace() || m == ')' || m == '('),
+        );
+
+        let mut parts = parse_disjunct_chunks(&q);
+        let mut output = if parts.len() == 1 {
+            parts = parse_conjunct_chunks(&q);
+            Searcher::All(Vec::new())
+        } else {
+            Searcher::Any(Vec::new())
+        };
+        for part in parts {
+            let mut negated = false;
+            let part = match part.strip_prefix("!") {
+                None => part,
+                Some(new_part) => {
+                    negated = true;
+                    new_part
                 }
-                .replace("+", " ");
-                let next = if let Some(tag) = part.strip_prefix("tag:") {
+            };
+            if let Some(mut next) = if part.contains(&['|', ' ', '(', ')']) {
+                Some(Searcher::from(SearchQuery {
+                    q: Some(part.to_owned()),
+                }))
+            } else {
+                let part = part.replace("+", " ");
+                if let Some(tag) = part.strip_prefix("tag:") {
                     if is_valid_tag(tag) {
                         Some(Searcher::Tag(tag.to_owned()))
                     } else {
@@ -115,20 +215,34 @@ impl From<SearchQuery> for Searcher {
                     Some(Searcher::Cookware(cookware.to_owned()))
                 } else {
                     Some(Searcher::NamePart(part.to_owned()))
-                };
-                if let Some(n) = next {
-                    if negated {
-                        parts.push(Searcher::Not(Box::new(n)));
-                    } else {
-                        parts.push(n);
-                    }
+                }
+            } {
+                if negated {
+                    next = Searcher::Not(Box::new(next));
+                }
+                match &mut output {
+                    Searcher::All(v) => v.push(next),
+                    Searcher::Any(v) => v.push(next),
+                    _ => unreachable!(),
                 }
             }
         }
-        if parts.len() == 1 {
-            return parts.pop().unwrap();
-        } else {
-            return Searcher::All(parts);
+        match &mut output {
+            Searcher::All(v) => {
+                if v.len() == 1 {
+                    v.pop().unwrap()
+                } else {
+                    output
+                }
+            }
+            Searcher::Any(v) => {
+                if v.len() == 1 {
+                    v.pop().unwrap()
+                } else {
+                    output
+                }
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -136,21 +250,36 @@ impl From<SearchQuery> for Searcher {
 impl Searcher {
     fn to_query(&self) -> String {
         match self {
-            Searcher::All(v) => v.iter().map(|s| s.to_query()).collect::<Vec<_>>().join(" "),
+            Searcher::All(v) => v
+                .iter()
+                .map(|s| match s {
+                    Searcher::Any(_) => format!("({})", s.to_query()),
+                    _ => s.to_query(),
+                })
+                .collect::<Vec<_>>()
+                .join(" "),
+            Searcher::Any(v) => v
+                .iter()
+                .map(|s| s.to_query())
+                .collect::<Vec<_>>()
+                .join(" | "),
             Searcher::Not(s) => {
                 let str = s.to_query();
                 format!("!{str}")
             }
             Searcher::NamePart(name) => name.replace(" ", "+"),
             Searcher::Tag(tag) => format!("tag:{tag}").replace(" ", "+"),
-            Searcher::Ingredient(ingredient) => format!("uses:{ingredient}").replace(" ", "+"),
-            Searcher::Cookware(cookware) => format!("needs:{cookware}").replace(" ", "+"),
+            Searcher::Ingredient(ingredient) => {
+                format!("ingredient:{ingredient}").replace(" ", "+")
+            }
+            Searcher::Cookware(cookware) => format!("cookware:{cookware}").replace(" ", "+"),
         }
     }
 
     fn is_empty(&self) -> bool {
         match self {
             Searcher::All(v) => v.is_empty(),
+            Searcher::Any(v) => v.is_empty(),
             Searcher::Not(s) => s.is_empty(),
             Searcher::NamePart(name) => name.is_empty(),
             Searcher::Tag(tag) => tag.is_empty(),
