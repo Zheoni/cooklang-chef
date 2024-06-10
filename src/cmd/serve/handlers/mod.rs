@@ -178,17 +178,17 @@ impl Searcher {
             Self::Not(searcher) => !searcher.matches_recipe(name, tokens),
             Self::NamePart(part) => name.to_lowercase().contains(part),
             Self::Tag(tag) => match tokens.metadata.valid_output() {
-                Some(meta) => meta.tags().unwrap_or(&[]).contains(tag),
+                Some(meta) => meta.tags().unwrap_or(&[]).iter().any(|t| t.contains(tag)),
                 None => false,
             },
             Self::Ingredient(ingredient) => tokens
                 .ingredients
                 .iter()
-                .any(|str| &str.to_lowercase() == ingredient),
+                .any(|str| str.to_lowercase().contains(ingredient)),
             Self::Cookware(cookware) => tokens
                 .cookware
                 .iter()
-                .any(|str| &str.to_lowercase() == cookware),
+                .any(|str| str.to_lowercase().contains(cookware)),
         }
     }
 }
