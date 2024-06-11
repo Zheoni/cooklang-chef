@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use camino::{Utf8Path, Utf8PathBuf};
-use cooklang::{CooklangParser, MetadataResult};
+use cooklang::{CooklangParser, Metadata};
 use cooklang_fs::{FsIndex, RecipeEntry};
 use notify::{RecommendedWatcher, Watcher};
 use serde::Serialize;
@@ -18,7 +18,7 @@ pub struct AsyncFsIndex {
 }
 
 pub struct RecipeData {
-    pub metadata: MetadataResult,
+    pub metadata: Option<Metadata>,
     pub ingredients: Vec<String>,
     pub cookware: Vec<String>,
 }
@@ -38,13 +38,25 @@ impl Indexes {
         );
         let mut srch = BTreeMap::new();
         let insert_search_entry = |index: &mut BTreeMap<_, _>, entry: RecipeEntry| {
-            let content = entry.read().expect("can't read recipe");
+            let recipe = entry.read().expect("can't read recipe").parse(&parser);
+            let mut ingredients = Vec::new();
+            let mut cookware = Vec::new();
+            let mut metadata = None;
+            if let Some(r) = recipe.valid_output() {
+                metadata = Some(r.metadata.to_owned());
+                for ingredient in &r.ingredients {
+                    ingredients.push(ingredient.name.to_owned());
+                }
+                for tool in &r.cookware {
+                    cookware.push(tool.name.to_string());
+                }
+            }
             index.insert(
                 entry.path().to_owned(),
                 RecipeData {
-                    metadata: content.metadata(&parser),
-                    ingredients: content.ingredients(&parser),
-                    cookware: content.cookware(&parser),
+                    metadata,
+                    ingredients,
+                    cookware,
                 },
             );
         };
@@ -66,13 +78,25 @@ impl Indexes {
     }
 
     fn insert_srch(&mut self, path: &Utf8Path) -> Result<(), cooklang_fs::Error> {
-        let content = RecipeEntry::new(path).read()?;
+        let recipe = RecipeEntry::new(path).read()?.parse(&self.parser);
+        let mut ingredients = Vec::new();
+        let mut cookware = Vec::new();
+        let mut metadata = None;
+        if let Some(r) = recipe.valid_output() {
+            metadata = Some(r.metadata.to_owned());
+            for ingredient in &r.ingredients {
+                ingredients.push(ingredient.name.to_owned());
+            }
+            for tool in &r.cookware {
+                cookware.push(tool.name.to_string());
+            }
+        }
         self.srch.insert(
             path.to_owned(),
             RecipeData {
-                metadata: content.metadata(&self.parser),
-                ingredients: content.ingredients(&self.parser),
-                cookware: content.cookware(&self.parser),
+                metadata,
+                ingredients,
+                cookware,
             },
         );
         Ok(())

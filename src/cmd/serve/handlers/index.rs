@@ -56,10 +56,25 @@ pub async fn index(
                 path => clean_path(dir.path(), &state.base_path)
             }),
             cooklang_fs::Entry::Recipe(r) => {
-                let tokens = r.read().ok().map(|c| RecipeData {
-                    metadata: c.metadata(&state.parser),
-                    ingredients: c.ingredients(&state.parser),
-                    cookware: c.cookware(&state.parser),
+                let tokens = r.read().ok().map(|c| {
+                    let recipe = c.parse(&state.parser);
+                    let mut ingredients = Vec::new();
+                    let mut cookware = Vec::new();
+                    let mut metadata = None;
+                    if let Some(r) = recipe.valid_output() {
+                        metadata = Some(r.metadata.to_owned());
+                        for ingredient in &r.ingredients {
+                            ingredients.push(ingredient.name.to_owned());
+                        }
+                        for tool in &r.cookware {
+                            cookware.push(tool.name.to_string());
+                        }
+                    }
+                    RecipeData {
+                        metadata,
+                        ingredients,
+                        cookware,
+                    }
                 });
                 recipes.push(recipe_entry_context(r, &state, tokens.as_ref()).unwrap());
             }

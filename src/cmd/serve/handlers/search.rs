@@ -48,7 +48,7 @@ pub async fn search(
         .search(
             |entry, tokens| match tokens {
                 Some(t) => {
-                    let name = if let Some(meta) = t.metadata.valid_output() {
+                    let name = if let Some(meta) = t.metadata.as_ref() {
                         meta_name(meta).unwrap_or(entry.name())
                     } else {
                         entry.name()

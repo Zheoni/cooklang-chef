@@ -100,7 +100,7 @@ fn recipe_entry_context(
     let mut error = false;
     let mut image = None;
 
-    if let Some(m) = recipe.and_then(|res| res.metadata.valid_output()) {
+    if let Some(m) = recipe.and_then(|r| r.metadata.as_ref()) {
         let tags = Value::from_iter(
             m.tags()
                 .unwrap_or(&[])
@@ -179,7 +179,7 @@ impl Searcher {
             Self::Any(v) => v.is_empty() | v.iter().any(|s| s.matches_recipe(name, tokens)),
             Self::Not(searcher) => !searcher.matches_recipe(name, tokens),
             Self::NamePart(part) => name.to_lowercase().contains(part),
-            Self::Tag(tag) => match tokens.metadata.valid_output() {
+            Self::Tag(tag) => match tokens.metadata.as_ref() {
                 Some(meta) => meta.tags().unwrap_or(&[]).iter().any(|t| t.contains(tag)),
                 None => false,
             },
