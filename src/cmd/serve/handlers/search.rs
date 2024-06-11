@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use axum::{
     extract::{Query, State},
     http::HeaderMap,
@@ -265,7 +267,11 @@ impl Searcher {
                 .join(" | "),
             Searcher::Not(s) => {
                 let str = s.to_query();
-                format!("!{str}")
+                match s.borrow() {
+                    Searcher::Any(_) => format!("!({str})"),
+                    Searcher::All(_) => format!("!({str})"),
+                    _ => format!("!{str}"),
+                }
             }
             Searcher::NamePart(name) => name.replace(" ", "+"),
             Searcher::Tag(tag) => format!("tag:{tag}").replace(" ", "+"),
