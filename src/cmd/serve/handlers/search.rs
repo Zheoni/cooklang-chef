@@ -42,7 +42,6 @@ pub async fn search(
     Query(query): Query<SearchQuery>,
 ) -> Response {
     let srch = Searcher::from(query);
-    tracing::trace!("{:?}", srch);
 
     let recipes = state
         .recipe_index
