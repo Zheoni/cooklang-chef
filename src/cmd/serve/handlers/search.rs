@@ -44,29 +44,25 @@ pub async fn search(
     let srch = Searcher::from(query);
     tracing::trace!("{:?}", srch);
 
-    let recipes = if srch.is_empty() {
-        Vec::new()
-    } else {
-        state
-            .recipe_index
-            .search(
-                |entry, tokens| match tokens {
-                    Some(t) => {
-                        let name = if let Some(meta) = t.metadata.valid_output() {
-                            meta_name(meta).unwrap_or(entry.name())
-                        } else {
-                            entry.name()
-                        };
-                        srch.matches_recipe(name, t)
-                    }
-                    None => false,
-                },
-                |entry, tokens| recipe_entry_context(entry, &state, tokens),
-                0,
-                12,
-            )
-            .await
-    };
+    let recipes = state
+        .recipe_index
+        .search(
+            |entry, tokens| match tokens {
+                Some(t) => {
+                    let name = if let Some(meta) = t.metadata.valid_output() {
+                        meta_name(meta).unwrap_or(entry.name())
+                    } else {
+                        entry.name()
+                    };
+                    srch.matches_recipe(name, t)
+                }
+                None => false,
+            },
+            |entry, tokens| recipe_entry_context(entry, &state, tokens),
+            0,
+            12,
+        )
+        .await;
 
     let is_htmx_search = headers.get("HX-Trigger").is_some_and(|v| v == "search");
 
@@ -279,18 +275,6 @@ impl Searcher {
                 format!("ingredient:{ingredient}").replace(" ", "+")
             }
             Searcher::Cookware(cookware) => format!("cookware:{cookware}").replace(" ", "+"),
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        match self {
-            Searcher::All(v) => v.is_empty(),
-            Searcher::Any(v) => v.is_empty(),
-            Searcher::Not(s) => s.is_empty(),
-            Searcher::NamePart(name) => name.is_empty(),
-            Searcher::Tag(tag) => tag.is_empty(),
-            Searcher::Ingredient(ingredient) => ingredient.is_empty(),
-            Searcher::Cookware(cookware) => cookware.is_empty(),
         }
     }
 }

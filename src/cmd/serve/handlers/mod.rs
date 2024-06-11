@@ -175,8 +175,8 @@ enum Searcher {
 impl Searcher {
     fn matches_recipe(&self, name: &str, tokens: &RecipeData) -> bool {
         match self {
-            Self::All(v) => v.iter().all(|s| s.matches_recipe(name, tokens)),
-            Self::Any(v) => v.iter().any(|s| s.matches_recipe(name, tokens)),
+            Self::All(v) => v.is_empty() | v.iter().all(|s| s.matches_recipe(name, tokens)),
+            Self::Any(v) => v.is_empty() | v.iter().any(|s| s.matches_recipe(name, tokens)),
             Self::Not(searcher) => !searcher.matches_recipe(name, tokens),
             Self::NamePart(part) => name.to_lowercase().contains(part),
             Self::Tag(tag) => match tokens.metadata.valid_output() {
