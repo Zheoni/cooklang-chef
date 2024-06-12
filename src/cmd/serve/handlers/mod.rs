@@ -1,10 +1,10 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use cooklang::MetadataResult;
 use cooklang_fs::RecipeEntry;
 use minijinja::{context, Value};
 
 use crate::{config::UiConfig, util::meta_name};
 
+use super::async_index::RecipeData;
 use super::AppState;
 
 pub mod about;
@@ -94,13 +94,13 @@ fn clean_path(p: &Utf8Path, base_path: &Utf8Path) -> Utf8PathBuf {
 fn recipe_entry_context(
     r: RecipeEntry,
     state: &AppState,
-    meta: Option<&MetadataResult>,
+    recipe: Option<&RecipeData>,
 ) -> Option<Value> {
     let mut metadata = Value::UNDEFINED;
     let mut error = false;
     let mut image = None;
 
-    if let Some(m) = meta.and_then(|res| res.valid_output()) {
+    if let Some(m) = recipe.and_then(|r| r.metadata.as_ref()) {
         let tags = Value::from_iter(
             m.tags()
                 .unwrap_or(&[])
@@ -162,26 +162,35 @@ fn tag_context(name: &str, ui_config: &UiConfig) -> Value {
 }
 
 #[derive(Debug)]
-struct Searcher {
-    tags: Vec<String>,
-    name_parts: Vec<String>,
+enum Searcher {
+    All(Vec<Self>),
+    Any(Vec<Self>),
+    Not(Box<Self>),
+    NamePart(String),
+    Tag(String),
+    Ingredient(String),
+    Cookware(String),
 }
 
 impl Searcher {
-    fn matches_recipe(&self, name: &str, tags: &[String]) -> bool {
-        let name = name.to_lowercase();
-        for part in &self.name_parts {
-            if !name.contains(part) {
-                return false;
-            }
+    fn matches_recipe(&self, name: &str, tokens: &RecipeData) -> bool {
+        match self {
+            Self::All(v) => v.is_empty() | v.iter().all(|s| s.matches_recipe(name, tokens)),
+            Self::Any(v) => v.is_empty() | v.iter().any(|s| s.matches_recipe(name, tokens)),
+            Self::Not(searcher) => !searcher.matches_recipe(name, tokens),
+            Self::NamePart(part) => name.to_lowercase().contains(part),
+            Self::Tag(tag) => match tokens.metadata.as_ref() {
+                Some(meta) => meta.tags().unwrap_or(&[]).iter().any(|t| t.contains(tag)),
+                None => false,
+            },
+            Self::Ingredient(ingredient) => tokens
+                .ingredients
+                .iter()
+                .any(|str| str.to_lowercase().contains(ingredient)),
+            Self::Cookware(cookware) => tokens
+                .cookware
+                .iter()
+                .any(|str| str.to_lowercase().contains(cookware)),
         }
-
-        for tag in &self.tags {
-            if !tags.contains(tag) {
-                return false;
-            }
-        }
-
-        true
     }
 }

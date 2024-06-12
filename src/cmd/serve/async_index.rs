@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use camino::{Utf8Path, Utf8PathBuf};
-use cooklang::{CooklangParser, MetadataResult};
+use cooklang::{CooklangParser, Metadata};
 use cooklang_fs::{FsIndex, RecipeEntry};
 use notify::{RecommendedWatcher, Watcher};
 use serde::Serialize;
@@ -17,10 +17,16 @@ pub struct AsyncFsIndex {
     indexes: Arc<RwLock<Indexes>>,
 }
 
+pub struct RecipeData {
+    pub metadata: Option<Metadata>,
+    pub ingredients: Vec<String>,
+    pub cookware: Vec<String>,
+}
+
 struct Indexes {
     parser: CooklangParser,
     fs: FsIndex,
-    srch: BTreeMap<Utf8PathBuf, MetadataResult>,
+    srch: BTreeMap<Utf8PathBuf, RecipeData>,
 }
 
 impl Indexes {
@@ -32,9 +38,27 @@ impl Indexes {
         );
         let mut srch = BTreeMap::new();
         let insert_search_entry = |index: &mut BTreeMap<_, _>, entry: RecipeEntry| {
-            let content = entry.read().expect("can't read recipe");
-            let meta = content.metadata(&parser);
-            index.insert(entry.path().to_owned(), meta);
+            let recipe = entry.read().expect("can't read recipe").parse(&parser);
+            let mut ingredients = Vec::new();
+            let mut cookware = Vec::new();
+            let mut metadata = None;
+            if let Some(r) = recipe.valid_output() {
+                metadata = Some(r.metadata.to_owned());
+                for ingredient in &r.ingredients {
+                    ingredients.push(ingredient.name.to_owned());
+                }
+                for tool in &r.cookware {
+                    cookware.push(tool.name.to_string());
+                }
+            }
+            index.insert(
+                entry.path().to_owned(),
+                RecipeData {
+                    metadata,
+                    ingredients,
+                    cookware,
+                },
+            );
         };
         for entry in fs.get_all() {
             insert_search_entry(&mut srch, entry);
@@ -54,8 +78,27 @@ impl Indexes {
     }
 
     fn insert_srch(&mut self, path: &Utf8Path) -> Result<(), cooklang_fs::Error> {
-        let meta = RecipeEntry::new(path).read()?.metadata(&self.parser);
-        self.srch.insert(path.to_owned(), meta);
+        let recipe = RecipeEntry::new(path).read()?.parse(&self.parser);
+        let mut ingredients = Vec::new();
+        let mut cookware = Vec::new();
+        let mut metadata = None;
+        if let Some(r) = recipe.valid_output() {
+            metadata = Some(r.metadata.to_owned());
+            for ingredient in &r.ingredients {
+                ingredients.push(ingredient.name.to_owned());
+            }
+            for tool in &r.cookware {
+                cookware.push(tool.name.to_string());
+            }
+        }
+        self.srch.insert(
+            path.to_owned(),
+            RecipeData {
+                metadata,
+                ingredients,
+                cookware,
+            },
+        );
         Ok(())
     }
 
@@ -133,8 +176,8 @@ impl AsyncFsIndex {
 
     pub async fn search<T>(
         &self,
-        pred: impl Fn(&RecipeEntry, Option<&MetadataResult>) -> bool,
-        map: impl Fn(RecipeEntry, Option<&MetadataResult>) -> T,
+        pred: impl Fn(&RecipeEntry, Option<&RecipeData>) -> bool,
+        map: impl Fn(RecipeEntry, Option<&RecipeData>) -> T,
         skip: usize,
         take: usize,
     ) -> Vec<T> {
@@ -143,9 +186,9 @@ impl AsyncFsIndex {
             .fs
             .get_all()
             .filter_map(|entry| {
-                let meta = indexes.srch.get(entry.path());
-                match pred(&entry, meta) {
-                    true => Some((entry, meta)),
+                let tokens = indexes.srch.get(entry.path());
+                match pred(&entry, tokens) {
+                    true => Some((entry, tokens)),
                     false => None,
                 }
             })

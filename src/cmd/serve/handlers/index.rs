@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 use crate::cmd::serve::{locale::UserLocale, S};
 
+use super::super::async_index::RecipeData;
 use super::{check_path, clean_path, mj_ok, recipe_entry_context};
 
 #[derive(Deserialize)]
@@ -55,8 +56,27 @@ pub async fn index(
                 path => clean_path(dir.path(), &state.base_path)
             }),
             cooklang_fs::Entry::Recipe(r) => {
-                let meta = r.read().ok().map(|c| c.metadata(&state.parser));
-                recipes.push(recipe_entry_context(r, &state, meta.as_ref()).unwrap());
+                let tokens = r.read().ok().map(|c| {
+                    let recipe = c.parse(&state.parser);
+                    let mut ingredients = Vec::new();
+                    let mut cookware = Vec::new();
+                    let mut metadata = None;
+                    if let Some(r) = recipe.valid_output() {
+                        metadata = Some(r.metadata.to_owned());
+                        for ingredient in &r.ingredients {
+                            ingredients.push(ingredient.name.to_owned());
+                        }
+                        for tool in &r.cookware {
+                            cookware.push(tool.name.to_string());
+                        }
+                    }
+                    RecipeData {
+                        metadata,
+                        ingredients,
+                        cookware,
+                    }
+                });
+                recipes.push(recipe_entry_context(r, &state, tokens.as_ref()).unwrap());
             }
         }
     }
