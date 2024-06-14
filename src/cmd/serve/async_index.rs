@@ -24,18 +24,13 @@ pub struct RecipeData {
 }
 
 struct Indexes {
-    parser: CooklangParser,
+    parser: Arc<CooklangParser>,
     fs: FsIndex,
     srch: BTreeMap<Utf8PathBuf, RecipeData>,
 }
 
 impl Indexes {
-    fn new(fs: FsIndex) -> Self {
-        // Empty (owned) parser just for metadata
-        let parser = cooklang::CooklangParser::new(
-            cooklang::Extensions::SPECIAL_METADATA,
-            cooklang::Converter::empty(),
-        );
+    fn new(fs: FsIndex, parser: Arc<CooklangParser>) -> Self {
         let mut srch = BTreeMap::new();
         let insert_search_entry = |index: &mut BTreeMap<_, _>, entry: RecipeEntry| {
             let recipe = entry.read().expect("can't read recipe").parse(&parser);
@@ -120,12 +115,12 @@ pub enum Update {
 }
 
 impl AsyncFsIndex {
-    pub fn new(index: FsIndex) -> (Self, broadcast::Receiver<Update>) {
+    pub fn new(index: FsIndex, parser: Arc<CooklangParser>) -> (Self, broadcast::Receiver<Update>) {
         let (in_updt_tx, mut in_updt_rx) = mpsc::channel::<Update>(1);
         let (out_updates_tx, out_updates_rx) = broadcast::channel::<Update>(1);
         watch_changes_task(in_updt_tx, index.base_path());
 
-        let indexes = Arc::new(RwLock::new(Indexes::new(index)));
+        let indexes = Arc::new(RwLock::new(Indexes::new(index, parser)));
 
         let indexes2 = Arc::clone(&indexes);
         tokio::spawn(async move {

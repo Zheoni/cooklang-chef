@@ -107,7 +107,7 @@ fn make_router(state: Arc<AppState>) -> Router {
 pub struct AppState {
     templates: Environment<'static>,
     locales: LocaleStore,
-    parser: CooklangParser,
+    parser: Arc<CooklangParser>,
     base_path: Utf8PathBuf,
     recipe_index: AsyncFsIndex,
     updates_stream: broadcast::Receiver<Update>,
@@ -129,11 +129,11 @@ fn build_state(ctx: Context) -> Result<S> {
         chef_config,
         ..
     } = ctx;
-    let parser = parser.into_inner().unwrap();
+    let parser = Arc::new(parser.into_inner().unwrap());
     let complete_index = recipe_index
         .index_all()
         .context("failed to index the recipes")?;
-    let (recipe_index, updates) = AsyncFsIndex::new(complete_index);
+    let (recipe_index, updates) = AsyncFsIndex::new(complete_index, Arc::clone(&parser));
 
     let locales = make_locale_store();
     let templates = make_template_env(&locales);
