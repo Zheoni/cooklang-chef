@@ -272,7 +272,7 @@ impl minijinja::value::StructObject for TemplateIngredient {
                 index => rel.0,
                 target => rel.1
             })),
-            "modifiers" => Value::from_serialize(&self.0.modifiers()),
+            "modifiers" => Value::from_serialize(self.0.modifiers()),
             _ => return None,
         };
 
@@ -290,12 +290,8 @@ impl minijinja::value::StructObject for TemplateCookware {
             "alias" => mj_opt!(self.0.alias.as_deref()),
             "quantity" => Value::from_serialize(&self.0.quantity),
             "note" => mj_opt!(self.0.note.as_deref()),
-            "references_to" => mj_opt!(self
-                .0
-                .relation
-                .references_to()
-                .map(|rel| Value::from_serialize(&rel))),
-            "modifiers" => Value::from_serialize(&self.0.modifiers()),
+            "references_to" => mj_opt!(self.0.relation.references_to().map(Value::from_serialize)),
+            "modifiers" => Value::from_serialize(self.0.modifiers()),
             _ => return None,
         };
 

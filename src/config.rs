@@ -153,7 +153,7 @@ impl Config {
             return default_config().context("Error loading default global config file");
         }
         tracing::debug!("Loading local config from {local}");
-        let content = std::fs::read_to_string(&local)?;
+        let content = std::fs::read_to_string(local)?;
         let config = toml::from_str(&content)?;
         Ok(config)
     }

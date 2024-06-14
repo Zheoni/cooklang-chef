@@ -121,7 +121,7 @@ mod tests {
     }
 }
 
-fn parse_disjunct_chunks<'a>(query: &'a str) -> Vec<&'a str> {
+fn parse_disjunct_chunks(query: &str) -> Vec<&str> {
     let mut depth = 0;
     let mut from = 0;
     let mut output = Vec::new();
@@ -143,7 +143,7 @@ fn parse_disjunct_chunks<'a>(query: &'a str) -> Vec<&'a str> {
     output
 }
 
-fn parse_conjunct_chunks<'a>(query: &'a str) -> Vec<&'a str> {
+fn parse_conjunct_chunks(query: &str) -> Vec<&str> {
     let mut depth = 0;
     let mut from = 0;
     let mut output = Vec::new();
@@ -187,19 +187,19 @@ impl From<SearchQuery> for Searcher {
         };
         for part in parts {
             let mut negated = false;
-            let part = match part.strip_prefix("!") {
+            let part = match part.strip_prefix('!') {
                 None => part,
                 Some(new_part) => {
                     negated = true;
                     new_part
                 }
             };
-            if let Some(mut next) = if part.contains(&['|', ' ', '(', ')']) {
+            if let Some(mut next) = if part.contains(['|', ' ', '(', ')']) {
                 Some(Searcher::from(SearchQuery {
                     q: Some(part.to_owned()),
                 }))
             } else {
-                let part = part.replace("+", " ");
+                let part = part.replace('+', " ");
                 if let Some(tag) = part.strip_prefix("tag:") {
                     if is_valid_tag(tag) {
                         Some(Searcher::Tag(tag.to_owned()))
@@ -268,12 +268,12 @@ impl Searcher {
                     _ => format!("!{str}"),
                 }
             }
-            Searcher::NamePart(name) => name.replace(" ", "+"),
-            Searcher::Tag(tag) => format!("tag:{tag}").replace(" ", "+"),
+            Searcher::NamePart(name) => name.replace(' ', "+"),
+            Searcher::Tag(tag) => format!("tag:{tag}").replace(' ', "+"),
             Searcher::Ingredient(ingredient) => {
-                format!("ingredient:{ingredient}").replace(" ", "+")
+                format!("ingredient:{ingredient}").replace(' ', "+")
             }
-            Searcher::Cookware(cookware) => format!("cookware:{cookware}").replace(" ", "+"),
+            Searcher::Cookware(cookware) => format!("cookware:{cookware}").replace(' ', "+"),
         }
     }
 }
