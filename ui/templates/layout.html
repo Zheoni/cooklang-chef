@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ t }}" dir="ltr">
+<html lang="{{ t.code }}" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -28,7 +28,7 @@
 
     <!-- Custom javascript -->
     <script>
-      const currentLocale = "{{ t.code()|default('en') }}";
+      const currentLocale = "{{ t.code|default('en') }}";
     </script>
     <script src="/js/critical-theme.js"></script>
     <script defer src="/js/main.js"></script>
@@ -165,7 +165,7 @@
                 class="rounded border border-base-4 bg-base-2 px-1 py-0.5"
               >
                 {% for loc in all_locales %}
-                  {% if loc.code == "" ~ t %}
+                  {% if loc.code == t.code %}
                     <option value="{{ loc.code }}" selected>
                       {{ loc.lang }}
                     </option>

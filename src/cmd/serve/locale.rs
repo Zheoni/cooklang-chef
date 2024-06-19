@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     async_trait,
@@ -65,15 +65,9 @@ impl Locale {
     }
 }
 
-impl Display for Locale {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.code)
-    }
-}
-
 impl Object for Locale {
     fn call(
-        &self,
+        self: &Arc<Self>,
         state: &minijinja::State,
         args: &[minijinja::Value],
     ) -> Result<minijinja::Value, minijinja::Error> {
@@ -126,19 +120,15 @@ impl Object for Locale {
         Ok(Value::from(val))
     }
 
-    fn call_method(
-        &self,
-        _state: &minijinja::State,
-        name: &str,
-        _args: &[Value],
-    ) -> Result<Value, minijinja::Error> {
-        match name {
-            "code" => Ok(self.code.as_str().into()),
-            _ => Err(minijinja::Error::new(
-                minijinja::ErrorKind::UnknownMethod,
-                format!("no method {name} in locale"),
-            )),
+    fn get_value(self: &Arc<Self>, key: &Value) -> Option<Value> {
+        match key.as_str() {
+            Some("code") => Some(self.code.as_str().into()),
+            _ => None,
         }
+    }
+
+    fn enumerate(self: &Arc<Self>) -> minijinja::value::Enumerator {
+        minijinja::value::Enumerator::Str(&["code"])
     }
 }
 
@@ -167,7 +157,7 @@ impl FromRequestParts<super::S> for UserLocale {
         parts: &mut Parts,
         state: &super::S,
     ) -> Result<Self, Self::Rejection> {
-        Ok(Self(Value::from(
+        Ok(Self(Value::from_dyn_object(
             state.locales.get_from_headers(&parts.headers),
         )))
     }

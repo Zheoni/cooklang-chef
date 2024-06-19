@@ -15,6 +15,7 @@ use crate::{
     cmd::serve::{
         get_cookie,
         handlers::{clean_path, ok_status, tag_context},
+        locale::UserLocale,
         AppState, S,
     },
     config::Config,
@@ -37,6 +38,7 @@ pub async fn recipe(
     Query(query): Query<RecipeQuery>,
     uri: Uri,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    UserLocale(t): UserLocale,
 ) -> Response {
     let units: Option<cooklang::convert::System> = match query.units.as_deref() {
         None => None,
@@ -61,7 +63,6 @@ pub async fn recipe(
             .into_result()
     });
 
-    let t = Value::from(state.locales.get_from_headers(&headers));
     let tmpl = mj_ok!(state.templates.get_template("recipe.html"));
 
     let src_path = clean_path(entry.path(), &state.base_path);
@@ -241,8 +242,8 @@ fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) 
 
         sections => r.sections,
 
-        ingredients => r.ingredients.into_iter().map(TemplateIngredient).map(Value::from_struct_object).collect::<Value>(),
-        cookware => r.cookware.into_iter().map(TemplateCookware).map(Value::from_struct_object).collect::<Value>(),
+        ingredients => r.ingredients.into_iter().map(TemplateIngredient).map(Value::from_object).collect::<Value>(),
+        cookware => r.cookware.into_iter().map(TemplateCookware).map(Value::from_object).collect::<Value>(),
         timers => r.timers,
         timers_seconds,
         inline_quantities => r.inline_quantities,
@@ -258,11 +259,12 @@ macro_rules! mj_opt {
     };
 }
 
+#[derive(Debug)]
 struct TemplateIngredient(cooklang::Ingredient<cooklang::Value>);
 
-impl minijinja::value::StructObject for TemplateIngredient {
-    fn get_field(&self, name: &str) -> Option<Value> {
-        let v = match name {
+impl minijinja::value::Object for TemplateIngredient {
+    fn get_value(self: &std::sync::Arc<Self>, key: &Value) -> Option<Value> {
+        let v = match key.as_str()? {
             "name" => self.0.name.as_str().into(),
             "display_name" => self.0.display_name().into(),
             "alias" => mj_opt!(self.0.alias.as_deref()),
@@ -275,16 +277,16 @@ impl minijinja::value::StructObject for TemplateIngredient {
             "modifiers" => Value::from_serialize(self.0.modifiers()),
             _ => return None,
         };
-
         Some(v)
     }
 }
 
+#[derive(Debug)]
 struct TemplateCookware(cooklang::Cookware<cooklang::Value>);
 
-impl minijinja::value::StructObject for TemplateCookware {
-    fn get_field(&self, name: &str) -> Option<Value> {
-        let v = match name {
+impl minijinja::value::Object for TemplateCookware {
+    fn get_value(self: &std::sync::Arc<Self>, key: &Value) -> Option<Value> {
+        let v = match key.as_str()? {
             "name" => self.0.name.as_str().into(),
             "display_name" => self.0.display_name().into(),
             "alias" => mj_opt!(self.0.alias.as_deref()),
@@ -294,7 +296,6 @@ impl minijinja::value::StructObject for TemplateCookware {
             "modifiers" => Value::from_serialize(self.0.modifiers()),
             _ => return None,
         };
-
         Some(v)
     }
 }
@@ -352,7 +353,7 @@ fn report_to_html(report: &SourceReport, file_name: &str, content: &str) -> anyh
 }
 
 pub fn step_ingredients(
-    items: &dyn minijinja::value::SeqObject,
+    items: Vec<Value>,
     ingredients: Vec<Value>,
 ) -> Result<Value, minijinja::Error> {
     let get_igr =
@@ -372,7 +373,7 @@ pub fn step_ingredients(
         };
 
     let mut dedup = HashMap::<String, Vec<usize>>::new();
-    for item in items.iter() {
+    for item in &items {
         let is_ingredient = item
             .get_attr("type")?
             .as_str()
@@ -396,7 +397,7 @@ pub fn step_ingredients(
         }
     }
 
-    let mut step_ingredients = HashMap::<usize, Value>::new();
+    let mut step_ingredients = HashMap::<Value, Value>::new();
     for item in items.iter() {
         let is_ingredient = item
             .get_attr("type")?
@@ -420,7 +421,7 @@ pub fn step_ingredients(
             subscript = group_index.map(|index| index + 1);
         }
         step_ingredients.insert(
-            index,
+            index.into(),
             context! {
                 in_ingredients_line => group_index.is_some(),
                 subscript

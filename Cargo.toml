@@ -53,9 +53,10 @@ futures = { version = "0.3", optional = true }
 rust-embed = { version = "8.0", features = ["compression", "include-exclude"], optional = true }
 mime_guess = { version = "2.0", optional = true }
 open = { version = "5.0", optional = true }
-minijinja = { version = "1.0.10", features = ["loader", "urlencode", "json"], optional = true}
+minijinja = { version = "2.0.2", features = ["loader", "urlencode", "json"], optional = true}
 ansi-to-html = { version = "0.2.1", optional = true }
 regex = { version = "1", optional = true }
+ariadne = "=0.4.0" # 0.4.1 is a breaking change that makes compilation fail
 
 [features]
 default = ["serve"]

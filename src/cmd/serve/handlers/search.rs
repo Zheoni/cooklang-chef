@@ -5,11 +5,11 @@ use axum::{
     http::HeaderMap,
     response::{Html, IntoResponse, Response},
 };
-use minijinja::{context, Value};
+use minijinja::context;
 use serde::Deserialize;
 
 use crate::{
-    cmd::serve::S,
+    cmd::serve::{locale::UserLocale, S},
     util::{is_valid_tag, meta_name},
 };
 
@@ -40,6 +40,7 @@ pub async fn search(
     headers: HeaderMap,
     State(state): State<S>,
     Query(query): Query<SearchQuery>,
+    UserLocale(t): UserLocale,
 ) -> Response {
     let srch = Searcher::from(query);
 
@@ -72,7 +73,6 @@ pub async fn search(
     };
 
     let tmpl = mj_ok!(state.templates.get_template(template));
-    let t = Value::from(state.locales.get_from_headers(&headers));
     let res = tmpl.render(context! {
         t,
         recipes,
