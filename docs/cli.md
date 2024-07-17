@@ -27,12 +27,11 @@
     chef serve --open
     ```
     This starts a web server and opens it in the default web browser. You can
-    edit the recipe files and it will automatically update the web on save. The
-    web server also exposes a REST API for the recipes.
+    edit the recipe files and it will automatically update the web on save.
 
     ![](../images/webui.png)
     
-    This is intended for personal or home use for a couple or reasons:
+    This is intended for personal or home use for a because:
     - No strict protection is used.
     - There is no caching, so every request the recipe file is read from the
     disk and parsed.
@@ -45,9 +44,8 @@ cargo install cooklang-chef
 This will automatically download and compile the CLI.
 
 ### Prebuilt binaries
-Binaries are provided with [Github
-releases](https://github.com/Zheoni/cooklang-chef/releases). However it's
-guaranteed.
+Binaries are provided with the [Github
+releases](https://github.com/Zheoni/cooklang-chef/releases).
 
 ### Manually compiling the CLI
 1. Install the rust compiler and `cargo`, the best way is with
@@ -65,9 +63,6 @@ guaranteed.
     # no `serve` cmd
     cargo install --path . --no-default-features
     ```
-
-    If the `ui` feature is enabled and there is no `ui/build` dir, it will
-    result in a compile error.
 
     This will install the cli in the `cargo` install dir, in your home dir. If
     you followed the instructions when using `rustup`, this dir should be in
