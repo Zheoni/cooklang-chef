@@ -128,8 +128,14 @@ impl AsyncFsIndex {
             while let Some(update) = in_updt_rx.recv().await {
                 match &update {
                     Update::Modified { path } => {
-                        tracing::info!("Updated '{path}'");
-                        let _ = indexes.write().await.revalidate(path);
+                        let mut indexes = indexes.write().await;
+                        if indexes.fs.contains(path.as_str()) {
+                            tracing::info!("Updated '{path}'");
+                            let _ = indexes.revalidate(path);
+                        } else {
+                            tracing::info!("Added '{path}'");
+                            let _ = indexes.insert(path);
+                        }
                     }
                     Update::Added { path } => {
                         tracing::info!("Added '{path}'");
