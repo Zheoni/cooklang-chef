@@ -1,6 +1,6 @@
 [package]
 name = "cooklang-chef"
-version = "0.9.1"
+version = "0.9.2"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "CLI to manage cooklang recipes"
@@ -56,7 +56,6 @@ open = { version = "5.0", optional = true }
 minijinja = { version = "2.0.2", features = ["loader", "urlencode", "json"], optional = true}
 ansi-to-html = { version = "0.2.1", optional = true }
 regex = { version = "1", optional = true }
-ariadne = "=0.4.0" # 0.4.1 is a breaking change that makes compilation fail
 
 [features]
 default = ["serve"]
