@@ -1,5 +1,5 @@
-const path = require("node:path");
-const fs = require("node:fs");
+const path = require("path");
+const fs = require("fs");
 
 const mappings = JSON.parse(fs.readFileSync("./package.json")).frontendMappings;
 
