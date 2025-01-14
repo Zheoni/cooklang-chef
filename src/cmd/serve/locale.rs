@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use axum::{
-    async_trait,
     extract::FromRequestParts,
     http::{request::Parts, HeaderMap},
 };
@@ -149,7 +148,6 @@ pub fn make_locale_store() -> LocaleStore {
 
 pub struct UserLocale(pub minijinja::Value);
 
-#[async_trait]
 impl FromRequestParts<super::S> for UserLocale {
     type Rejection = std::convert::Infallible;
 

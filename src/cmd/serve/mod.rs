@@ -86,12 +86,12 @@ pub async fn run(ctx: Context, args: ServeArgs) -> Result<()> {
 fn make_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(handlers::index))
-        .route("/d/*path", get(handlers::index))
+        .route("/d/{*path}", get(handlers::index))
         .route("/search", get(handlers::search))
         .route("/about", get(handlers::about))
-        .route("/r/*path", get(handlers::recipe))
+        .route("/r/{*path}", get(handlers::recipe))
         .route("/updates", get(handlers::sse_updates))
-        .route("/open_editor/*path", get(handlers::open_editor))
+        .route("/open_editor/{*path}", get(handlers::open_editor))
         .route("/convert_modal", post(handlers::convert_popover))
         .nest_service(
             "/src",
