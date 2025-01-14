@@ -29,6 +29,9 @@ enum Command {
         copy_config: bool,
         #[arg(long, alias = "default")]
         set_default: bool,
+        /// Forces the creation of the collection even if it's not empty
+        #[arg(long)]
+        force: bool,
     },
     /// Set the default collection
     Set {
@@ -47,8 +50,9 @@ pub fn run(ctx: &Context, args: CollectionArgs) -> Result<()> {
             new_path: path,
             copy_config,
             set_default,
+            force,
         } => {
-            create_collection(&path)?;
+            create_collection(&path, force)?;
             if copy_config {
                 let config = config_file_path(&path);
                 let default = global_file_path(DEFAULT_CONFIG_FILE)?;
@@ -89,12 +93,12 @@ pub fn run(ctx: &Context, args: CollectionArgs) -> Result<()> {
     Ok(())
 }
 
-fn create_collection(path: &Utf8Path) -> Result<()> {
+fn create_collection(path: &Utf8Path, force: bool) -> Result<()> {
     if path.exists() {
         if !path.is_dir() {
             bail!("Path exists and it's not a dir");
         }
-        if path.read_dir()?.any(|_| true) {
+        if !force && path.read_dir()?.any(|_| true) {
             bail!("Path exists and it's not empty");
         }
     } else {
