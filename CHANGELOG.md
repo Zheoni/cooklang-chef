@@ -2,6 +2,8 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.10.0 - 2025/01/14
+
 Updates to cooklang parser `0.15.0`, this includes many small improvements and
 some changes to the language. See the [parser changelog] from `0.13` to `0.15`
 to see the changes. Major things you neeed to worry about are:
