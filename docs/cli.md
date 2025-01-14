@@ -39,7 +39,7 @@
 ## Installing
 ### Install with cargo
 ```sh
-cargo install cooklang-chef
+cargo install --git https://github.com/Zheoni/cooklang-chef/ --tag "v0.10.0" --locked
 ```
 This will automatically download and compile the CLI.
 

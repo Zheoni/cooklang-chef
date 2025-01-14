@@ -4,6 +4,11 @@ A CLI to manage [cooklang](https://cooklang.org/) recipes with extensions.
 
 > The parser has been moved to [cooklang/cooklang-rs](https://github.com/cooklang/cooklang-rs)
 
+> `0.10.x` will be the last version of `chef` published on `crates.io`.
+
+> `0.15.x` will be the last versions of `cooklang-fs`, `cooklang-to-cooklang`
+> `cooklang-to-human` and `cooklang-to-md` published on `crates.io`.
+
 ## What is cooklang
 Cooklang is a markup language for cooking recipes. An in depth explanation can
 be found in [cooklang.org](https://cooklang.org/).
@@ -42,7 +47,7 @@ Full user documentation [here](./docs/README.md).
 
 You can install `chef` with:
 ```sh
-cargo install cooklang-chef
+cargo install --git https://github.com/Zheoni/cooklang-chef/ --tag "v0.10.0" --locked
 ```
 
 You can also get a prebuilt binary from the github releases.

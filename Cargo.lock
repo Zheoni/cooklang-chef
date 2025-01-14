@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-chef"
-version = "0.9.2"
+version = "0.10.0"
 dependencies = [
  "ansi-to-html",
  "anstream",
@@ -413,18 +413,18 @@ dependencies = [
 
 [[package]]
 name = "cooklang-fs"
-version = "0.13.0"
+version = "0.15.0"
 dependencies = [
  "camino",
  "cooklang",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.11",
  "tracing",
 ]
 
 [[package]]
 name = "cooklang-to-cooklang"
-version = "0.13.0"
+version = "0.15.0"
 dependencies = [
  "cooklang",
  "regex",
@@ -433,7 +433,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-human"
-version = "0.13.0"
+version = "0.15.0"
 dependencies = [
  "anstyle",
  "anstyle-yansi",
@@ -446,7 +446,7 @@ dependencies = [
 
 [[package]]
 name = "cooklang-to-md"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "cooklang",
  "serde",

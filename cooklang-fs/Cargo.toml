@@ -1,6 +1,6 @@
 [package]
 name = "cooklang-fs"
-version = "0.13.0"
+version = "0.15.0"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "Utilities for cooklang recipes in a file system"
@@ -15,6 +15,6 @@ readme = "README.md"
 [dependencies]
 camino = { version = "1", features = ["serde1"] }
 cooklang = { workspace = true }
-thiserror = "1"
+thiserror = "2"
 tracing = "0.1"
 serde = { version = "1", features = ["derive"] }

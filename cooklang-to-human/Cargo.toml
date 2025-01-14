@@ -1,6 +1,6 @@
 [package]
 name = "cooklang-to-human"
-version = "0.13.0"
+version = "0.15.0"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "Format cooklang in a human friendly way"
