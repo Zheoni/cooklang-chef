@@ -26,7 +26,7 @@ pub struct ConfigArgs {
 
 pub fn run_setup(config: &Config, chef_config: &ChefConfig) -> Result<()> {
     use inquire::{Confirm, Text};
-    use owo_colors::OwoColorize;
+    use yansi::Paint;
 
     let mut config = config.clone();
 
@@ -179,19 +179,19 @@ pub fn run(ctx: &Context, args: ConfigArgs) -> Result<()> {
 }
 
 fn display_regular(ctx: &Context) -> Result<()> {
-    use owo_colors::OwoColorize;
+    use yansi::Paint;
 
     println!("Recipes path: {}", ctx.base_path.yellow());
 
     let mut config_path = config_file_path(&ctx.base_path);
     if !config_path.is_file() {
-        print!("{}", "No config at: ".dimmed());
-        println!("{}", config_path.dimmed().bright_red());
+        print!("{}", "No config at: ".dim());
+        println!("{}", config_path.dim().bright_red());
         config_path = global_file_path(DEFAULT_CONFIG_FILE)?;
     }
     println!("Config: {}", config_path.yellow());
 
-    let fence = "+++".dimmed();
+    let fence = "+++".dim();
     println!("{fence}");
     let c = toml::to_string_pretty(&ctx.config)?;
     println!("{}", c.trim());
@@ -203,7 +203,7 @@ fn display_regular(ctx: &Context) -> Result<()> {
         .iter()
         .chain(ctx.config.aisle(&ctx.base_path).iter())
     {
-        print!("{file} {} ", "--".dimmed());
+        print!("{file} {} ", "--".dim());
         if file.is_file() {
             println!("{}", "found".green().bold());
         } else {
@@ -215,12 +215,12 @@ fn display_regular(ctx: &Context) -> Result<()> {
 }
 
 fn display_chef_config(ctx: &Context) -> Result<()> {
-    use owo_colors::OwoColorize;
+    use yansi::Paint;
 
     let global_path = global_file_path(CHEF_CONFIG_FILE)?;
     println!("Chef config: {}", global_path.yellow());
 
-    let fence = "+++".dimmed();
+    let fence = "+++".dim();
     println!("{fence}");
     let c = toml::to_string_pretty(&ctx.chef_config)?;
     println!("{}", c.trim());

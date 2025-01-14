@@ -2,7 +2,7 @@ use anstyle::Style;
 
 macro_rules! map_style_type {
     (Style) => {
-        owo_colors::Style
+        yansi::Style
     };
     ($other:ty) => {
         $other
@@ -11,7 +11,7 @@ macro_rules! map_style_type {
 
 macro_rules! map_style_func {
     ($s:ident, $name:ident, Style) => {
-        anstyle_owo_colors::to_owo_style($s.$name)
+        anstyle_yansi::to_yansi_style($s.$name)
     };
     ($s:ident, $name:ident, $type:ty) => {
         $s.$name
@@ -69,7 +69,7 @@ generate_styles_struct! {
     pub step_igr_quantity: Style = Style::new().dimmed(),
 }
 
-static STYLE: once_cell::sync::OnceCell<OwoStyles> = once_cell::sync::OnceCell::new();
+static STYLE: std::sync::OnceLock<OwoStyles> = std::sync::OnceLock::new();
 
 /// Set custom styles
 ///

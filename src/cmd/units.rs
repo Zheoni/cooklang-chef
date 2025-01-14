@@ -4,7 +4,7 @@ use anstream::println;
 use anyhow::Result;
 use clap::{Args, ValueEnum};
 use cooklang::convert::{Converter, Unit};
-use owo_colors::OwoColorize;
+use yansi::Paint;
 
 #[derive(Debug, Args)]
 pub struct UnitsArgs {
@@ -133,7 +133,7 @@ pub fn run(converter: &Converter, args: UnitsArgs) -> Result<()> {
                         .with_ansi_cell(
                             unit.system
                                 .map(style_system)
-                                .unwrap_or_else(|| "-".dimmed().to_string()),
+                                .unwrap_or_else(|| "-".dim().to_string()),
                         )
                         .with_ansi_cell(display_best_unit(converter, unit))
                         .with_cell(unit.ratio)
@@ -153,7 +153,7 @@ pub fn run(converter: &Converter, args: UnitsArgs) -> Result<()> {
 
 fn list(l: &[std::sync::Arc<str>], all: bool) -> String {
     if l.is_empty() {
-        return "-".dimmed().to_string();
+        return "-".dim().to_string();
     }
     let mut l = l.iter().map(|l| {
         if l.contains(char::is_whitespace) {
@@ -170,33 +170,29 @@ fn list(l: &[std::sync::Arc<str>], all: bool) -> String {
 }
 
 fn style_quantity(q: cooklang::convert::PhysicalQuantity) -> String {
-    use owo_colors::AnsiColors;
-
     let color = match q {
-        cooklang::convert::PhysicalQuantity::Volume => AnsiColors::Green,
-        cooklang::convert::PhysicalQuantity::Mass => AnsiColors::Magenta,
-        cooklang::convert::PhysicalQuantity::Length => AnsiColors::Blue,
-        cooklang::convert::PhysicalQuantity::Temperature => AnsiColors::Yellow,
-        cooklang::convert::PhysicalQuantity::Time => AnsiColors::Cyan,
+        cooklang::convert::PhysicalQuantity::Volume => yansi::Color::Green,
+        cooklang::convert::PhysicalQuantity::Mass => yansi::Color::Magenta,
+        cooklang::convert::PhysicalQuantity::Length => yansi::Color::Blue,
+        cooklang::convert::PhysicalQuantity::Temperature => yansi::Color::Yellow,
+        cooklang::convert::PhysicalQuantity::Time => yansi::Color::Cyan,
     };
-    q.color(color).to_string()
+    q.paint(color).to_string()
 }
 
 fn style_system(system: cooklang::convert::System) -> String {
-    use owo_colors::AnsiColors;
-
     let color = match system {
-        cooklang::convert::System::Metric => AnsiColors::Green,
-        cooklang::convert::System::Imperial => AnsiColors::Red,
+        cooklang::convert::System::Metric => yansi::Color::Green,
+        cooklang::convert::System::Imperial => yansi::Color::Red,
     };
-    system.color(color).to_string()
+    system.paint(color).to_string()
 }
 
 fn display_best_unit(converter: &Converter, unit: &Unit) -> String {
     if converter.is_best_unit(unit) {
         "b".yellow().to_string()
     } else {
-        "-".dimmed().to_string()
+        "-".dim().to_string()
     }
 }
 

@@ -508,7 +508,8 @@
                       {% endif %}
                     {%- elif item.type == "inlineQuantity" -%}
                       {% set qty = r.inline_quantities[item.index] %}
-                      <span class="font-semibold text-red-11">
+                      {% set color = "text-red-11" if r.inline_is_temp[item.index] else "" %}
+                      <span class="font-semibold {{color}}">
                         {{- qty_format(qty) -}}
                       </span>
                     {%- endif -%}

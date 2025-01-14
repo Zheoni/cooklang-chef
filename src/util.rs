@@ -3,7 +3,11 @@ use std::borrow::Cow;
 use anyhow::{bail, Context as _, Result};
 
 use camino::Utf8Path;
-use cooklang::{analysis::CheckResult, Metadata};
+use cooklang::{
+    analysis::{CheckOptions, CheckResult},
+    metadata::CooklangValueExt,
+    Metadata,
+};
 use cooklang_fs::{RecipeContent, RecipeEntry};
 
 use crate::Context;
@@ -124,7 +128,7 @@ pub fn meta_name(meta: &cooklang::Metadata) -> Option<&str> {
     ["name", "title"]
         .iter()
         .find_map(|&k| meta.map.get(k))
-        .map(|n| n.as_str())
+        .and_then(|n| n.as_str())
 }
 
 pub struct CachedRecipeEntry {
@@ -198,23 +202,40 @@ impl std::ops::Deref for CachedRecipeEntry {
     }
 }
 
-pub fn metadata_validator(key: &str, value: &str) -> (CheckResult, bool) {
+pub fn metadata_validator(
+    key: &serde_yaml::Value,
+    value: &serde_yaml::Value,
+    opts: &mut CheckOptions,
+) -> CheckResult {
+    let Some(key) = key.as_str() else {
+        opts.include(false);
+        return CheckResult::Error(vec!["Metadata key is not a string".into()]);
+    };
+
     match key {
         "tag" | "tags" => {
-            for t in value.split(',') {
-                let t = t.trim();
-                if t.is_empty() {
-                    return (CheckResult::Warning(vec!["The tag is empty".into()]), true);
-                } else if t.chars().count() > 32 {
-                    return (CheckResult::Warning(vec![TAG_TOO_LONG_MSG.into()]), true);
-                } else if !is_valid_tag(t) {
-                    return (CheckResult::Warning(vec![IS_VALID_TAG_MSG.into()]), true);
+            if let Some(tags) = value.as_tags() {
+                for t in tags {
+                    let t = t.trim();
+                    if t.is_empty() {
+                        return CheckResult::Warning(vec!["The tag is empty".into()]);
+                    } else if t.chars().count() > 32 {
+                        return CheckResult::Warning(vec![TAG_TOO_LONG_MSG.into()]);
+                    } else if !is_valid_tag(t) {
+                        return CheckResult::Warning(vec![IS_VALID_TAG_MSG.into()]);
+                    }
                 }
+            }
+        }
+        "emoji" => {
+            if value.as_str().and_then(get_emoji).is_none() {
+                opts.include(false);
+                return CheckResult::Warning(vec!["Value is not an emoji".into()]);
             }
         }
         _ => {}
     }
-    (CheckResult::Ok, true)
+    CheckResult::Ok
 }
 
 /// Checks that a tag is valid
@@ -234,6 +255,14 @@ const IS_VALID_TAG_MSG: &str =
     "The tag should only have lower case letters and numbers separated by a single hyphen ('-')";
 
 const TAG_TOO_LONG_MSG: &str = "The tag is too long";
+
+pub fn get_emoji(s: &str) -> Option<&str> {
+    if s.starts_with(':') && s.ends_with(':') {
+        emojis::get_by_shortcode(&s[1..s.len() - 1]).map(|e| e.as_str())
+    } else {
+        emojis::get(s).map(|e| e.as_str())
+    }
+}
 
 #[cfg(test)]
 mod tests {

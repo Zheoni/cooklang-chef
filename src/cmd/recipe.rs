@@ -4,7 +4,7 @@ use anyhow::{bail, Context as _, Result};
 use camino::Utf8PathBuf;
 use clap::{Args, ValueEnum};
 use cooklang_fs::{check_recipe_images, recipe_images, LazyFsIndex, RecipeEntry};
-use owo_colors::OwoColorize;
+use yansi::Paint;
 
 use crate::{
     util::{meta_name, unwrap_recipe, write_to_output, Input},
@@ -261,20 +261,20 @@ fn just_events(ctx: &Context, args: ReadArgs) -> Result<()> {
             for ev in events {
                 use cooklang::parser::Event;
                 let color = match ev {
-                    Event::Warning(_) => owo_colors::AnsiColors::Yellow,
-                    Event::Error(_) => owo_colors::AnsiColors::Red,
-                    Event::Start(_) | Event::End(_) => owo_colors::AnsiColors::Cyan,
-                    Event::Ingredient(_) => owo_colors::AnsiColors::BrightGreen,
-                    Event::Cookware(_) => owo_colors::AnsiColors::BrightYellow,
-                    Event::Timer(_) => owo_colors::AnsiColors::BrightBlue,
-                    Event::Metadata { .. } => owo_colors::AnsiColors::Magenta,
-                    Event::Section { .. } => owo_colors::AnsiColors::BrightCyan,
-                    _ => owo_colors::AnsiColors::Default,
+                    Event::Warning(_) => yansi::Color::Yellow,
+                    Event::Error(_) => yansi::Color::Red,
+                    Event::Start(_) | Event::End(_) => yansi::Color::Cyan,
+                    Event::Ingredient(_) => yansi::Color::BrightGreen,
+                    Event::Cookware(_) => yansi::Color::BrightYellow,
+                    Event::Timer(_) => yansi::Color::BrightBlue,
+                    Event::Metadata { .. } => yansi::Color::Magenta,
+                    Event::Section { .. } => yansi::Color::BrightCyan,
+                    _ => yansi::Color::default(),
                 };
                 if args.pretty {
-                    writeln!(w, "{:#?}", ev.color(color))?;
+                    writeln!(w, "{:#?}", ev.paint(color))?;
                 } else {
-                    writeln!(w, "{:?}", ev.color(color))?;
+                    writeln!(w, "{:?}", ev.paint(color))?;
                 }
             }
             Ok(())
@@ -320,7 +320,7 @@ fn just_check(ctx: &Context, args: ReadArgs) -> Result<()> {
         println!("{}: {}", "Errors".red().bold(), n_errs);
     }
     if n_image_errs > 0 {
-        println!("{}: {}", "Image errors".purple().bold(), n_image_errs);
+        println!("{}: {}", "Image errors".magenta().bold(), n_image_errs);
     }
     if n_warns > 0 {
         println!("{}: {}", "Warnings".yellow().bold(), n_warns);

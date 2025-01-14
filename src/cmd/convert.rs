@@ -22,7 +22,7 @@ pub struct ConvertArgs {
 }
 
 pub fn run(converter: &Converter, args: ConvertArgs) -> anyhow::Result<()> {
-    use owo_colors::OwoColorize;
+    use yansi::Paint;
 
     let to = match args.to.as_str() {
         "fit" | "best" => ConvertTo::SameSystem,
@@ -37,8 +37,8 @@ pub fn run(converter: &Converter, args: ConvertArgs) -> anyhow::Result<()> {
 
     println!(
         "{:#} {}",
-        quantity.value,
-        quantity.unit_text().unwrap().italic()
+        quantity.value(),
+        quantity.unit().unwrap().italic()
     );
 
     Ok(())

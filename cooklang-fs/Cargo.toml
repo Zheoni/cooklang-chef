@@ -18,4 +18,3 @@ cooklang = { workspace = true }
 thiserror = "1"
 tracing = "0.1"
 serde = { version = "1", features = ["derive"] }
-once_cell = { workspace = true }

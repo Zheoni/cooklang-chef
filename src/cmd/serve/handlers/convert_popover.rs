@@ -27,9 +27,9 @@ pub async fn convert_popover(
     if quantity.unit().is_none() {
         return StatusCode::BAD_REQUEST.into_response();
     }
-    let unit = match quantity.unit().unwrap().unit_info_or_parse(converter) {
-        cooklang::UnitInfo::Known(unit) => unit,
-        cooklang::UnitInfo::Unknown => return StatusCode::BAD_REQUEST.into_response(),
+    let unit = match quantity.unit_info(converter) {
+        Some(unit) => unit,
+        None => return StatusCode::BAD_REQUEST.into_response(),
     };
     let conversions: Vec<_> = converter
         .best_units(unit.physical_quantity, None)

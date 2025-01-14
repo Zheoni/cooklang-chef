@@ -2,6 +2,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use cooklang_fs::RecipeEntry;
 use minijinja::{context, Value};
 
+use crate::util::get_emoji;
 use crate::{config::UiConfig, util::meta_name};
 
 use super::async_index::RecipeData;
@@ -103,18 +104,18 @@ fn recipe_entry_context(
     if let Some(m) = recipe.and_then(|r| r.metadata.as_ref()) {
         let tags = Value::from_iter(
             m.tags()
-                .unwrap_or(&[])
+                .unwrap_or(vec![])
                 .iter()
-                .map(|t| tag_context(t.as_str(), &state.config.ui)),
+                .map(|t| tag_context(t.as_ref(), &state.config.ui)),
         );
-        if let Some(external_image) = m.map.get("image") {
-            image = Some(external_image.clone());
+        if let Some(external_image) = m.map.get("image").and_then(|v| v.as_str()) {
+            image = Some(external_image.to_string());
         }
 
         let name = meta_name(m).unwrap_or(r.name()).to_string();
         metadata = context! {
             tags,
-            emoji => m.emoji(),
+            emoji => m.get("emoji").and_then(|v| v.as_str()).and_then(get_emoji),
             desc => m.description(),
             name,
         }
@@ -180,7 +181,11 @@ impl Searcher {
             Self::Not(searcher) => !searcher.matches_recipe(name, tokens),
             Self::NamePart(part) => name.to_lowercase().contains(part),
             Self::Tag(tag) => match tokens.metadata.as_ref() {
-                Some(meta) => meta.tags().unwrap_or(&[]).iter().any(|t| t.contains(tag)),
+                Some(meta) => meta
+                    .tags()
+                    .unwrap_or(vec![])
+                    .iter()
+                    .any(|t| t.contains(tag)),
                 None => false,
             },
             Self::Ingredient(ingredient) => tokens

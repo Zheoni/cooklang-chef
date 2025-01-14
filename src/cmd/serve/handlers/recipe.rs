@@ -6,7 +6,10 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 use camino::Utf8Path;
-use cooklang::{error::SourceReport, Converter, Modifiers, ParseOptions, ScaledRecipe};
+use cooklang::{
+    convert::PhysicalQuantity, error::SourceReport, metadata::CooklangValueExt, Converter,
+    Modifiers, ParseOptions, ScaledRecipe,
+};
 use minijinja::{context, Value};
 use serde::{Deserialize, Serialize};
 use tokio::task::block_in_place;
@@ -19,7 +22,7 @@ use crate::{
         AppState, S,
     },
     config::Config,
-    util::{meta_name, metadata_validator},
+    util::{get_emoji, meta_name, metadata_validator},
     RECIPE_REF_ERROR,
 };
 
@@ -133,13 +136,19 @@ pub async fn recipe(
                     href => image_url(&img.path, &state.base_path)
                 }
             }));
-            let main_image = scaled.metadata.map.get("image").cloned().or_else(|| {
-                entry
-                    .images()
-                    .iter()
-                    .find(|img| img.indexes.is_none())
-                    .map(|img| image_url(&img.path, &state.base_path))
-            });
+            let main_image = scaled
+                .metadata
+                .map
+                .get("image")
+                .and_then(|v| v.as_str())
+                .map(|v| v.to_string())
+                .or_else(|| {
+                    entry
+                        .images()
+                        .iter()
+                        .find(|img| img.indexes.is_none())
+                        .map(|img| image_url(&img.path, &state.base_path))
+                });
 
             let r = make_recipe_context(scaled, state.parser.converter(), &state.config);
 
@@ -187,8 +196,8 @@ fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) 
                 index => entry.index,
                 outcome => entry.outcome,
                 quantities => entry.quantity.iter().map(|q| context! {
-                    value => q.value,
-                    unit => q.unit_text()
+                    value => q.value(),
+                    unit => q.unit()
                 }).collect::<Value>(),
             }
         })
@@ -212,7 +221,7 @@ fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) 
             if let Some(q) = &t.quantity {
                 let mut q = q.clone();
                 q.convert("s", converter).ok()?;
-                let seconds = match q.value {
+                let seconds = match q.value() {
                     cooklang::Value::Number(n) => n.value(),
                     cooklang::Value::Range { start, .. } => start.value(),
                     cooklang::Value::Text(_) => return None,
@@ -228,14 +237,22 @@ fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) 
             description => r.metadata.description(),
             tags => Value::from_iter(r.metadata.tags().iter().flat_map(|tags| {
                 tags.iter()
-                    .map(|t| tag_context(t.as_str(), &config.ui))
+                    .map(|t| tag_context(t.as_ref(), &config.ui))
             })),
-            emoji => r.metadata.emoji(),
+            emoji => r.metadata.get("emoji").and_then(|v| v.as_str()).and_then(get_emoji),
             author => r.metadata.author(),
             source => r.metadata.source(),
-            time => r.metadata.time(),
+            time => r.metadata.time(converter),
             servings => r.metadata.servings(),
-            other => Value::from_iter(r.metadata.map_filtered())
+            other => Value::from_iter(r.metadata.map_filtered().filter_map(|(key, value)| {
+                let key = key.as_str_like()?;
+                match key.as_ref() {
+                    "emoji" | "name" | "title" => return None,
+                    _ => {}
+                }
+                let value = value.as_str_like()?;
+                Some((key, value))
+            }))
         },
         grouped_ingredients,
         grouped_cookware,
@@ -247,6 +264,7 @@ fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) 
         timers => r.timers,
         timers_seconds,
         inline_quantities => r.inline_quantities,
+        inline_is_temp => r.inline_quantities.iter().map(|q| q.unit_info(converter).map(|u| u.physical_quantity == PhysicalQuantity::Temperature)).collect::<Value>(),
     }
 }
 

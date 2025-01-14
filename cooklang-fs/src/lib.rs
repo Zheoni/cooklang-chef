@@ -9,11 +9,10 @@
 
 mod walker;
 
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, sync::OnceLock};
 
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use cooklang::quantity::QuantityValue;
-use once_cell::sync::OnceCell;
 use serde::Serialize;
 
 pub use walker::DirEntry;
@@ -516,7 +515,7 @@ fn norm_path(path: &Utf8Path) -> Utf8PathBuf {
 #[derive(Debug, Clone)]
 pub struct RecipeEntry {
     path: Utf8PathBuf,
-    images: OnceCell<Vec<Image>>,
+    images: OnceLock<Vec<Image>>,
 }
 
 impl RecipeEntry {
@@ -526,15 +525,13 @@ impl RecipeEntry {
     pub fn new(path: impl AsRef<Utf8Path>) -> Self {
         Self {
             path: path.as_ref().to_path_buf(),
-            images: OnceCell::new(),
+            images: OnceLock::new(),
         }
     }
 
     pub fn set_images(self, images: Vec<Image>) -> Self {
-        Self {
-            images: OnceCell::with_value(images),
-            ..self
-        }
+        _ = self.images.set(images);
+        self
     }
 
     pub fn path(&self) -> &Utf8Path {

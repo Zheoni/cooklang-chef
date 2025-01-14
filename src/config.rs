@@ -88,7 +88,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             default_units: true,
-            extensions: Extensions::all() ^ Extensions::MULTILINE_STEPS,
+            extensions: Extensions::all(),
             warnings_as_errors: false,
             recipe_ref_check: true,
             max_depth: 10,

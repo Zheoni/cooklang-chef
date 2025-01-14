@@ -164,17 +164,17 @@ fn grouped_qty_fmt(qty: &GroupedQuantity, row: &mut tabular::Row) {
 }
 
 fn quantity_fmt(qty: &Quantity) -> String {
-    use owo_colors::OwoColorize;
+    use yansi::Paint;
 
     if let Some(unit) = qty.unit() {
-        format!("{} {}", qty.value, unit.text().italic())
+        format!("{} {}", qty.value(), unit.italic())
     } else {
-        format!("{}", qty.value)
+        format!("{}", qty.value())
     }
 }
 
 fn build_human_table(list: IngredientList, aisle: &AisleConf, plain: bool) -> tabular::Table {
-    use owo_colors::OwoColorize;
+    use yansi::Paint;
 
     let mut table = tabular::Table::new("{:<} {:<}");
     if plain {
@@ -209,8 +209,8 @@ fn build_json_value<'a>(
     }
     impl From<cooklang::quantity::Quantity> for Quantity {
         fn from(qty: cooklang::quantity::Quantity) -> Self {
-            let unit = qty.unit_text().map(|s| s.to_owned());
-            let value = qty.value;
+            let unit = qty.unit().map(|s| s.to_owned());
+            let value = qty.value().clone();
             Self { value, unit }
         }
     }

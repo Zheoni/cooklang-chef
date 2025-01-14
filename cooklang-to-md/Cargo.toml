@@ -16,6 +16,5 @@ readme = "README.md"
 cooklang = { workspace = true }
 textwrap = { workspace = true, features = ["terminal_size"] }
 serde_yaml = "0.9"
-thiserror = "1"
+thiserror = "2"
 serde = { version = "1", features = ["derive"] }
-once_cell = { workspace = true }

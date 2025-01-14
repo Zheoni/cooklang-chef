@@ -8,14 +8,15 @@ use std::{collections::HashMap, io, time::Duration};
 use cooklang::{
     convert::Converter,
     ingredient_list::GroupedIngredient,
+    metadata::CooklangValueExt,
     model::{Ingredient, IngredientReferenceTarget, Item},
     quantity::Quantity,
     scale::ScaleOutcome,
     ScaledRecipe, Section, Step,
 };
-use owo_colors::OwoColorize;
 use std::fmt::Write;
 use tabular::{Row, Table};
+use yansi::Paint;
 
 mod style;
 use style::styles;
@@ -32,7 +33,7 @@ pub fn print_human(
     let w = &mut writer;
 
     header(w, recipe, name)?;
-    metadata(w, recipe)?;
+    metadata(w, recipe, converter)?;
     ingredients(w, recipe, converter)?;
     cookware(w, recipe)?;
     steps(w, recipe)?;
@@ -45,24 +46,25 @@ fn header(w: &mut impl io::Write, recipe: &ScaledRecipe, name: &str) -> Result {
         " {}{} ",
         recipe
             .metadata
-            .emoji()
+            .get("emoji")
+            .and_then(|v| v.as_str())
             .map(|s| format!("{s} "))
             .unwrap_or_default(),
         name
     );
-    writeln!(w, "{}", title_text.style(styles().title))?;
+    writeln!(w, "{}", title_text.paint(styles().title))?;
     if let Some(tags) = recipe.metadata.tags() {
         let mut tags_str = String::new();
         for tag in tags {
-            let color = tag_color(tag);
-            write!(&mut tags_str, "{} ", format!("#{tag}").color(color)).unwrap();
+            let color = tag_color(&tag);
+            write!(&mut tags_str, "{} ", format!("#{tag}").paint(color)).unwrap();
         }
         print_wrapped(w, &tags_str)?;
     }
     writeln!(w)
 }
 
-fn tag_color(tag: &str) -> owo_colors::AnsiColors {
+fn tag_color(tag: &str) -> yansi::Color {
     let hash = tag
         .chars()
         .enumerate()
@@ -71,18 +73,18 @@ fn tag_color(tag: &str) -> owo_colors::AnsiColors {
         .map(|h| (h % 7))
         .unwrap_or_default();
     match hash {
-        0 => owo_colors::AnsiColors::Red,
-        1 => owo_colors::AnsiColors::Blue,
-        2 => owo_colors::AnsiColors::Cyan,
-        3 => owo_colors::AnsiColors::Yellow,
-        4 => owo_colors::AnsiColors::Green,
-        5 => owo_colors::AnsiColors::Magenta,
-        6 => owo_colors::AnsiColors::White,
+        0 => yansi::Color::Red,
+        1 => yansi::Color::Blue,
+        2 => yansi::Color::Cyan,
+        3 => yansi::Color::Yellow,
+        4 => yansi::Color::Green,
+        5 => yansi::Color::Magenta,
+        6 => yansi::Color::White,
         _ => unreachable!(),
     }
 }
 
-fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
+fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Converter) -> Result {
     if let Some(desc) = recipe.metadata.description() {
         print_wrapped_with_options(w, desc, |o| {
             o.initial_indent("\u{2502} ").subsequent_indent("\u{2502}")
@@ -91,22 +93,16 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     }
 
     let mut meta_fmt =
-        |name: &str, value: &str| writeln!(w, "{}: {}", name.style(styles().meta_key), value);
+        |name: &str, value: &str| writeln!(w, "{}: {}", name.paint(styles().meta_key), value);
     if let Some(author) = recipe.metadata.author() {
-        let text = author
-            .name()
-            .or(author.url().map(|u| u.as_str()))
-            .unwrap_or("-");
+        let text = author.name().or(author.url()).unwrap_or("-");
         meta_fmt("author", text)?;
     }
     if let Some(source) = recipe.metadata.source() {
-        let text = source
-            .name()
-            .or(source.url().map(|u| u.as_str()))
-            .unwrap_or("-");
+        let text = source.name().or(source.url()).unwrap_or("-");
         meta_fmt("source", text)?;
     }
-    if let Some(time) = recipe.metadata.time() {
+    if let Some(time) = recipe.metadata.time(converter) {
         let time_fmt = |t: u32| {
             format!(
                 "{}",
@@ -114,16 +110,16 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             )
         };
         match time {
-            cooklang::metadata::RecipeTime::Total(t) => meta_fmt("time", &time_fmt(*t))?,
+            cooklang::metadata::RecipeTime::Total(t) => meta_fmt("time", &time_fmt(t))?,
             cooklang::metadata::RecipeTime::Composed {
                 prep_time,
                 cook_time,
             } => {
                 if let Some(p) = prep_time {
-                    meta_fmt("prep time", &time_fmt(*p))?
+                    meta_fmt("prep time", &time_fmt(p))?
                 }
                 if let Some(c) = cook_time {
-                    meta_fmt("cook time", &time_fmt(*c))?;
+                    meta_fmt("cook time", &time_fmt(c))?;
                 }
                 meta_fmt("total time", &time_fmt(time.total()))?;
             }
@@ -140,7 +136,7 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             .map(|(i, s)| {
                 if Some(i) == index {
                     format!("[{s}]")
-                        .style(styles().selected_servings)
+                        .paint(styles().selected_servings)
                         .to_string()
                 } else {
                     s.to_string()
@@ -152,7 +148,7 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             if data.target.index().is_none() {
                 text = format!(
                     "{} {} {}",
-                    text.strikethrough().dimmed(),
+                    text.strike().dim(),
                     "\u{2192}".red(),
                     data.target.target_servings().red()
                 );
@@ -161,7 +157,11 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
         meta_fmt("servings", &text)?;
     }
     for (key, value) in recipe.metadata.map_filtered() {
-        meta_fmt(key, value)?;
+        if let Some(key) = key.as_str() {
+            if let Some(val) = value.as_str_like() {
+                meta_fmt(key, &val)?;
+            }
+        }
     }
     if !recipe.metadata.map.is_empty() {
         writeln!(w)?;
@@ -196,28 +196,28 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
                 ScaleOutcome::Fixed => {
                     there_is_fixed = true;
                     is_fixed = true;
-                    (owo_colors::Style::new().yellow(), trinagle)
+                    (yansi::Style::new().yellow(), trinagle)
                 }
                 ScaleOutcome::Error(_) => {
                     there_is_err = true;
                     is_err = true;
-                    (owo_colors::Style::new().red(), octagon)
+                    (yansi::Style::new().red(), octagon)
                 }
-                ScaleOutcome::Scaled | ScaleOutcome::NoQuantity => (owo_colors::Style::new(), ""),
+                ScaleOutcome::Scaled | ScaleOutcome::NoQuantity => (yansi::Style::new(), ""),
             })
             .unwrap_or_default();
         let mut row = Row::new().with_cell(igr.display_name());
         if igr.modifiers().is_optional() {
-            row.add_ansi_cell("(optional)".style(styles().opt_marker));
+            row.add_ansi_cell("(optional)".paint(styles().opt_marker));
         } else {
             row.add_cell("");
         }
         let content = quantity
             .iter()
-            .map(|q| quantity_fmt(q).style(outcome_style).to_string())
+            .map(|q| quantity_fmt(q).paint(outcome_style).to_string())
             .reduce(|s, q| format!("{s}, {q}"))
             .unwrap_or_default();
-        row.add_ansi_cell(format!("{content}{}", outcome_char.style(outcome_style)));
+        row.add_ansi_cell(format!("{content}{}", outcome_char.paint(outcome_style)));
 
         if let Some(note) = &igr.note {
             row.add_cell(format!("({note})"));
@@ -299,7 +299,7 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
         }
 
         if let Some(name) = &section.name {
-            writeln!(w, "{}:", name.style(styles().section_name))?;
+            writeln!(w, "{}:", name.paint(styles().section_name))?;
         }
 
         for content in &section.content {
@@ -348,7 +348,7 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
                 write!(
                     &mut step_text,
                     "{}",
-                    igr.display_name().style(styles().ingredient)
+                    igr.display_name().paint(styles().ingredient)
                 )
                 .unwrap();
                 let pos = write_igr_count(&mut step_text, &step_igrs_dedup, index, &igr.name);
@@ -358,7 +358,7 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
             }
             &Item::Cookware { index } => {
                 let cookware = &recipe.cookware[index];
-                write!(&mut step_text, "{}", cookware.name.style(styles().cookware)).unwrap();
+                write!(&mut step_text, "{}", cookware.name.paint(styles().cookware)).unwrap();
             }
             &Item::Timer { index } => {
                 let timer = &recipe.timers[index];
@@ -367,8 +367,8 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
                     (Some(quantity), Some(name)) => {
                         let s = format!(
                             "{} ({})",
-                            quantity_fmt(quantity).style(styles().timer),
-                            name.style(styles().timer),
+                            quantity_fmt(quantity).paint(styles().timer),
+                            name.paint(styles().timer),
                         );
                         write!(&mut step_text, "{}", s).unwrap();
                     }
@@ -376,12 +376,12 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
                         write!(
                             &mut step_text,
                             "{}",
-                            quantity_fmt(quantity).style(styles().timer)
+                            quantity_fmt(quantity).paint(styles().timer)
                         )
                         .unwrap();
                     }
                     (None, Some(name)) => {
-                        write!(&mut step_text, "{}", name.style(styles().timer)).unwrap();
+                        write!(&mut step_text, "{}", name.paint(styles().timer)).unwrap();
                     }
                     (None, None) => unreachable!(), // guaranteed in parsing
                 }
@@ -391,7 +391,7 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
                 write!(
                     &mut step_text,
                     "{}",
-                    quantity_fmt(q).style(styles().inline_quantity)
+                    quantity_fmt(q).paint(styles().inline_quantity)
                 )
                 .unwrap()
             }
@@ -410,13 +410,13 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
             write_subscript(&mut igrs_text, &pos.to_string());
         }
         if igr.modifiers().is_optional() {
-            write!(&mut igrs_text, "{}", " (opt)".style(styles().opt_marker)).unwrap();
+            write!(&mut igrs_text, "{}", " (opt)".paint(styles().opt_marker)).unwrap();
         }
         if let Some(source) = inter_ref_text(igr, section) {
             write!(
                 &mut igrs_text,
                 "{}",
-                format!(" from {source}").style(styles().intermediate_ref)
+                format!(" from {source}").paint(styles().intermediate_ref)
             )
             .unwrap();
         }
@@ -424,7 +424,7 @@ fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, 
             write!(
                 &mut igrs_text,
                 ": {}",
-                quantity_fmt(q).style(styles().step_igr_quantity)
+                quantity_fmt(q).paint(styles().step_igr_quantity)
             )
             .unwrap();
         }
@@ -501,9 +501,9 @@ fn write_igr_count(
 
 fn quantity_fmt(qty: &Quantity) -> String {
     if let Some(unit) = qty.unit() {
-        format!("{} {}", qty.value, unit.text().italic())
+        format!("{} {}", qty.value(), unit.italic())
     } else {
-        format!("{}", qty.value)
+        format!("{}", qty.value())
     }
 }
 
@@ -530,8 +530,8 @@ fn print_wrapped(w: &mut impl io::Write, text: &str) -> Result {
     print_wrapped_with_options(w, text, |o| o)
 }
 
-static TERM_WIDTH: once_cell::sync::Lazy<usize> =
-    once_cell::sync::Lazy::new(|| textwrap::termwidth().min(80));
+static TERM_WIDTH: std::sync::LazyLock<usize> =
+    std::sync::LazyLock::new(|| textwrap::termwidth().min(80));
 
 fn print_wrapped_with_options<F>(w: &mut impl io::Write, text: &str, f: F) -> Result
 where

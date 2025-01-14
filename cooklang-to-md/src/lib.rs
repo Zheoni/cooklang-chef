@@ -4,7 +4,7 @@ use std::{fmt::Write, io};
 
 use cooklang::{
     convert::Converter,
-    metadata::{IndexMap, Metadata},
+    metadata::Metadata,
     model::{Item, Section, Step},
     ScaledRecipe,
 };
@@ -256,34 +256,12 @@ fn frontmatter(
         return Ok(());
     }
 
-    let mut map = IndexMap::new();
+    let mut map = metadata.map.clone();
 
     if let Some(name_key) = &opts.front_matter_name.0 {
         // add name, will be overrided if other given
-        map.insert(name_key.as_str(), name.into());
+        map.insert(name_key.as_str().into(), name.into());
     }
-
-    // add all the raw metadata entries
-    for (key, val) in &metadata.map {
-        map.insert(key.as_str(), val.to_string().into());
-    }
-
-    // overwrite special values if any and correct
-    macro_rules! override_special_key {
-        ($meta:ident, $thing:ident) => {
-            if let Some(val) = &$meta.$thing() {
-                map.insert(
-                    stringify!($thing),
-                    serde_yaml::to_value(val.clone()).unwrap(),
-                );
-            }
-        };
-    }
-    override_special_key!(metadata, author);
-    override_special_key!(metadata, source);
-    override_special_key!(metadata, time);
-    override_special_key!(metadata, servings);
-    override_special_key!(metadata, tags);
 
     const FRONTMATTER_FENCE: &str = "---";
     writeln!(w, "{}", FRONTMATTER_FENCE)?;
@@ -447,8 +425,8 @@ fn print_wrapped(w: &mut impl io::Write, text: &str) -> Result {
     print_wrapped_with_options(w, text, |o| o)
 }
 
-static TERM_WIDTH: once_cell::sync::Lazy<usize> =
-    once_cell::sync::Lazy::new(|| textwrap::termwidth().min(80));
+static TERM_WIDTH: std::sync::LazyLock<usize> =
+    std::sync::LazyLock::new(|| textwrap::termwidth().min(80));
 
 fn print_wrapped_with_options<F>(w: &mut impl io::Write, text: &str, f: F) -> Result
 where

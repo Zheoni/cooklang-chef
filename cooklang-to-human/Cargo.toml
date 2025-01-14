@@ -17,7 +17,6 @@ cooklang = { workspace = true }
 textwrap = { workspace = true, features = ["terminal_size"] }
 tabular = { version = "0.2", features = ["ansi-cell"] }
 humantime = "2.1"
-once_cell = { workspace = true }
-owo-colors = { workspace = true }
+yansi = { workspace = true }
 anstyle = "1"
-anstyle-owo-colors = "1.0"
+anstyle-yansi = "2.0.2"

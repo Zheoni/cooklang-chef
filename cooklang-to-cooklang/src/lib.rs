@@ -3,7 +3,7 @@
 use std::{fmt::Write, io};
 
 use cooklang::{
-    metadata::Metadata,
+    metadata::{CooklangValueExt, Metadata},
     model::{Item, Section, Step},
     parser::{IntermediateData, Modifiers},
     quantity::{Quantity, QuantityValue},
@@ -29,7 +29,11 @@ fn metadata(w: &mut impl io::Write, metadata: &Metadata) -> io::Result<()> {
     // it can lead to the recipe not parsing.
 
     for (key, value) in &metadata.map {
-        writeln!(w, ">> {key}: {value}")?;
+        if let Some(key) = key.as_str() {
+            if let Some(val) = value.as_str_like() {
+                writeln!(w, ">> {key}: {val}")?;
+            }
+        }
     }
     Ok(())
 }
@@ -118,8 +122,8 @@ fn w_step<D, V: QuantityValue>(
             }
             &Item::InlineQuantity { index } => {
                 let q = &recipe.inline_quantities[index];
-                write!(&mut step_str, "{}", q.value).unwrap();
-                if let Some(u) = q.unit_text() {
+                write!(&mut step_str, "{}", q.value()).unwrap();
+                if let Some(u) = q.unit() {
                     step_str.push_str(u);
                 }
             }
@@ -240,8 +244,8 @@ impl<'a, V: QuantityValue> ComponentFormatter<'a, V> {
         }
         if let Some(q) = self.quantity {
             w.push('{');
-            w.push_str(&q.value.to_string());
-            if let Some(unit) = q.unit_text() {
+            w.push_str(&q.value().to_string());
+            if let Some(unit) = q.unit() {
                 write!(w, "%{}", unit).unwrap();
             }
             w.push('}');
