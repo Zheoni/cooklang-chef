@@ -6,7 +6,7 @@ use camino::Utf8Path;
 use cooklang::{
     analysis::{CheckOptions, CheckResult},
     metadata::CooklangValueExt,
-    Metadata,
+    Metadata, ScalableRecipe,
 };
 use cooklang_fs::{RecipeContent, RecipeEntry};
 
@@ -40,6 +40,18 @@ where
     Ok(())
 }
 
+pub fn map_recipe(mut r: ScalableRecipe) -> ScalableRecipe {
+    if let Some(emoji_str) = r
+        .metadata
+        .get("emoji")
+        .and_then(|v| v.as_str())
+        .and_then(get_emoji)
+    {
+        r.metadata.map.insert("emoji".into(), emoji_str.into());
+    }
+    r
+}
+
 pub enum Input {
     File {
         entry: cooklang_fs::RecipeEntry,
@@ -63,7 +75,9 @@ impl Input {
             Input::File { entry, .. } => ctx.parse_options(Some(entry.path())),
             Input::Stdin { .. } => ctx.parse_options(None),
         };
-        let r = parser.parse_with_options(self.text()?.as_ref(), options);
+        let r = parser
+            .parse_with_options(self.text()?.as_ref(), options)
+            .map(map_recipe);
         Ok(r)
     }
 
@@ -156,7 +170,8 @@ impl CachedRecipeEntry {
                 let parser = ctx.parser()?;
                 let r = self
                     .content()?
-                    .parse_with_options(parser, ctx.parse_options(Some(self.entry.path())));
+                    .parse_with_options(parser, ctx.parse_options(Some(self.entry.path())))
+                    .map(map_recipe);
                 Ok(Box::new(r))
             })
             .map(|r| r.as_ref())
@@ -256,7 +271,7 @@ const IS_VALID_TAG_MSG: &str =
 
 const TAG_TOO_LONG_MSG: &str = "The tag is too long";
 
-pub fn get_emoji(s: &str) -> Option<&str> {
+pub fn get_emoji(s: &str) -> Option<&'static str> {
     if s.starts_with(':') && s.ends_with(':') {
         emojis::get_by_shortcode(&s[1..s.len() - 1]).map(|e| e.as_str())
     } else {

@@ -22,7 +22,7 @@ use crate::{
         AppState, S,
     },
     config::Config,
-    util::{get_emoji, meta_name, metadata_validator},
+    util::{map_recipe, meta_name, metadata_validator},
     RECIPE_REF_ERROR,
 };
 
@@ -63,6 +63,7 @@ pub async fn recipe(
         state
             .parser
             .parse_with_options(&content, state.parse_options(Some(entry.path())))
+            .map(map_recipe)
             .into_result()
     });
 
@@ -239,15 +240,15 @@ fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) 
                 tags.iter()
                     .map(|t| tag_context(t.as_ref(), &config.ui))
             })),
-            emoji => r.metadata.get("emoji").and_then(|v| v.as_str()).and_then(get_emoji),
+            emoji => r.metadata.get("emoji").and_then(|v| v.as_str()),
             author => r.metadata.author(),
             source => r.metadata.source(),
             time => r.metadata.time(converter),
             servings => r.metadata.servings(),
-            other => Value::from_iter(r.metadata.map_filtered().filter_map(|(key, value)| {
+            other => Value::from_iter(r.metadata.map.iter().filter_map(|(key, value)| {
                 let key = key.as_str_like()?;
                 match key.as_ref() {
-                    "emoji" | "name" | "title" => return None,
+                    "name" | "title" | "description" | "tags" | "emoji" |  "author" | "source" | "time" | "prep time" | "cook time" | "servings" => return None,
                     _ => {}
                 }
                 let value = value.as_str_like()?;

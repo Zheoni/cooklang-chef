@@ -156,12 +156,17 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Converter
         }
         meta_fmt("servings", &text)?;
     }
-    for (key, value) in recipe.metadata.map_filtered() {
-        if let Some(key) = key.as_str() {
-            if let Some(val) = value.as_str_like() {
-                meta_fmt(key, &val)?;
-            }
+    for (key, value) in recipe.metadata.map.iter().filter_map(|(key, value)| {
+        let key = key.as_str_like()?;
+        match key.as_ref() {
+            "name" | "title" | "description" | "tags" | "author" | "source" | "emoji" | "time"
+            | "prep time" | "cook time" | "servings" => return None,
+            _ => {}
         }
+        let value = value.as_str_like()?;
+        Some((key, value))
+    }) {
+        meta_fmt(&key, &value)?;
     }
     if !recipe.metadata.map.is_empty() {
         writeln!(w)?;
