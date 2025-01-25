@@ -331,20 +331,20 @@ function formatAllElements(rootElement) {
 }
 
 // Format on initial page load
-document.addEventListener('DOMContentLoaded', function() {
-  formatAllElements(document.body)
+document.addEventListener("DOMContentLoaded", function () {
+  formatAllElements(document.body);
 });
 
 // Format before we swap new element in
-document.addEventListener('htmx:beforeSwap', function(event) {
+document.addEventListener("htmx:beforeSwap", function (event) {
   let content = event.detail.xhr.responseText;
-            
+
   // Create a temporary container to manipulate the content
-  let tempDiv = document.createElement('div');
+  let tempDiv = document.createElement("div");
   tempDiv.innerHTML = content;
 
-  formatAllElements(tempDiv)
-  
+  formatAllElements(tempDiv);
+
   event.detail.serverResponse = tempDiv.innerHTML;
 });
 

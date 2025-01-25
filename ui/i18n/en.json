@@ -1,87 +1,87 @@
 {
-    "_lang": "English",
-    "index": {
-        "search": "Search",
-        "noRecipes": "No recipes found"
+  "_lang": "English",
+  "index": {
+    "search": "Search",
+    "noRecipes": "No recipes found"
+  },
+  "header": {
+    "autoUpdating": "Auto updating content",
+    "notAutoUpdating": "Auto update unavailable. Reload to retry."
+  },
+  "footer": {
+    "about": "About",
+    "cookedWith": "Cooked with"
+  },
+  "themeToggle": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "openInEditor": {
+    "error": "Could not open editor",
+    "success": "Recipe opened",
+    "text": "Open in editor"
+  },
+  "r": {
+    "warnings": "Warnings",
+    "meta": {
+      "servings": "Servings",
+      "author": "Author",
+      "source": "Source",
+      "totalTime": "Total time",
+      "prepTime": "Prep time",
+      "cookTime": "Cook time",
+      "moreData": "More data",
+      "added": "Added",
+      "modified": "Modified",
+      "sourceFile": "Source file"
     },
-    "header": {
-        "autoUpdating": "Auto updating content",
-        "notAutoUpdating": "Auto update unavailable. Reload to retry."
+    "convertSelector": {
+      "label": "Convert recipe units",
+      "default": "Default",
+      "metric": "Metric",
+      "imperial": "Imperial"
     },
-    "footer": {
-        "about": "About",
-        "cookedWith": "Cooked with"
+    "ingredients": "Ingredients",
+    "cookware": "Cookware",
+    "optMarker": "opt",
+    "method": "Method",
+    "stepIngredientsView": {
+      "compact": "Compact",
+      "list": "List",
+      "hidden": "Hidden"
     },
-    "themeToggle": {
-        "label": "Theme",
-        "light": "Light",
-        "dark": "Dark",
-        "system": "System"
-    },
-    "openInEditor": {
-        "error": "Could not open editor",
-        "success": "Recipe opened",
-        "text": "Open in editor"
-    },
-    "r": {
-        "warnings": "Warnings",
-        "meta": {
-            "servings": "Servings",
-            "author": "Author",
-            "source": "Source",
-            "totalTime": "Total time",
-            "prepTime": "Prep time",
-            "cookTime": "Cook time",
-            "moreData": "More data",
-            "added": "Added",
-            "modified": "Modified",
-            "sourceFile": "Source file"
-        },
-        "convertSelector": {
-            "label": "Convert recipe units",
-            "default": "Default",
-            "metric": "Metric",
-            "imperial": "Imperial"
-        },
-        "ingredients": "Ingredients",
-        "cookware": "Cookware",
-        "optMarker": "opt",
-        "method": "Method",
-        "stepIngredientsView": {
-            "compact": "Compact",
-            "list": "List",
-            "hidden": "Hidden"
-        },
-        "section": "Section {{ sect }}",
-        "ref": {
-            "fromStep": "from step {{ step }}",
-            "fromSect": "from section {{ sect }}"
-        }
-    },
-    "outcome": {
-        "error": "Error scaling",
-        "fixed": "This values does not scale"
-    },
-    "error": {
-        "parse": "Error parsing recipe"
-    },
-    "timer": {
-        "start": "Start timer"
-    },
-    "quantity": {
-        "reset": "Reset"
-    },
-    "about": {
-        "about": "About",
-        "body": "{{ chef }} is an application for visualising recipes written in Cooklang in a way that is superior to the default experience. {{ chef }} includes extensions to the Cooklang language to increase its functionality. Learn more about Cooklang and {{ chef }} in the links below.",
-        "darkModeExplain": "The dark mode respects your device's preferences until you change it. You can adjust it on the device, use the top right button or the buttons below.",
-        "langExplain": "The language is automatically selected. If you wish to change it you can do so in the footer of the website. To return to automatic language selection use the button below.",
-        "langAuto": "Browser language",
-        "licenses": "Software licenses",
-        "licensesExplain": "The licences of the open source software whose source code is included within {{ chef }} for the web view are shown.",
-        "settings": "Settings"
-    },
-    "hotReload": {
-        "deleted": "The recipe '{{ name }}' has been deleted"
+    "section": "Section {{ sect }}",
+    "ref": {
+      "fromStep": "from step {{ step }}",
+      "fromSect": "from section {{ sect }}"
     }
+  },
+  "outcome": {
+    "error": "Error scaling",
+    "fixed": "This values does not scale"
+  },
+  "error": {
+    "parse": "Error parsing recipe"
+  },
+  "timer": {
+    "start": "Start timer"
+  },
+  "quantity": {
+    "reset": "Reset"
+  },
+  "about": {
+    "about": "About",
+    "body": "{{ chef }} is an application for visualising recipes written in Cooklang in a way that is superior to the default experience. {{ chef }} includes extensions to the Cooklang language to increase its functionality. Learn more about Cooklang and {{ chef }} in the links below.",
+    "darkModeExplain": "The dark mode respects your device's preferences until you change it. You can adjust it on the device, use the top right button or the buttons below.",
+    "langExplain": "The language is automatically selected. If you wish to change it you can do so in the footer of the website. To return to automatic language selection use the button below.",
+    "langAuto": "Browser language",
+    "licenses": "Software licenses",
+    "licensesExplain": "The licences of the open source software whose source code is included within {{ chef }} for the web view are shown.",
+    "settings": "Settings"
+  },
+  "hotReload": {
+    "deleted": "The recipe '{{ name }}' has been deleted"
+  }
 }

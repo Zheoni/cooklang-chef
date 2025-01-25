@@ -1,87 +1,87 @@
 {
-    "_lang": "Español",
-    "index": {
-        "search": "Buscar",
-        "noRecipes": "No se han encontrado recetas"
+  "_lang": "Español",
+  "index": {
+    "search": "Buscar",
+    "noRecipes": "No se han encontrado recetas"
+  },
+  "header": {
+    "autoUpdating": "Actualizando automáticamente",
+    "notAutoUpdating": "No se actualiza. Recarga para reintentar."
+  },
+  "footer": {
+    "about": "Acerca de",
+    "cookedWith": "Cocinado con"
+  },
+  "themeToggle": {
+    "label": "Tema",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema"
+  },
+  "openInEditor": {
+    "error": "No se ha podido abrir el editor",
+    "success": "Receta abierta",
+    "text": "Abrir en editor"
+  },
+  "r": {
+    "warnings": "Avisos",
+    "meta": {
+      "servings": "Raciones",
+      "author": "Autor",
+      "source": "Fuente",
+      "totalTime": "Tiempo total",
+      "prepTime": "Tiempo preparación",
+      "cookTime": "Tiempo cocinado",
+      "moreData": "Más datos",
+      "added": "Añadido",
+      "modified": "Modificado",
+      "sourceFile": "Fichero fuente"
     },
-    "header": {
-        "autoUpdating": "Actualizando automáticamente",
-        "notAutoUpdating": "No se actualiza. Recarga para reintentar."
+    "convertSelector": {
+      "label": "Convertir unidades",
+      "default": "Por defecto",
+      "metric": "Métrico",
+      "imperial": "Imperial"
     },
-    "footer": {
-        "about": "Acerca de",
-        "cookedWith": "Cocinado con"
+    "ingredients": "Ingredientes",
+    "cookware": "Menaje",
+    "optMarker": "opcional",
+    "method": "Método",
+    "stepIngredientsView": {
+      "compact": "Compacto",
+      "list": "Lista",
+      "hidden": "Oculto"
     },
-    "themeToggle": {
-        "label": "Tema",
-        "light": "Claro",
-        "dark": "Oscuro",
-        "system": "Sistema"
-    },
-    "openInEditor": {
-        "error": "No se ha podido abrir el editor",
-        "success": "Receta abierta",
-        "text": "Abrir en editor"
-    },
-    "r": {
-        "warnings": "Avisos",
-        "meta": {
-            "servings": "Raciones",
-            "author": "Autor",
-            "source": "Fuente",
-            "totalTime": "Tiempo total",
-            "prepTime": "Tiempo preparación",
-            "cookTime": "Tiempo cocinado",
-            "moreData": "Más datos",
-            "added": "Añadido",
-            "modified": "Modificado",
-            "sourceFile": "Fichero fuente"
-        },
-        "convertSelector": {
-            "label": "Convertir unidades",
-            "default": "Por defecto",
-            "metric": "Métrico",
-            "imperial": "Imperial"
-        },
-        "ingredients": "Ingredientes",
-        "cookware": "Menaje",
-        "optMarker": "opcional",
-        "method": "Método",
-        "stepIngredientsView": {
-            "compact": "Compacto",
-            "list": "Lista",
-            "hidden": "Oculto"
-        },
-        "section": "Sección {{ sect }}",
-        "ref": {
-            "fromStep": "del paso {{ step }}",
-            "fromSect": "de la sección {{ sect }}"
-        }
-    },
-    "outcome": {
-        "error": "Error escalando",
-        "fixed": "Este valor no escala"
-    },
-    "error": {
-        "parse": "Error interpretando la receta"
-    },
-    "timer": {
-        "start": "Iniciar temporizador"
-    },
-    "quantity": {
-        "reset": "Reset"
-    },
-    "about": {
-        "about": "Acerca de",
-        "body": "{{ chef }} es una aplicación para visualizar recetas escritas en Cooklang de una manera superior a la experiencia por defecto. {{ chef }} incluye extensiones al lenguaje Cooklang para aumentar su funcionalidad. Conozca más sobre Cooklang y {{ chef }} en los enlaces abajo.",
-        "darkModeExplain": "El modo oscuro respeta las preferencias del dispositivo hasta que lo cambies. Puedes ajustarlo en el dispotivo, con el botón de arriba a la derecha o en los botones de abajo.",
-        "langExplain": "El idioma se ha seleccionado de manera automática. Si deseas cambiarlo puede hacerlo el pie de sitio web. Para volver a la selección automática de idioma utilice el botón de abajo.",
-        "langAuto": "Idioma del navegador",
-        "licenses": "Licencias de software",
-        "licensesExplain": "Se muestran las licencias del software de código libre cuyo código fuente se incluye dentro de {{ chef }} para la vista web.",
-        "settings": "Ajustes"
-    },
-    "hotReload": {
-        "deleted": "La receta '{{ name }}' se ha eliminado"
+    "section": "Sección {{ sect }}",
+    "ref": {
+      "fromStep": "del paso {{ step }}",
+      "fromSect": "de la sección {{ sect }}"
     }
+  },
+  "outcome": {
+    "error": "Error escalando",
+    "fixed": "Este valor no escala"
+  },
+  "error": {
+    "parse": "Error interpretando la receta"
+  },
+  "timer": {
+    "start": "Iniciar temporizador"
+  },
+  "quantity": {
+    "reset": "Reset"
+  },
+  "about": {
+    "about": "Acerca de",
+    "body": "{{ chef }} es una aplicación para visualizar recetas escritas en Cooklang de una manera superior a la experiencia por defecto. {{ chef }} incluye extensiones al lenguaje Cooklang para aumentar su funcionalidad. Conozca más sobre Cooklang y {{ chef }} en los enlaces abajo.",
+    "darkModeExplain": "El modo oscuro respeta las preferencias del dispositivo hasta que lo cambies. Puedes ajustarlo en el dispotivo, con el botón de arriba a la derecha o en los botones de abajo.",
+    "langExplain": "El idioma se ha seleccionado de manera automática. Si deseas cambiarlo puede hacerlo el pie de sitio web. Para volver a la selección automática de idioma utilice el botón de abajo.",
+    "langAuto": "Idioma del navegador",
+    "licenses": "Licencias de software",
+    "licensesExplain": "Se muestran las licencias del software de código libre cuyo código fuente se incluye dentro de {{ chef }} para la vista web.",
+    "settings": "Ajustes"
+  },
+  "hotReload": {
+    "deleted": "La receta '{{ name }}' se ha eliminado"
+  }
 }

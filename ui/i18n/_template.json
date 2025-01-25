@@ -1,87 +1,87 @@
 {
-    "_lang": null,
-    "index": {
-        "search": null,
-        "noRecipes": null
+  "_lang": null,
+  "index": {
+    "search": null,
+    "noRecipes": null
+  },
+  "header": {
+    "autoUpdating": null,
+    "notAutoUpdating": null
+  },
+  "footer": {
+    "about": null,
+    "cookedWith": null
+  },
+  "themeToggle": {
+    "label": null,
+    "light": null,
+    "dark": null,
+    "system": null
+  },
+  "openInEditor": {
+    "error": null,
+    "success": null,
+    "text": null
+  },
+  "r": {
+    "warnings": null,
+    "meta": {
+      "servings": null,
+      "author": null,
+      "source": null,
+      "totalTime": null,
+      "prepTime": null,
+      "cookTime": null,
+      "moreData": null,
+      "added": null,
+      "modified": null,
+      "sourceFile": null
     },
-    "header": {
-        "autoUpdating": null,
-        "notAutoUpdating": null
+    "convertSelector": {
+      "label": null,
+      "default": null,
+      "metric": null,
+      "imperial": null
     },
-    "footer": {
-        "about": null,
-        "cookedWith": null
+    "ingredients": null,
+    "cookware": null,
+    "optMarker": null,
+    "method": null,
+    "stepIngredientsView": {
+      "compact": null,
+      "list": null,
+      "hidden": null
     },
-    "themeToggle": {
-        "label": null,
-        "light": null,
-        "dark": null,
-        "system": null
-    },
-    "openInEditor": {
-        "error": null,
-        "success": null,
-        "text": null
-    },
-    "r": {
-        "warnings": null,
-        "meta": {
-            "servings": null,
-            "author": null,
-            "source": null,
-            "totalTime": null,
-            "prepTime": null,
-            "cookTime": null,
-            "moreData": null,
-            "added": null,
-            "modified": null,
-            "sourceFile": null
-        },
-        "convertSelector": {
-            "label": null,
-            "default": null,
-            "metric": null,
-            "imperial": null
-        },
-        "ingredients": null,
-        "cookware": null,
-        "optMarker": null,
-        "method": null,
-        "stepIngredientsView": {
-            "compact": null,
-            "list": null,
-            "hidden": null
-        },
-        "section": null,
-        "ref": {
-            "fromStep": null,
-            "fromSect": null
-        }
-    },
-    "outcome": {
-        "error": null,
-        "fixed": null
-    },
-    "error": {
-        "parse": null
-    },
-    "timer": {
-        "start": null
-    },
-    "quantity": {
-        "reset": null
-    },
-    "about": {
-        "about": null,
-        "body": null,
-        "darkModeExplain": null,
-        "langExplain": null,
-        "langAuto": null,
-        "licenses": null,
-        "licensesExplain": null,
-        "settings": null
-    },
-    "hotReload": {
-        "deleted": null
+    "section": null,
+    "ref": {
+      "fromStep": null,
+      "fromSect": null
     }
+  },
+  "outcome": {
+    "error": null,
+    "fixed": null
+  },
+  "error": {
+    "parse": null
+  },
+  "timer": {
+    "start": null
+  },
+  "quantity": {
+    "reset": null
+  },
+  "about": {
+    "about": null,
+    "body": null,
+    "darkModeExplain": null,
+    "langExplain": null,
+    "langAuto": null,
+    "licenses": null,
+    "licensesExplain": null,
+    "settings": null
+  },
+  "hotReload": {
+    "deleted": null
+  }
 }
