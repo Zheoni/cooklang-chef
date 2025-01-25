@@ -106,6 +106,10 @@ img.emoji {
   @apply text-yellow-12 underline decoration-yellow-11 decoration-wavy;
 }
 
+.strike-through {
+  @apply text-gray-400 line-through decoration-gray-300 opacity-75;
+}
+
 [data-component-kind].highlight {
   @apply underline decoration-dotted underline-offset-4;
 }

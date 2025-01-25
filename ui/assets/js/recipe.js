@@ -120,3 +120,7 @@ document.body.addEventListener("keyup", (ev) => {
       .forEach((el) => (el.hidden = true));
   }
 });
+
+function strikeThrough(el) {
+  el.classList.toggle("strike-through");
+}

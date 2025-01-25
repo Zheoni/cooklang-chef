@@ -285,53 +285,55 @@
             {% set ingredient = r.ingredients[e.index] %}
             {% if 'HIDDEN' not in ingredient.modifiers %}
               <li class="w-fit">
-                {% set display_name = ingredient.display_name|capitalize %}
-                <span
-                  data-component-kind="ingredient"
-                  data-component-ref-group="{{ e.index }}"
-                  data-component-ref-target="ingredient"
-                >
-                  {% if 'RECIPE' in ingredient.modifiers %}
-                    {% set ref_href = recipe_refs[ingredient.name] %}
-                    <a
-                      href="{{ ref_href|default('#') }}"
-                      {% if ref_href %}
-                        class="link underline"
-                      {% else %}
-                        class="text-red-11 underline decoration-wavy"
+                <span class="cursor-pointer" onclick="strikeThrough(this);">
+                  {% set display_name = ingredient.display_name|capitalize %}
+                  <span
+                    data-component-kind="ingredient"
+                    data-component-ref-group="{{ e.index }}"
+                    data-component-ref-target="ingredient"
+                  >
+                    {% if 'RECIPE' in ingredient.modifiers %}
+                      {% set ref_href = recipe_refs[ingredient.name] %}
+                      <a
+                        href="{{ ref_href|default('#') }}"
+                        {% if ref_href %}
+                          class="link underline"
+                        {% else %}
+                          class="text-red-11 underline decoration-wavy"
+                        {% endif %}
+                      >
+                        {{ display_name }}
+                      </a>
+                    {%- else -%}
+                      {{- display_name -}}
+                    {%- endif -%}
+                  </span>
+                  {%- if 'OPT' in ingredient.modifiers -%}
+                    <span> ({{ t("r.optMarker") }})</span>
+                  {%- endif -%}
+
+                  {%- if e.quantities is not empty -%}
+                    :
+                    {% if e.outcome|lower == "fixed" %}
+                      {% set tooltip = t("outcome.fixed") %}
+                      {% set tooltip_cls = "scale-fixed" %}
+                    {% elif e.outcome|lower == "error" %}
+                      {% set tooltip = t("outcome.error") %}
+                      {% set tooltip_cls = "scale-error" %}
+                    {% endif %}
+                    <span
+                      class="{{ tooltip_cls }} text-base-11"
+                      {% if tooltip %}
+                        data-tooltip="{{ tooltip }}"
                       {% endif %}
                     >
-                      {{ display_name }}
-                    </a>
-                  {%- else -%}
-                    {{- display_name -}}
+                      {% for q in e.quantities %}
+                        {{ qty_format(q) }}
+                        {{ ', ' if not loop.last }}
+                      {% endfor %}
+                    </span>
                   {%- endif -%}
                 </span>
-                {%- if 'OPT' in ingredient.modifiers -%}
-                  <span> ({{ t("r.optMarker") }})</span>
-                {%- endif -%}
-
-                {%- if e.quantities is not empty -%}
-                  :
-                  {% if e.outcome|lower == "fixed" %}
-                    {% set tooltip = t("outcome.fixed") %}
-                    {% set tooltip_cls = "scale-fixed" %}
-                  {% elif e.outcome|lower == "error" %}
-                    {% set tooltip = t("outcome.error") %}
-                    {% set tooltip_cls = "scale-error" %}
-                  {% endif %}
-                  <span
-                    class="{{ tooltip_cls }} text-base-11"
-                    {% if tooltip %}
-                      data-tooltip="{{ tooltip }}"
-                    {% endif %}
-                  >
-                    {% for q in e.quantities %}
-                      {{ qty_format(q) }}
-                      {{ ', ' if not loop.last }}
-                    {% endfor %}
-                  </span>
-                {%- endif -%}
 
                 {% if ingredient.note %}
                   <div
