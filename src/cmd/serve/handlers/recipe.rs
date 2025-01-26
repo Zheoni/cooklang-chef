@@ -164,7 +164,7 @@ pub async fn recipe(
                 images,
                 main_image,
 
-                is_loopback => addr.ip().is_loopback(),
+                show_open_editor_btn => addr.ip().is_loopback() && !state.disable_open_editor,
                 igr_layout => get_cookie(&headers, "igr_layout").unwrap_or("line"),
 
                 report_html,

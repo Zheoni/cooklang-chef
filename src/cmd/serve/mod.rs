@@ -36,6 +36,10 @@ pub struct ServeArgs {
     #[arg(long)]
     host: bool,
 
+    /// Disable the open editor functionality in the server
+    #[arg(long)]
+    disable_open_editor: bool,
+
     /// Set http server port
     #[arg(long, default_value_t = 8080)]
     port: u16,
@@ -51,7 +55,7 @@ pub async fn run(ctx: Context, args: ServeArgs) -> Result<()> {
         bail!("`serve` needs to run inside a collection");
     }
 
-    let state = build_state(ctx).context("failed to build web server")?;
+    let state = build_state(ctx, &args).context("failed to build web server")?;
     let app = make_router(state);
 
     let addr = if args.host {
@@ -112,6 +116,7 @@ pub struct AppState {
     recipe_index: AsyncFsIndex,
     updates_stream: broadcast::Receiver<Update>,
     config: crate::config::Config,
+    disable_open_editor: bool,
     editor_command: Option<Vec<String>>,
     editor_count: AtomicI32,
 }
@@ -119,7 +124,7 @@ pub struct AppState {
 type S = Arc<AppState>;
 
 #[tracing::instrument(level = "debug", skip_all)]
-fn build_state(ctx: Context) -> Result<S> {
+fn build_state(ctx: Context, args: &ServeArgs) -> Result<S> {
     ctx.parser()?;
     let Context {
         parser,
@@ -148,6 +153,7 @@ fn build_state(ctx: Context) -> Result<S> {
         config,
         editor_command: chef_config.editor().ok(),
         editor_count: 0.into(),
+        disable_open_editor: args.disable_open_editor,
     }))
 }
 

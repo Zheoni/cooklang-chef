@@ -17,6 +17,10 @@ pub async fn open_editor(
     State(state): State<S>,
     ConnectInfo(who): ConnectInfo<SocketAddr>,
 ) -> Response {
+    if state.disable_open_editor {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
     if !who.ip().is_loopback() {
         tracing::warn!("Denied open editor request from '{who}': Not loopback ip");
         return StatusCode::UNAUTHORIZED.into_response();
