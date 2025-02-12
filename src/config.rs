@@ -351,7 +351,7 @@ mod extensions_serde {
                 // https://github.com/serde-rs/serde/issues/2467
                 while let Some((name, enabled)) = map.next_entry::<String, bool>()? {
                     let e = Extensions::from_name(&name.replace(' ', "_").to_uppercase())
-                        .ok_or_else(|| A::Error::custom("Unknown extension name"))?;
+                        .ok_or_else(|| A::Error::custom(format!("Unknown extension name: {}", name)))?;
                     if enabled {
                         extensions |= e;
                     }
