@@ -43,6 +43,11 @@ pub fn main() -> Result<()> {
             .init();
     }
 
+    match args.command {
+        Command::GenerateCompletions(args) => return cmd::generate_completions::run(args),
+        _ => {}
+    }
+
     let ctx = configure_context(args.global_args, color_ctx)?;
 
     match args.command {
@@ -55,9 +60,9 @@ pub fn main() -> Result<()> {
         Command::Convert(args) => cmd::convert::run(ctx.parser()?.converter(), args),
         Command::Config(args) => cmd::config::run(&ctx, args),
         Command::Collection(args) => cmd::collection::run(&ctx, args),
-        Command::GenerateCompletions(args) => cmd::generate_completions::run(args),
         Command::New(args) => cmd::new::run(args, &ctx),
         Command::Edit(args) => cmd::edit::run(args, &ctx),
+        Command::GenerateCompletions(_) => unreachable!(),
     }
 }
 
