@@ -1,0 +1,87 @@
+{
+    "_lang": "Français",
+    "index": {
+        "search": "Rechercher",
+        "noRecipes": "Aucune recette trouvée"
+    },
+    "header": {
+        "autoUpdating": "Mise à jour automatique du contenu",
+        "notAutoUpdating": "Aucune mise à jour automatique disponible. Rechargez pour réessayer."
+    },
+    "footer": {
+        "about": "À propos",
+        "cookedWith": "Cuisiné avec"
+    },
+    "themeToggle": {
+        "label": "Thème",
+        "light": "Clair",
+        "dark": "Sombre",
+        "system": "Système"
+    },
+    "openInEditor": {
+        "error": "Impossible d'ouvrir l'éditeur",
+        "success": "Recette ouverte",
+        "text": "Ouvrir dans l'éditeur"
+    },
+    "r": {
+        "warnings": "Avertissements",
+        "meta": {
+            "servings": "Portions",
+            "author": "Autheur",
+            "source": "Source",
+            "totalTime": "Temps total",
+            "prepTime": "Temps de préparation",
+            "cookTime": "Temps de cuisson",
+            "moreData": "Plus d'infos",
+            "added": "Ajoutée",
+            "modified": "Modifiée",
+            "sourceFile": "Fichier source"
+        },
+        "convertSelector": {
+            "label": "Convertir les unités",
+            "default": "Défaut",
+            "metric": "Métrique",
+            "imperial": "Impérial"
+        },
+        "ingredients": "Ingrédients",
+        "cookware": "Matériel",
+        "optMarker": "opt",
+        "method": "Méthode",
+        "stepIngredientsView": {
+            "compact": "Compacte",
+            "list": "Liste",
+            "hidden": "Cachée"
+        },
+        "section": "Section {{ sect }}",
+        "ref": {
+            "fromStep": "de l'étape {{ step }}",
+            "fromSect": "de la section {{ sect }}"
+        }
+    },
+    "outcome": {
+        "error": "Erreur d'échelonnement",
+        "fixed": "Cette valeur ne s'échelonne pas"
+    },
+    "error": {
+        "parse": "Erreur de lecture de la recette"
+    },
+    "timer": {
+        "start": "Démarrer le minuteur"
+    },
+    "quantity": {
+        "reset": "Réinitialiser"
+    },
+    "about": {
+        "about": "À propos",
+        "body": "{{ chef }} est une application pour visualiser les recettes écrites en Cooklang d'une manière supérieure à l'expérience par défaut. {{ chef }} inclut des extensions au langage Cooklang pour augmenter sa fonctionnalité. En savoir plus sur Cooklang et {{ chef }} dans les liens ci-dessous.",
+        "darkModeExplain": "Le mode sombre respecte les préférences de votre appareil jusqu'à ce que vous le changiez. Vous pouvez l'ajuster sur l'appareil, utiliser le bouton en haut à droite ou les boutons ci-dessous.",
+        "langExplain": "Le langage est automatiquement sélectionné. Si vous souhaitez le changer, vous pouvez le faire dans le pied de page du site Web. Pour revenir à la sélection automatique de la langue, utilisez le bouton ci-dessous.",
+        "langAuto": "Langue du navigateur",
+        "licenses": "Licences logicielles",
+        "licensesExplain": "Les licences des logiciels open source dont le code source est inclus dans {{ chef }} pour la vue web sont affichées.",
+        "settings": "Paramètres"
+    },
+    "hotReload": {
+        "deleted": "La recette '{{ name }}' a été supprimée"
+    }
+}
