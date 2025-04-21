@@ -113,14 +113,10 @@ max_depth = 10                   # max depth to search for recipe references
 # enabled extensions
 # this can also be `extensions = "all"` or `extensions = "none"`
 [extensions]
-MULTILINE_STEPS = false          # to maximize compatibility by default
 COMPONENT_MODIFIERS = true
-COMPONENT_NOTE = true
 COMPONENT_ALIAS = true
-SECTIONS = true
 ADVANCED_UNITS = true
 MODES = true
-TEMPERATURE = true
 TEXT_STEPS = true
 RANGE_VALUES = true
 TIMER_REQUIRES_TIME = true
