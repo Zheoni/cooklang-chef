@@ -2,6 +2,10 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.10.1 - 2025/04/21
+
+- Add french translation ( @ornicar #50 )
+
 ## 0.10.0 - 2025/01/14
 
 Updates to cooklang parser `0.15.0`, this includes many small improvements and
