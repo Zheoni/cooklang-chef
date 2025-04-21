@@ -44,7 +44,7 @@ once_cell = "1"
 serde_yaml = "0.9.34"
 yansi = {workspace = true}
 # Serve
-tokio = { version = "1", features = ["full"], optional = true }
+tokio = { version = "1.43.1", features = ["full"], optional = true }
 axum = { version = "0.8.1", optional = true }
 tower = { version = "0.5.2", features = ["util"], optional = true }
 tower-http = { version = "0.6.2", features = ["fs", "trace"], optional = true }
