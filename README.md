@@ -47,7 +47,7 @@ Full user documentation [here](./docs/README.md).
 
 You can install `chef` with:
 ```sh
-cargo install --git https://github.com/Zheoni/cooklang-chef/ --tag "v0.10.0" --locked
+cargo install --git https://github.com/Zheoni/cooklang-chef/ --tag "v0.10.1" --locked
 ```
 
 You can also get a prebuilt binary from the github releases.
