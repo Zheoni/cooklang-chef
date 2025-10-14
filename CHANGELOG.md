@@ -2,6 +2,11 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.10.2 - 2025/10/14
+
+- Fix HTML render fail when only prep time was given without cook time or vice
+  versa. ( #55 )
+
 ## 0.10.1 - 2025/04/21
 
 - Add french translation ( @ornicar #50 )

@@ -1,6 +1,6 @@
 [package]
 name = "cooklang-chef"
-version = "0.10.1"
+version = "0.10.2"
 edition = "2021"
 authors = ["Zheoni <zheoni@outlook.es>"]
 description = "CLI to manage cooklang recipes"
@@ -28,7 +28,7 @@ cooklang-to-cooklang = { version = "0.15", path = "./cooklang-to-cooklang" }
 cooklang-to-md = { version = "0.15", path = "./cooklang-to-md" }
 textwrap = { workspace = true, features = ["terminal_size"] }
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = "0.3.20"
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 camino = { version = "1", features = ["serde1"] }
