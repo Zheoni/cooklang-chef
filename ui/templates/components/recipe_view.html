@@ -152,15 +152,17 @@
 
 {% if r.meta.time %}
   {% set entries %}
-    {% call meta_entry(t("r.meta.totalTime")) %}
-      <span format-minutes>
-        {% if r.meta.time is number %}
-          {{ r.meta.time }}
-        {% else %}
-          {{ r.meta.time.prep_time + r.meta.time.cook_time }}
-        {% endif %}
-      </span>
-    {% endcall %}
+    {% if r.meta.time is number or r.meta.time.prep_time is number and r.meta.time.cook_time is number %}
+      {% call meta_entry(t("r.meta.totalTime")) %}
+        <span format-minutes>
+          {% if r.meta.time is number %}
+            {{ r.meta.time }}
+          {% else %}
+            {{ r.meta.time.prep_time|default(0, true) + r.meta.time.cook_time|default(0, true) }}
+          {% endif %}
+        </span>
+      {% endcall %}
+    {% endif %}
     {% if r.meta.time.prep_time %}
       {% call meta_entry(t("r.meta.prepTime")) %}
         <span format-minutes>{{ r.meta.time.prep_time }}</span>
