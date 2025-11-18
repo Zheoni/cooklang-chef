@@ -1,0 +1,9 @@
+services:
+  cooklang-chef:
+    build: .
+    ports:
+      - 9080:9080
+    volumes:
+      # The path to recipes. The only requirement is that there be a
+      # `.cooklang` directory with `config.toml` defined.
+      - /workspaces/cooklang-chef/recipes:/recipes
