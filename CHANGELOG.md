@@ -2,6 +2,8 @@
 
 ## Unreleased - ReleaseDate
 
+- Follow symbolic links when scanning recipes directory ( #59 )
+
 ## 0.10.2 - 2025/10/14
 
 - Fix HTML render fail when only prep time was given without cook time or vice
