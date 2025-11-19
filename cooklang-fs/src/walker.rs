@@ -62,7 +62,7 @@ impl Walker {
         let mut new_entries = Vec::new();
         for e in dir.read_dir_utf8()? {
             let e = e?;
-            let ft = e.file_type()?;
+            let ft = e.path().metadata()?.file_type();
 
             // print warning for unexpected config dir
             if let Some(config_dir) = &self.config_dir {
@@ -83,6 +83,7 @@ impl Walker {
                 path: e.into_path(),
                 file_type: ft,
             };
+            assert!(!entry.file_type.is_symlink()); // make sure file_type has followed symlinks
 
             if entry.file_type.is_dir() {
                 let depth = entry_depth(entry.path(), &self.base_path);
