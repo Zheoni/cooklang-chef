@@ -6,7 +6,7 @@ RUN rustup target add x86_64-unknown-linux-musl && \
 
 COPY ./ ./
 
-RUN cargo build --profile=release --target=x86_64-unknown-linux-musl
+RUN cargo build --profile=release --target=x86_64-unknown-linux-musl --locked
 
 FROM rust:1.91.1-alpine3.22
 
