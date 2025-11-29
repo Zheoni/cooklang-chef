@@ -3,6 +3,12 @@ services:
     build: .
     ports:
       - 9080:9080
+    environment:
+      # The UID and GID of the user and group the container will run as.
+      # Make sure the user has permission to read the mounted recipe directory.
+      # If the environment variables are ommitted, they both default to 1001.
+      PUID: 1001
+      PGID: 1001
     volumes:
       # The path to recipes. The only requirement is that there be a
       # `.cooklang` directory with `config.toml` defined.
