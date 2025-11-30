@@ -19,4 +19,4 @@ USER ${PUID}:${PGID}
 
 EXPOSE 9080
 WORKDIR "/recipes"
-ENTRYPOINT ["/app/chef", "serve", "--host", "--port=9080"]
+ENTRYPOINT ["/app/chef", "serve", "--host", "--port=9080", "--disable-open-editor"]

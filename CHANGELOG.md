@@ -3,6 +3,7 @@
 ## Unreleased - ReleaseDate
 
 - Follow symbolic links when scanning recipes directory ( #59 )
+- Added `Dockerfile` and `docker-compose.yml` to the repository ( #58 #62 )
 
 ## 0.10.2 - 2025/10/14
 
