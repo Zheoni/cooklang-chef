@@ -4,7 +4,7 @@ use clap::{Args, CommandFactory, ValueEnum};
 use cooklang::{
     aisle::AisleConf,
     ingredient_list::IngredientList,
-    quantity::{GroupedQuantity, Quantity, Value},
+    quantity::{GroupedQuantity, Quantity},
     ScaledQuantity,
 };
 use serde::Serialize;
@@ -202,18 +202,6 @@ fn build_json_value<'a>(
     aisle: &'a AisleConf<'a>,
     plain: bool,
 ) -> serde_json::Value {
-    #[derive(Serialize)]
-    struct Quantity {
-        value: Value,
-        unit: Option<String>,
-    }
-    impl From<cooklang::quantity::Quantity> for Quantity {
-        fn from(qty: cooklang::quantity::Quantity) -> Self {
-            let unit = qty.unit().map(|s| s.to_owned());
-            let value = qty.value().clone();
-            Self { value, unit }
-        }
-    }
     #[derive(Serialize)]
     struct Ingredient {
         name: String,

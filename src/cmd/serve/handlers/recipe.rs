@@ -335,7 +335,7 @@ impl AppState {
     fn checker(
         &self,
         relative_to: Option<&Utf8Path>,
-    ) -> Option<cooklang::analysis::RecipeRefCheck> {
+    ) -> Option<cooklang::analysis::RecipeRefCheck<'_>> {
         if self.config.recipe_ref_check {
             let relative_to =
                 relative_to.map(|r| r.parent().expect("no parent for recipe entry").to_owned());
@@ -355,7 +355,7 @@ impl AppState {
         }
     }
 
-    fn parse_options(&self, relative_to: Option<&Utf8Path>) -> ParseOptions {
+    fn parse_options(&self, relative_to: Option<&Utf8Path>) -> ParseOptions<'_> {
         ParseOptions {
             recipe_ref_check: self.checker(relative_to),
             metadata_validator: Some(Box::new(metadata_validator)),

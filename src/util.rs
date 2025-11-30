@@ -101,7 +101,7 @@ impl Input {
         }
     }
 
-    pub fn text(&self) -> Result<Cow<str>> {
+    pub fn text(&self) -> Result<Cow<'_, str>> {
         Ok(match self {
             Input::File { entry, .. } => entry.read()?.into_text().into(),
             Input::Stdin { text, .. } => text.as_str().into(),

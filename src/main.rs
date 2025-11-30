@@ -43,9 +43,8 @@ pub fn main() -> Result<()> {
             .init();
     }
 
-    match args.command {
-        Command::GenerateCompletions(args) => return cmd::generate_completions::run(args),
-        _ => {}
+    if let Command::GenerateCompletions(args) = args.command {
+        return cmd::generate_completions::run(args);
     }
 
     let ctx = configure_context(args.global_args, color_ctx)?;
@@ -141,7 +140,7 @@ impl Context {
     fn checker(
         &self,
         relative_to: Option<&Utf8Path>,
-    ) -> Option<cooklang::analysis::RecipeRefCheck> {
+    ) -> Option<cooklang::analysis::RecipeRefCheck<'_>> {
         if self.config.recipe_ref_check {
             let relative_to = relative_to.map(|r| {
                 r.to_path_buf()
@@ -165,7 +164,7 @@ impl Context {
         }
     }
 
-    fn parse_options(&self, relative_to: Option<&Utf8Path>) -> ParseOptions {
+    fn parse_options(&self, relative_to: Option<&Utf8Path>) -> ParseOptions<'_> {
         ParseOptions {
             recipe_ref_check: self.checker(relative_to),
             metadata_validator: Some(Box::new(metadata_validator)),
