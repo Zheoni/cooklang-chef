@@ -264,9 +264,7 @@ pub fn global_load<T: DeserializeOwned + Serialize + Default>(name: &str) -> Res
             toml::from_str(&content).context("Bad TOML data")
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            let val = T::default();
-            store_at_path(path, &val)?;
-            Ok(val)
+            Ok(T::default())
         }
         Err(e) => Err(e).context("Failed to load config file"),
     }
