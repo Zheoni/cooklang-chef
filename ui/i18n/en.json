@@ -58,10 +58,6 @@
             "fromSect": "from section {{ sect }}"
         }
     },
-    "outcome": {
-        "error": "Error scaling",
-        "fixed": "This values does not scale"
-    },
     "error": {
         "parse": "Error parsing recipe"
     },

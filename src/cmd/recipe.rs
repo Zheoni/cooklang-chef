@@ -103,12 +103,11 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
 
     let input = args.read(&ctx.recipe_index)?;
 
-    let recipe = input.parse(ctx)?;
+    let mut recipe = input.parse(ctx)?;
 
-    let mut scaled_recipe = if let Some(scale) = args.values.scale {
-        recipe.scale(scale, ctx.parser()?.converter())
-    } else {
-        recipe.default_scale()
+    if let Some(scale) = args.values.scale {
+        let conv = ctx.parser()?.converter();
+        recipe.scale_to_servings(scale, conv)?;
     };
 
     if let Some(system) = args.values.convert {
@@ -116,7 +115,7 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
             System::Metric => cooklang::convert::System::Metric,
             System::Imperial => cooklang::convert::System::Imperial,
         };
-        let _ = scaled_recipe.convert(to, ctx.parser()?.converter());
+        let _ = recipe.convert(to, ctx.parser()?.converter());
     }
 
     let format = args.format.unwrap_or_else(|| match &args.output {
@@ -129,29 +128,26 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
         None => OutputFormat::Human,
     });
 
-    let name = match meta_name(&scaled_recipe.metadata) {
+    let name = match meta_name(&recipe.metadata) {
         Some(n) => n,
         None => input.name()?,
     };
 
     write_to_output(args.output.as_deref(), |mut writer| {
         match format {
-            OutputFormat::Human => cooklang_to_human::print_human(
-                &scaled_recipe,
-                name,
-                ctx.parser()?.converter(),
-                writer,
-            )?,
+            OutputFormat::Human => {
+                cooklang_to_human::print_human(&recipe, name, ctx.parser()?.converter(), writer)?
+            }
             OutputFormat::Json => {
                 #[derive(serde::Serialize)]
                 struct JsonRecipe<'a> {
                     name: &'a str,
                     #[serde(flatten)]
-                    recipe: &'a cooklang::ScaledRecipe,
+                    recipe: &'a cooklang::Recipe,
                 }
 
                 let recipe = JsonRecipe {
-                    recipe: &scaled_recipe,
+                    recipe: &recipe,
                     name,
                 };
 
@@ -161,15 +157,15 @@ pub fn run(ctx: &Context, args: ReadArgs) -> Result<()> {
                     serde_json::to_writer(writer, &recipe)?;
                 }
             }
-            OutputFormat::Cooklang => cooklang_to_cooklang::print_cooklang(&scaled_recipe, writer)?,
+            OutputFormat::Cooklang => cooklang_to_cooklang::print_cooklang(&recipe, writer)?,
             OutputFormat::Markdown => cooklang_to_md::print_md_with_options(
-                &scaled_recipe,
+                &recipe,
                 name,
                 &ctx.config.export.markdown,
                 ctx.parser()?.converter(),
                 writer,
             )?,
-            OutputFormat::Debug => write!(writer, "{scaled_recipe:?}")?,
+            OutputFormat::Debug => write!(writer, "{recipe:?}")?,
         }
 
         Ok(())

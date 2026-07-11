@@ -6,7 +6,7 @@ use camino::Utf8Path;
 use cooklang::{
     analysis::{CheckOptions, CheckResult},
     metadata::CooklangValueExt,
-    Metadata, ScalableRecipe,
+    Metadata, Recipe,
 };
 use cooklang_fs::{RecipeContent, RecipeEntry};
 
@@ -40,7 +40,7 @@ where
     Ok(())
 }
 
-pub fn map_recipe(mut r: ScalableRecipe) -> ScalableRecipe {
+pub fn map_recipe(mut r: Recipe) -> Recipe {
     if let Some(emoji_str) = r
         .metadata
         .get("emoji")
@@ -64,7 +64,7 @@ pub enum Input {
 }
 
 impl Input {
-    pub fn parse(&self, ctx: &Context) -> Result<cooklang::ScalableRecipe> {
+    pub fn parse(&self, ctx: &Context) -> Result<cooklang::Recipe> {
         self.parse_result(ctx)
             .and_then(|r| unwrap_recipe(r, self.file_name(), self.text()?.as_ref(), ctx))
     }
@@ -121,7 +121,7 @@ pub fn unwrap_recipe(
     file_name: &str,
     text: &str,
     ctx: &Context,
-) -> Result<cooklang::ScalableRecipe> {
+) -> Result<Recipe> {
     if !r.is_valid() || ctx.global_args.warnings_as_errors && r.report().has_warnings() {
         let mut report = r.into_report();
         if ctx.global_args.ignore_warnings {

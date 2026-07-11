@@ -11,8 +11,7 @@ use cooklang::{
     metadata::CooklangValueExt,
     model::{Ingredient, IngredientReferenceTarget, Item},
     quantity::Quantity,
-    scale::ScaleOutcome,
-    ScaledRecipe, Section, Step,
+    Recipe, Section, Step,
 };
 use std::fmt::Write;
 use tabular::{Row, Table};
@@ -25,7 +24,7 @@ pub use style::{set_styles, CookStyles};
 pub type Result<T = ()> = std::result::Result<T, io::Error>;
 
 pub fn print_human(
-    recipe: &ScaledRecipe,
+    recipe: &Recipe,
     name: &str,
     converter: &Converter,
     mut writer: impl std::io::Write,
@@ -35,13 +34,13 @@ pub fn print_human(
     header(w, recipe, name)?;
     metadata(w, recipe, converter)?;
     ingredients(w, recipe, converter)?;
-    cookware(w, recipe)?;
+    cookware(w, recipe, converter)?;
     steps(w, recipe)?;
 
     Ok(())
 }
 
-fn header(w: &mut impl io::Write, recipe: &ScaledRecipe, name: &str) -> Result {
+fn header(w: &mut impl io::Write, recipe: &Recipe, name: &str) -> Result {
     let title_text = format!(
         " {}{} ",
         recipe
@@ -84,7 +83,7 @@ fn tag_color(tag: &str) -> yansi::Color {
     }
 }
 
-fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Converter) -> Result {
+fn metadata(w: &mut impl io::Write, recipe: &Recipe, converter: &Converter) -> Result {
     if let Some(desc) = recipe.metadata.description() {
         print_wrapped_with_options(w, desc, |o| {
             o.initial_indent("\u{2502} ").subsequent_indent("\u{2502}")
@@ -126,35 +125,7 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Converter
         }
     }
     if let Some(servings) = recipe.metadata.servings() {
-        let index = recipe
-            .scaled_data()
-            .and_then(|d| d.target.index())
-            .or_else(|| recipe.is_default_scaled().then_some(0));
-        let mut text = servings
-            .iter()
-            .enumerate()
-            .map(|(i, s)| {
-                if Some(i) == index {
-                    format!("[{s}]")
-                        .paint(styles().selected_servings)
-                        .to_string()
-                } else {
-                    s.to_string()
-                }
-            })
-            .reduce(|a, b| format!("{a}|{b}"))
-            .unwrap_or_default();
-        if let Some(data) = recipe.scaled_data() {
-            if data.target.index().is_none() {
-                text = format!(
-                    "{} {} {}",
-                    text.strike().dim(),
-                    "\u{2192}".red(),
-                    data.target.target_servings().red()
-                );
-            }
-        }
-        meta_fmt("servings", &text)?;
+        meta_fmt("servings", &servings.to_string())?;
     }
     for (key, value) in recipe.metadata.map.iter().filter_map(|(key, value)| {
         let key = key.as_str_like()?;
@@ -174,43 +145,21 @@ fn metadata(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Converter
     Ok(())
 }
 
-fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Converter) -> Result {
+fn ingredients(w: &mut impl io::Write, recipe: &Recipe, converter: &Converter) -> Result {
     if recipe.ingredients.is_empty() {
         return Ok(());
     }
     writeln!(w, "Ingredients:")?;
     let mut table = Table::new("  {:<} {:<}    {:<} {:<}");
-    let mut there_is_fixed = false;
-    let mut there_is_err = false;
-    let trinagle = " \u{26a0}";
-    let octagon = " \u{2BC3}";
     for entry in recipe.group_ingredients(converter) {
         let GroupedIngredient {
             ingredient: igr,
             quantity,
-            outcome,
             ..
         } = entry;
         if !igr.modifiers().should_be_listed() {
             continue;
         }
-        let mut is_fixed = false;
-        let mut is_err = false;
-        let (outcome_style, outcome_char) = outcome
-            .map(|outcome| match outcome {
-                ScaleOutcome::Fixed => {
-                    there_is_fixed = true;
-                    is_fixed = true;
-                    (yansi::Style::new().yellow(), trinagle)
-                }
-                ScaleOutcome::Error(_) => {
-                    there_is_err = true;
-                    is_err = true;
-                    (yansi::Style::new().red(), octagon)
-                }
-                ScaleOutcome::Scaled | ScaleOutcome::NoQuantity => (yansi::Style::new(), ""),
-            })
-            .unwrap_or_default();
         let mut row = Row::new().with_cell(igr.display_name());
         if igr.modifiers().is_optional() {
             row.add_ansi_cell("(optional)".paint(styles().opt_marker));
@@ -219,10 +168,10 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
         }
         let content = quantity
             .iter()
-            .map(|q| quantity_fmt(q).paint(outcome_style).to_string())
+            .map(|q| quantity_fmt(q).to_string())
             .reduce(|s, q| format!("{s}, {q}"))
             .unwrap_or_default();
-        row.add_ansi_cell(format!("{content}{}", outcome_char.paint(outcome_style)));
+        row.add_ansi_cell(content);
 
         if let Some(note) = &igr.note {
             row.add_cell(format!("({note})"));
@@ -232,23 +181,10 @@ fn ingredients(w: &mut impl io::Write, recipe: &ScaledRecipe, converter: &Conver
         table.add_row(row);
     }
     write!(w, "{table}")?;
-    if there_is_fixed || there_is_err {
-        writeln!(w)?;
-        if there_is_fixed {
-            write!(w, "{} {}", trinagle.trim().yellow(), "fixed value".yellow())?;
-        }
-        if there_is_err {
-            if there_is_fixed {
-                write!(w, " | ")?;
-            }
-            write!(w, "{} {}", octagon.trim().red(), "error scaling".red())?;
-        }
-        writeln!(w)?;
-    }
     writeln!(w)
 }
 
-fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
+fn cookware(w: &mut impl io::Write, recipe: &Recipe, converter: &Converter) -> Result {
     if recipe.cookware.is_empty() {
         return Ok(());
     }
@@ -267,7 +203,7 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
             },
         );
 
-        let amount = item.group_amounts(&recipe.cookware);
+        let amount = item.group_quantities(&recipe.cookware, converter);
         if amount.is_empty() {
             row.add_cell("");
         } else {
@@ -291,7 +227,7 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     Ok(())
 }
 
-fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
+fn steps(w: &mut impl io::Write, recipe: &Recipe) -> Result {
     writeln!(w, "Steps:")?;
     for (section_index, section) in recipe.sections.iter().enumerate() {
         if recipe.sections.len() > 1 {
@@ -336,7 +272,7 @@ fn steps(w: &mut impl io::Write, recipe: &ScaledRecipe) -> Result {
     Ok(())
 }
 
-fn step_text(recipe: &ScaledRecipe, section: &Section, step: &Step) -> (String, String) {
+fn step_text(recipe: &Recipe, section: &Section, step: &Step) -> (String, String) {
     let mut step_text = String::new();
 
     let step_igrs_dedup = build_step_igrs_dedup(step, recipe);
@@ -454,10 +390,7 @@ fn inter_ref_text(igr: &Ingredient, section: &Section) -> Option<String> {
     }
 }
 
-fn build_step_igrs_dedup<'a>(
-    step: &'a Step,
-    recipe: &'a ScaledRecipe,
-) -> HashMap<&'a str, Vec<usize>> {
+fn build_step_igrs_dedup<'a>(step: &'a Step, recipe: &'a Recipe) -> HashMap<&'a str, Vec<usize>> {
     // contain all ingredients used in the step (the names), the vec
     // contains the exact indices used
     let mut step_igrs_dedup: HashMap<&str, Vec<usize>> = HashMap::new();

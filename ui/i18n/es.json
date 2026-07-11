@@ -58,10 +58,6 @@
             "fromSect": "de la sección {{ sect }}"
         }
     },
-    "outcome": {
-        "error": "Error escalando",
-        "fixed": "Este valor no escala"
-    },
     "error": {
         "parse": "Error interpretando la receta"
     },

@@ -6,7 +6,7 @@ use cooklang::{
     convert::Converter,
     metadata::Metadata,
     model::{Item, Section, Step},
-    ScaledRecipe,
+    Recipe,
 };
 use serde::{Deserialize, Serialize};
 
@@ -183,7 +183,7 @@ where
 /// This is an alias for [`print_md_with_options`] where the options are the
 /// default value.
 pub fn print_md(
-    recipe: &ScaledRecipe,
+    recipe: &Recipe,
     name: &str,
     converter: &Converter,
     writer: impl io::Write,
@@ -200,7 +200,7 @@ pub fn print_md(
 /// The [`Options`] are used to further customize the output. See it's
 /// documentation to know about them.
 pub fn print_md_with_options(
-    recipe: &ScaledRecipe,
+    recipe: &Recipe,
     name: &str,
     opts: &Options,
     converter: &Converter,
@@ -240,7 +240,7 @@ pub fn print_md_with_options(
     }
 
     ingredients(&mut writer, recipe, converter, opts)?;
-    cookware(&mut writer, recipe, opts)?;
+    cookware(&mut writer, recipe, converter, opts)?;
     sections(&mut writer, recipe, opts)?;
 
     Ok(())
@@ -272,7 +272,7 @@ fn frontmatter(
 
 fn ingredients(
     w: &mut impl io::Write,
-    recipe: &ScaledRecipe,
+    recipe: &Recipe,
     converter: &Converter,
     opts: &Options,
 ) -> Result {
@@ -314,20 +314,25 @@ fn ingredients(
     Ok(())
 }
 
-fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Result {
+fn cookware(
+    w: &mut impl io::Write,
+    recipe: &Recipe,
+    converter: &Converter,
+    opts: &Options,
+) -> Result {
     if recipe.cookware.is_empty() {
         return Ok(());
     }
 
     writeln!(w, "## {}\n", opts.heading.cookware)?;
-    for item in recipe.group_cookware() {
+    for item in recipe.group_cookware(converter) {
         let cw = item.cookware;
         write!(w, "- ")?;
-        if !item.amount.is_empty() {
+        if !item.quantity.is_empty() {
             if opts.italic_amounts {
-                write!(w, "*{} * ", item.amount)?;
+                write!(w, "*{} * ", item.quantity)?;
             } else {
-                write!(w, "{} ", item.amount)?;
+                write!(w, "{} ", item.quantity)?;
             }
         }
         write!(w, "{}", cw.display_name())?;
@@ -346,7 +351,7 @@ fn cookware(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Re
     Ok(())
 }
 
-fn sections(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Result<()> {
+fn sections(w: &mut impl io::Write, recipe: &Recipe, opts: &Options) -> Result<()> {
     writeln!(w, "## {}\n", opts.heading.steps)?;
     for (idx, section) in recipe.sections.iter().enumerate() {
         w_section(w, section, recipe, idx + 1, opts)?;
@@ -357,7 +362,7 @@ fn sections(w: &mut impl io::Write, recipe: &ScaledRecipe, opts: &Options) -> Re
 fn w_section(
     w: &mut impl io::Write,
     section: &Section,
-    recipe: &ScaledRecipe,
+    recipe: &Recipe,
     num: usize,
     opts: &Options,
 ) -> Result {
@@ -379,7 +384,7 @@ fn w_section(
     Ok(())
 }
 
-fn w_step(w: &mut impl io::Write, step: &Step, recipe: &ScaledRecipe, opts: &Options) -> Result {
+fn w_step(w: &mut impl io::Write, step: &Step, recipe: &Recipe, opts: &Options) -> Result {
     let mut step_str = step.number.to_string();
     if opts.escape_step_numbers {
         step_str.push_str("\\. ")

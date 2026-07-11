@@ -58,10 +58,6 @@
             "fromSect": "de la section {{ sect }}"
         }
     },
-    "outcome": {
-        "error": "Erreur d'échelonnement",
-        "fixed": "Cette valeur ne s'échelonne pas"
-    },
     "error": {
         "parse": "Erreur de lecture de la recette"
     },

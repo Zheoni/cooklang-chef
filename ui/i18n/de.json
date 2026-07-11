@@ -58,10 +58,6 @@
             "fromSect": "aus Abschnitt {{ sect }}"
         }
     },
-    "outcome": {
-        "error": "Fehler beim Umrechnen",
-        "fixed": "Dieser Wert lässt sich nicht umrechnen"
-    },
     "error": {
         "parse": "Fehler beim Verarbeiten des Rezepts"
     },

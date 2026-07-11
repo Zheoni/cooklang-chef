@@ -8,7 +8,7 @@ use axum::{
 use camino::Utf8Path;
 use cooklang::{
     convert::PhysicalQuantity, error::SourceReport, metadata::CooklangValueExt, Converter,
-    Modifiers, ParseOptions, ScaledRecipe,
+    Modifiers, ParseOptions, Recipe,
 };
 use minijinja::{context, Value};
 use serde::{Deserialize, Serialize};
@@ -78,17 +78,15 @@ pub async fn recipe(
     };
 
     match res {
-        Ok((scalable, warnings)) => {
+        Ok((mut recipe, warnings)) => {
             let scaled = {
-                let mut r = if let Some(servings) = query.scale {
-                    scalable.scale(servings, state.parser.converter())
-                } else {
-                    scalable.default_scale()
-                };
-                if let Some(target) = units {
-                    let _ = r.convert(target, state.parser.converter());
+                if let Some(servings) = query.scale {
+                    let _ = recipe.scale_to_servings(servings, state.parser.converter());
                 }
-                r
+                if let Some(target) = units {
+                    let _ = recipe.convert(target, state.parser.converter());
+                }
+                recipe
             };
 
             let report_html = if warnings.is_empty() {
@@ -188,14 +186,13 @@ pub async fn recipe(
     }
 }
 
-fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) -> Value {
+fn make_recipe_context(r: Recipe, converter: &Converter, config: &Config) -> Value {
     let grouped_ingredients = r
         .group_ingredients(converter)
         .into_iter()
         .map(|entry| {
             context! {
                 index => entry.index,
-                outcome => entry.outcome,
                 quantities => entry.quantity.iter().map(|q| context! {
                     value => q.value(),
                     unit => q.unit()
@@ -205,12 +202,12 @@ fn make_recipe_context(r: ScaledRecipe, converter: &Converter, config: &Config) 
         .collect::<Value>();
 
     let grouped_cookware = r
-        .group_cookware()
+        .group_cookware(converter)
         .into_iter()
         .map(|entry| {
             context! {
                 index => entry.index,
-                amounts => entry.amount.iter().map(Value::from_serialize).collect::<Value>()
+                amounts => &entry.quantity.iter().map(Value::from_serialize).collect::<Value>()
             }
         })
         .collect::<Value>();
@@ -279,7 +276,7 @@ macro_rules! mj_opt {
 }
 
 #[derive(Debug)]
-struct TemplateIngredient(cooklang::Ingredient<cooklang::Value>);
+struct TemplateIngredient(cooklang::Ingredient);
 
 impl minijinja::value::Object for TemplateIngredient {
     fn get_value(self: &std::sync::Arc<Self>, key: &Value) -> Option<Value> {
@@ -301,7 +298,7 @@ impl minijinja::value::Object for TemplateIngredient {
 }
 
 #[derive(Debug)]
-struct TemplateCookware(cooklang::Cookware<cooklang::Value>);
+struct TemplateCookware(cooklang::Cookware);
 
 impl minijinja::value::Object for TemplateCookware {
     fn get_value(self: &std::sync::Arc<Self>, key: &Value) -> Option<Value> {
@@ -375,21 +372,20 @@ pub fn step_ingredients(
     items: Vec<Value>,
     ingredients: Vec<Value>,
 ) -> Result<Value, minijinja::Error> {
-    let get_igr =
-        |index: usize| -> Result<&cooklang::Ingredient<cooklang::Value>, minijinja::Error> {
-            ingredients
-                .get(index)
-                .ok_or(minijinja::Error::new(
-                    minijinja::ErrorKind::UndefinedError,
-                    "undefined ingredient by index",
-                ))?
-                .downcast_object_ref::<TemplateIngredient>()
-                .ok_or(minijinja::Error::new(
-                    minijinja::ErrorKind::InvalidOperation,
-                    "ingrediens not TemplateIngredient",
-                ))
-                .map(|i| &i.0)
-        };
+    let get_igr = |index: usize| -> Result<&cooklang::Ingredient, minijinja::Error> {
+        ingredients
+            .get(index)
+            .ok_or(minijinja::Error::new(
+                minijinja::ErrorKind::UndefinedError,
+                "undefined ingredient by index",
+            ))?
+            .downcast_object_ref::<TemplateIngredient>()
+            .ok_or(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                "ingrediens not TemplateIngredient",
+            ))
+            .map(|i| &i.0)
+    };
 
     let mut dedup = HashMap::<String, Vec<usize>>::new();
     for item in &items {

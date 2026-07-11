@@ -6,15 +6,12 @@ use cooklang::{
     metadata::{CooklangValueExt, Metadata},
     model::{Item, Section, Step},
     parser::{IntermediateData, Modifiers},
-    quantity::{Quantity, QuantityValue},
+    quantity::Quantity,
     IngredientReferenceTarget, Recipe,
 };
 use regex::Regex;
 
-pub fn print_cooklang<D, V: QuantityValue>(
-    recipe: &Recipe<D, V>,
-    mut writer: impl io::Write,
-) -> io::Result<()> {
+pub fn print_cooklang(recipe: &Recipe, mut writer: impl io::Write) -> io::Result<()> {
     let w = &mut writer;
 
     metadata(w, &recipe.metadata)?;
@@ -38,17 +35,17 @@ fn metadata(w: &mut impl io::Write, metadata: &Metadata) -> io::Result<()> {
     Ok(())
 }
 
-fn sections<D, V: QuantityValue>(w: &mut impl io::Write, recipe: &Recipe<D, V>) -> io::Result<()> {
+fn sections(w: &mut impl io::Write, recipe: &Recipe) -> io::Result<()> {
     for (index, section) in recipe.sections.iter().enumerate() {
         w_section(w, section, recipe, index)?;
     }
     Ok(())
 }
 
-fn w_section<D, V: QuantityValue>(
+fn w_section(
     w: &mut impl io::Write,
     section: &Section,
-    recipe: &Recipe<D, V>,
+    recipe: &Recipe,
     index: usize,
 ) -> io::Result<()> {
     if let Some(name) = &section.name {
@@ -66,11 +63,7 @@ fn w_section<D, V: QuantityValue>(
     Ok(())
 }
 
-fn w_step<D, V: QuantityValue>(
-    w: &mut impl io::Write,
-    step: &Step,
-    recipe: &Recipe<D, V>,
-) -> io::Result<()> {
+fn w_step(w: &mut impl io::Write, step: &Step, recipe: &Recipe) -> io::Result<()> {
     let mut step_str = String::new();
     for item in &step.items {
         match item {
@@ -102,7 +95,7 @@ fn w_step<D, V: QuantityValue>(
                     intermediate_data: None,
                     name: Some(&cw.name),
                     alias: cw.alias.as_deref(),
-                    quantity: cw.quantity.clone().map(|v| Quantity::new(v, None)).as_ref(),
+                    quantity: cw.quantity.as_ref(),
                     note: None,
                 }
                 .format(&mut step_str)
@@ -181,13 +174,13 @@ fn component_word_separator<'a>(
     Box::new(words.into_iter())
 }
 
-struct ComponentFormatter<'a, V: QuantityValue> {
+struct ComponentFormatter<'a> {
     kind: ComponentKind,
     modifiers: Modifiers,
     intermediate_data: Option<IntermediateData>,
     name: Option<&'a str>,
     alias: Option<&'a str>,
-    quantity: Option<&'a Quantity<V>>,
+    quantity: Option<&'a Quantity>,
     note: Option<&'a str>,
 }
 
@@ -197,7 +190,7 @@ enum ComponentKind {
     Timer,
 }
 
-impl<'a, V: QuantityValue> ComponentFormatter<'a, V> {
+impl<'a> ComponentFormatter<'a> {
     fn format(self, w: &mut String) {
         w.push(match self.kind {
             ComponentKind::Ingredient => '@',

@@ -58,7 +58,6 @@ macro_rules! color {
 generate_styles_struct! {
     pub title: Style             = Style::new().fg_color(color!(White)).bg_color(color!(Magenta)).bold(),
     pub meta_key: Style          = Style::new().fg_color(color!(BrightGreen)).bold(),
-    pub selected_servings: Style = Style::new().fg_color(color!(Yellow)).bold(),
     pub ingredient: Style        = Style::new().fg_color(color!(Green)),
     pub cookware: Style          = Style::new().fg_color(color!(Yellow)),
     pub timer: Style             = Style::new().fg_color(color!(Cyan)),

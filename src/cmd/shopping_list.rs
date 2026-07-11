@@ -5,7 +5,6 @@ use cooklang::{
     aisle::AisleConf,
     ingredient_list::IngredientList,
     quantity::{GroupedQuantity, Quantity},
-    ScaledQuantity,
 };
 use serde::Serialize;
 
@@ -139,17 +138,15 @@ fn extract_ingredients(entry: &str, list: &mut IngredientList, ctx: &Context) ->
             override_name: None,
         }
     };
-    let recipe = input.parse(ctx)?;
+    let mut recipe = input.parse(ctx)?;
 
     // Scale
-    let recipe = if let Some(servings) = servings {
-        recipe.scale(servings, converter)
-    } else {
-        recipe.default_scale()
-    };
+    if let Some(servings) = servings {
+        let _ = recipe.scale_to_servings(servings, converter);
+    }
 
     // Add ingredients to the list
-    list.add_recipe(&recipe, converter);
+    list.add_recipe(&recipe, converter, true);
 
     Ok(())
 }
@@ -205,7 +202,7 @@ fn build_json_value<'a>(
     #[derive(Serialize)]
     struct Ingredient {
         name: String,
-        quantity: Vec<ScaledQuantity>,
+        quantity: Vec<Quantity>,
     }
     impl From<(String, GroupedQuantity)> for Ingredient {
         fn from((name, qty): (String, GroupedQuantity)) -> Self {

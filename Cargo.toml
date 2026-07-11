@@ -84,7 +84,7 @@ members = ["cooklang-fs", "cooklang-to-cooklang", "cooklang-to-human", "cooklang
 repository = "https://github.com/Zheoni/cooklang-chef"
 
 [workspace.dependencies]
-cooklang = "0.15"
+cooklang = "0.18.7"
 textwrap = "0.16"
 yansi = "1.0.1"
 

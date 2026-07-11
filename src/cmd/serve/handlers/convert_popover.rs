@@ -4,7 +4,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
     Json,
 };
-use cooklang::ScaledQuantity;
+use cooklang::Quantity;
 use minijinja::context;
 
 use crate::cmd::serve::{locale::UserLocale, S};
@@ -15,7 +15,7 @@ pub async fn convert_popover(
     UserLocale(t): UserLocale,
     State(state): State<S>,
     headers: HeaderMap,
-    Json(quantity): Json<ScaledQuantity>,
+    Json(quantity): Json<Quantity>,
 ) -> Response {
     let converter = state.parser.converter();
 
