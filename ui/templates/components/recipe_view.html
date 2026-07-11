@@ -88,7 +88,7 @@
       <input
         id="custom-scale"
         name="scale"
-        value="{{ query.scale|or_else(r.meta.servings|or_else([])|first) }}"
+        value="{{ query.scale|or_else(r.meta.servings|or_else(1)) }}"
         class="-my-0.5 h-7 w-14 rounded border border-base-2 p-1 tabular-nums"
         type="number"
         min="1"
@@ -97,24 +97,6 @@
         pattern="[0-9]*"
       />
     </form>
-    {% if r.meta.servings and r.meta.servings is not empty %}
-      <div class="flex divide-x-2 divide-base-7">
-        {% for serving in r.meta.servings %}
-          {% set is_selected = (query.scale is none and loop.first) or (query.scale == serving) %}
-          {% set query_str = "?" ~ {'scale': serving, 'units': query.units}|select_value|urlencode if not loop.first else '' %}
-          <div class="px-2">
-            <a
-              href="/r/{{ src_path|replace('.cook', '') }}{{ query_str }}"
-              class="{{ 'border-primary-7' if is_selected else 'border-transparent' }}
-                    h-fit rounded border-2 px-1.5 decoration-2"
-              hx-swap="show:none"
-            >
-              {{ serving }}
-            </a>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
   {% endcall %}
 {% endset %}
 
@@ -303,7 +285,7 @@
                         class="text-red-11 underline decoration-wavy"
                       {% endif %}
                     >
-                      {{ display_name }}
+                      {{- display_name -}}
                     </a>
                   {%- else -%}
                     {{- display_name -}}
@@ -360,7 +342,7 @@
                   :
                   <span class="text-base-11">
                     {% for amnt in e.amounts %}
-                      {{ value_format(amnt) }}
+                      {{ qty_format(amnt) }}
                       {{ ', ' if not loop.last }}
                     {% endfor %}
                   </span>
@@ -530,10 +512,10 @@
                                   class="text-red-11 underline decoration-wavy"
                                 {% endif %}
                               >
-                                {{ igr.display_name }}
+                                {{- igr.display_name -}}
                               </a>
                             {%- else -%}
-                              {{ igr.display_name }}
+                              {{- igr.display_name -}}
                             {%- endif -%}
                             {%- if data.subscript is not none -%}
                               <sub>{{ data.subscript }}</sub>
