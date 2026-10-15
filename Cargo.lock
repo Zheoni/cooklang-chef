@@ -299,9 +299,9 @@ checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
 name = "colorchoice-clap"
-version = "1.0.7"
+version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ff31f4fe290e780fe3bbec6b2eb9dbfdccd1630e79a104c221d99243de81493"
+checksum = "cb349f1be51d537c77d89ba5d1ba4344385175446eb01dacde8e1eace4094226"
 dependencies = [
  "clap",
  "colorchoice",
