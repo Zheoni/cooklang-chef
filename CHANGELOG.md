@@ -2,6 +2,11 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.11.0 - 2026/11/01
+
+- Updated cooklang parser and other dependencies
+- Don't write default config automatically ( #64 )
+
 ## 0.10.3 - 2025/11/30
 
 - Follow symbolic links when scanning recipes directory ( #59 )
