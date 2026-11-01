@@ -9,6 +9,9 @@ A CLI to manage [cooklang](https://cooklang.org/) recipes with extensions.
 > `0.15.x` will be the last versions of `cooklang-fs`, `cooklang-to-cooklang`
 > `cooklang-to-human` and `cooklang-to-md` published on `crates.io`.
 
+> The development of my cooking utility has now moved to https://codeberg.org/Zheoni/flan-oven
+> and `chef` has been archived.
+
 ## What is cooklang
 Cooklang is a markup language for cooking recipes. An in depth explanation can
 be found in [cooklang.org](https://cooklang.org/).
