@@ -315,7 +315,7 @@ checksum = "fa816a0452383c8d2bdab659df49c3ca0c86a0ca85699587bcb878d4ba174ebf"
 dependencies = [
  "bitflags 2.10.0",
  "codesnake",
- "enum-map",
+ "enum-map 2.7.3",
  "finl_unicode",
  "indexmap",
  "prettyplease",
@@ -354,7 +354,7 @@ dependencies = [
  "cooklang-to-md",
  "directories",
  "emojis",
- "enum-map",
+ "enum-map 3.1.0",
  "futures",
  "inquire",
  "mime_guess",
@@ -544,8 +544,17 @@ version = "2.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6866f3bfdf8207509a033af1a75a7b08abda06bbaaeae6669323fd5a097df2e9"
 dependencies = [
- "enum-map-derive",
+ "enum-map-derive 0.17.0",
  "serde",
+]
+
+[[package]]
+name = "enum-map"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4532960034c15ba2f55e9eee631040ecc473c32e6c4b200828c759840f13a06"
+dependencies = [
+ "enum-map-derive 1.0.1",
 ]
 
 [[package]]
@@ -557,6 +566,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.111",
+]
+
+[[package]]
+name = "enum-map-derive"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7127272f64b3e098f7d81f350d672081b879bff896d219c42370dc858b1af9ff"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -1338,18 +1358,18 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.103"
+version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ee95bc4ef87b8d5ba32e8b7714ccc834865276eab0aed5c9958d00ec45f49e8"
+checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
 ]
 
 [[package]]
 name = "quote"
-version = "1.0.42"
+version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a338cc41d27e6cc6dce6cefc13a0729dfbb81c262b1f519331575dd80ef3067f"
+checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
